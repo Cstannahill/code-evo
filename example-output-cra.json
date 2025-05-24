@@ -1,0 +1,169 @@
+{
+  "repository_id": "c92fdf38-e709-4bc6-a479-2d3abb4008b2",
+  "status": "completed",
+  "analysis_session": {
+    "id": "6c7eed23-10c7-4586-a94e-ded04166badb",
+    "status": "completed",
+    "commits_analyzed": 50,
+    "patterns_found": 10,
+    "started_at": "2025-05-24T07:19:24.548209",
+    "completed_at": "2025-05-24T07:19:44.123593"
+  },
+  "technologies": {
+    "language": [
+      {
+        "name": "JSON",
+        "first_seen": "2017-10-28T22:13:02",
+        "usage_count": 42
+      },
+      {
+        "name": "Markdown",
+        "first_seen": "2017-10-28T22:13:02",
+        "usage_count": 75
+      },
+      {
+        "name": "YAML",
+        "first_seen": "2017-10-28T22:13:02",
+        "usage_count": 7
+      },
+      {
+        "name": "JavaScript",
+        "first_seen": "2017-10-28T22:13:02",
+        "usage_count": 268
+      },
+      {
+        "name": "TypeScript",
+        "first_seen": "2017-10-28T22:13:02",
+        "usage_count": 10
+      },
+      {
+        "name": "CSS",
+        "first_seen": "2017-10-28T22:13:02",
+        "usage_count": 12
+      },
+      {
+        "name": "HTML",
+        "first_seen": "2017-10-28T22:13:02",
+        "usage_count": 4
+      },
+      {
+        "name": "React TypeScript",
+        "first_seen": "2017-10-28T22:13:02",
+        "usage_count": 7
+      },
+      {
+        "name": "SCSS",
+        "first_seen": "2017-10-28T22:13:02",
+        "usage_count": 5
+      }
+    ],
+    "framework": [
+      {
+        "name": "React",
+        "first_seen": "2017-10-28T22:13:02",
+        "usage_count": 1
+      }
+    ],
+    "tool": [
+      {
+        "name": "Webpack",
+        "first_seen": "2017-10-28T22:13:02",
+        "usage_count": 1
+      },
+      {
+        "name": "Jest",
+        "first_seen": "2017-10-28T22:13:02",
+        "usage_count": 1
+      }
+    ]
+  },
+  "patterns": [
+    {
+      "pattern_name": "useState",
+      "file_path": "docusaurus/website/src/pages/index.js",
+      "confidence_score": 0.8,
+      "detected_at": "2025-05-24T07:19:36.470262"
+    },
+    {
+      "pattern_name": "class components",
+      "file_path": "docusaurus/website/src/pages/index.js",
+      "confidence_score": 0.8,
+      "detected_at": "2025-05-24T07:19:36.476560"
+    },
+    {
+      "pattern_name": "javascript_es6",
+      "file_path": "docusaurus/website/src/pages/index.js",
+      "confidence_score": 0.8,
+      "detected_at": "2025-05-24T07:19:36.476564"
+    },
+    {
+      "pattern_name": "useEffect",
+      "file_path": "docusaurus/website/src/pages/index.js",
+      "confidence_score": 0.8,
+      "detected_at": "2025-05-24T07:19:40.495949"
+    },
+    {
+      "pattern_name": "async_await",
+      "file_path": "packages/create-react-app/createReactApp.js",
+      "confidence_score": 0.8,
+      "detected_at": "2025-05-24T07:19:40.495954"
+    },
+    {
+      "pattern_name": "react_hooks",
+      "file_path": "packages/create-react-app/createReactApp.js",
+      "confidence_score": 0.8,
+      "detected_at": "2025-05-24T07:19:40.495958"
+    },
+    {
+      "pattern_name": "async_await",
+      "file_path": "packages/create-react-app/createReactApp.js",
+      "confidence_score": 0.8,
+      "detected_at": "2025-05-24T07:19:40.495961"
+    },
+    {
+      "pattern_name": "prompts",
+      "file_path": "packages/create-react-app/createReactApp.js",
+      "confidence_score": 0.8,
+      "detected_at": "2025-05-24T07:19:44.072960"
+    },
+    {
+      "pattern_name": "react_hooks",
+      "file_path": "packages/create-react-app/createReactApp.js",
+      "confidence_score": 0.8,
+      "detected_at": "2025-05-24T07:19:44.072965"
+    },
+    {
+      "pattern_name": "javascript_es6",
+      "file_path": "packages/react-scripts/fixtures/kitchensink/template/src/features/config/BaseUrl.test.js",
+      "confidence_score": 0.8,
+      "detected_at": "2025-05-24T07:19:44.072969"
+    }
+  ],
+  "insights": [
+    {
+      "type": "info",
+      "title": "Repository Analysis Complete",
+      "description": "Successfully analyzed 50 commits, detected 9 programming languages, and found 10 code patterns.",
+      "data": {
+        "technologies": {
+          "languages": {
+            "JSON": 42,
+            "Markdown": 75,
+            "YAML": 7,
+            "JavaScript": 268,
+            "TypeScript": 10,
+            "CSS": 12,
+            "HTML": 4,
+            "React TypeScript": 7,
+            "SCSS": 5
+          },
+          "frameworks": ["React"],
+          "libraries": [],
+          "tools": ["Webpack", "Jest"]
+        },
+        "patterns_detected": 10,
+        "commits_analyzed": 50
+      }
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+# pnpm-workspace.yaml (in project root)
+packages:
+  - "frontend"
+  - "backend"
