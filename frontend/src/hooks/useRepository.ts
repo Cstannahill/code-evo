@@ -29,12 +29,22 @@ export const useRepository = (id: string | null) => {
     queryFn: () => (id ? apiClient.getRepository(id) : null),
     enabled: !!id,
     refetchInterval: (query) => {
-      // Poll while analyzing
-      if (query.data?.status === "analyzing") {
-        return 5000; // 5 seconds
+      // Only poll while analyzing - stop when completed, failed, or pending
+      const status = query?.state?.data?.status;
+      console.log("🔍 Polling check - Repository status:", status);
+
+      if (status === "analyzing") {
+        console.log("⏰ Continuing to poll (analyzing)");
+        return 3000; // Poll every 3 seconds
       }
-      return false;
+
+      console.log("✋ Stopping poll - status:", status);
+      return false; // Stop polling
     },
+    // Also enable refetching when window focuses to catch any missed updates
+    refetchOnWindowFocus: true,
+    // Keep data for 30 seconds to avoid unnecessary refetches
+    staleTime: 30000,
   });
 };
 
@@ -42,5 +52,8 @@ export const useRepositories = () => {
   return useQuery({
     queryKey: ["repositories"],
     queryFn: () => apiClient.getRepositories(),
+    // Refetch repositories list when window focuses to get latest status
+    refetchOnWindowFocus: true,
+    staleTime: 10000, // 10 seconds
   });
 };

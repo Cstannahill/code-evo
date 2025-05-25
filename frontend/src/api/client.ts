@@ -1,172 +1,190 @@
-import axios from "axios";
-import axiosRetry from "axios-retry";
+import axios, { type AxiosInstance, type AxiosResponse } from "axios";
 import type {
   Repository,
+  RepositoryCreate,
   RepositoryAnalysis,
   CodeAnalysisResult,
+  CodeAnalysisRequest,
+  TimelineResponse,
+  HealthResponse,
+  AIServiceStatus,
   Insight,
 } from "../types/api";
-import logger from "../lib/logger";
 
 class ApiClient {
-  private client: any; // Using any to bypass TypeScript axios typing issues
-  private requestIdCounter = 0;
+  private client: AxiosInstance;
 
   constructor() {
-    // Create axios instance with any type to avoid compilation issues
-    this.client = (axios as any).create({
+    this.client = axios.create({
       baseURL: import.meta.env.VITE_API_URL || "http://localhost:8080",
-      timeout: 30000,
+      timeout: 60000, // 60 seconds for analysis operations
       headers: {
         "Content-Type": "application/json",
       },
     });
 
-    // Add request interceptor for logging and correlation tracking
+    // Request interceptor for logging
     this.client.interceptors.request.use(
-      (config: any) => {
-        const requestId = `req_${Date.now()}_${++this.requestIdCounter}`;
+      (config) => {
+        const startTime = Date.now();
+        const requestId = Math.random().toString(36).substring(7);
+
         config.metadata = {
-          startTime: Date.now(),
+          startTime,
           requestId,
         };
 
-        // Add correlation ID to headers
-        config.headers["X-Correlation-ID"] = requestId;
-
-        // Log API request
-        logger.info("API Request Started", {
-          method: config.method?.toUpperCase() || "UNKNOWN",
-          url: config.url || "unknown",
-          requestId,
-          component: "ApiClient",
+        console.log(`🚀 API Request [${requestId}]:`, {
+          method: config.method?.toUpperCase(),
+          url: config.url,
+          data: config.data,
         });
 
         return config;
       },
-      (error: any) => {
-        logger.error("API Request Setup Error", {
-          phase: "request_setup",
-          component: "ApiClient",
-          error: error.message || "Unknown error",
-        });
+      (error) => {
+        console.error("❌ API Request Error:", error);
         return Promise.reject(error);
       }
     );
 
-    // Add retry logic with logging
-    axiosRetry(this.client, {
-      retries: 3,
-      retryDelay: axiosRetry.exponentialDelay,
-      retryCondition: (error) => {
-        const shouldRetry =
-          axiosRetry.isNetworkOrIdempotentRequestError(error) ||
-          error.response?.status === 429;
-
-        if (shouldRetry) {
-          logger.warn("API Request Retry Attempt", {
-            method: error.config?.method?.toUpperCase(),
-            url: error.config?.url,
-            status: error.response?.status,
-            attempt: error.config?.["axios-retry"]?.retryCount || 1,
-            component: "ApiClient",
-          });
-        }
-
-        return shouldRetry;
-      },
-    });
-
-    // Response interceptor for logging and error handling
+    // Response interceptor for logging
     this.client.interceptors.response.use(
-      (response: any) => {
-        const { startTime, requestId } = response.config.metadata || {};
-        const duration = startTime ? Date.now() - startTime : undefined;
+      (response) => {
+        const duration =
+          Date.now() - (response.config.metadata?.startTime || 0);
+        const requestId = response.config.metadata?.requestId;
 
-        // Log successful API response
-        logger.info("API Response Received", {
-          method: response.config.method?.toUpperCase() || "UNKNOWN",
-          url: response.config.url || "unknown",
-          statusCode: response.status,
-          duration,
-          requestId,
-          responseSize: JSON.stringify(response.data).length,
-          component: "ApiClient",
+        console.log(`✅ API Response [${requestId}]:`, {
+          status: response.status,
+          duration: `${duration}ms`,
+          data: response.data,
         });
 
         return response;
       },
-      (error: any) => {
-        const { startTime, requestId } = error.config?.metadata || {};
-        const duration = startTime ? Date.now() - startTime : undefined;
+      (error) => {
+        const duration = Date.now() - (error.config?.metadata?.startTime || 0);
+        const requestId = error.config?.metadata?.requestId;
 
-        // Log API error
-        logger.error("API Request Failed", {
-          method: error.config?.method?.toUpperCase() || "UNKNOWN",
-          url: error.config?.url || "unknown",
-          statusCode: error.response?.status,
-          duration,
-          requestId,
-          error: error.message,
-          component: "ApiClient",
+        console.error(`❌ API Error [${requestId}]:`, {
+          status: error.response?.status,
+          duration: `${duration}ms`,
+          message: error.message,
+          data: error.response?.data,
         });
 
-        if (error.response?.status === 401) {
-          logger.warn("Authentication error detected", {
-            requestId,
-            url: error.config?.url,
-            component: "ApiClient",
-          });
-          // Handle auth error
-        }
         return Promise.reject(error);
       }
     );
   }
 
   // Health check
-  async checkHealth() {
-    const response = await this.client.get("/health");
+  async checkHealth(): Promise<HealthResponse> {
+    const response: AxiosResponse<HealthResponse> = await this.client.get(
+      "/health"
+    );
     return response.data;
   }
 
-  // Repositories
-  async createRepository(data: { url: string; branch?: string }) {
-    const response = await this.client.post("/api/repositories", data);
-    return response.data as Repository;
+  // Connection test
+  async testConnection(): Promise<unknown> {
+    const response = await this.client.get("/api/connection-test");
+    return response.data;
   }
 
-  async getRepositories() {
-    const response = await this.client.get("/api/repositories");
-    return response.data as Repository[];
+  // AI service status
+  async getAnalysisStatus(): Promise<AIServiceStatus> {
+    const response: AxiosResponse<AIServiceStatus> = await this.client.get(
+      "/api/analysis/status"
+    );
+    return response.data;
   }
 
-  async getRepository(id: string) {
-    const response = await this.client.get(`/api/repositories/${id}`);
-    return response.data as Repository;
+  // Repository operations
+  async getRepositories(): Promise<Repository[]> {
+    const response: AxiosResponse<Repository[]> = await this.client.get(
+      "/api/repositories/"
+    );
+    return response.data;
   }
 
-  async getRepositoryAnalysis(id: string) {
-    const response = await this.client.get(`/api/repositories/${id}/analysis`);
-    return response.data as RepositoryAnalysis;
+  async getRepository(id: string): Promise<Repository> {
+    const response: AxiosResponse<Repository> = await this.client.get(
+      `/api/repositories/${id}`
+    );
+    return response.data;
   }
 
-  // Analysis
-  async getInsights(repoId: string) {
-    const response = await this.client.get(`/api/analysis/insights/${repoId}`);
-    return response.data as { insights: Insight[] };
+  async createRepository(data: RepositoryCreate): Promise<Repository> {
+    const response: AxiosResponse<Repository> = await this.client.post(
+      "/api/repositories/",
+      data
+    );
+    return response.data;
   }
 
-  async analyzeCode(code: string, language: string = "javascript") {
-    const response = await this.client.post("/api/analysis/code", {
-      code,
-      language,
-    });
-    return response.data as CodeAnalysisResult;
+  // Analysis operations
+  async getRepositoryAnalysis(repoId: string): Promise<RepositoryAnalysis> {
+    const response: AxiosResponse<RepositoryAnalysis> = await this.client.get(
+      `/api/repositories/${repoId}/analysis`
+    );
+    return response.data;
   }
 
-  async getAnalysisStatus() {
-    const response = await this.client.get("/api/analysis/status");
+  async getRepositoryTimeline(repoId: string): Promise<TimelineResponse> {
+    const response: AxiosResponse<TimelineResponse> = await this.client.get(
+      `/api/repositories/${repoId}/timeline`
+    );
+    return response.data;
+  }
+
+  async getInsights(repoId: string): Promise<{ insights: Insight[] }> {
+    const response: AxiosResponse<{ insights: Insight[] }> =
+      await this.client.get(`/api/analysis/insights/${repoId}`);
+    return response.data;
+  }
+
+  // Code analysis
+  async analyzeCode(request: CodeAnalysisRequest): Promise<CodeAnalysisResult> {
+    const response: AxiosResponse<CodeAnalysisResult> = await this.client.post(
+      "/api/analysis/code",
+      request
+    );
+    return response.data;
+  }
+
+  // Pattern operations
+  async getAllPatterns(): Promise<never[]> {
+    const response = await this.client.get("/api/analysis/patterns");
+    return response.data;
+  }
+
+  async getPatternDetails(patternName: string): Promise<any> {
+    const response = await this.client.get(
+      `/api/analysis/patterns/${patternName}`
+    );
+    return response.data;
+  }
+
+  // Evolution analysis
+  async analyzeEvolution(data: {
+    old_code: string;
+    new_code: string;
+    context?: string;
+  }): Promise<unknown> {
+    const response = await this.client.post("/api/analysis/evolution", data);
+    return response.data;
+  }
+
+  // Repository comparison
+  async compareRepositories(
+    repoId1: string,
+    repoId2: string
+  ): Promise<unknown> {
+    const response = await this.client.get(
+      `/api/analysis/compare/${repoId1}/${repoId2}`
+    );
     return response.data;
   }
 }

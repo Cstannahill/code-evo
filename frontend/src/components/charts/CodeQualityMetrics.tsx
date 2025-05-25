@@ -10,9 +10,10 @@ import {
   Zap,
   GitBranch,
 } from "lucide-react";
+import type { RepositoryAnalysis } from "../../types/api";
 
 interface CodeQualityMetricsProps {
-  analysis: any;
+  analysis: RepositoryAnalysis;
 }
 
 export const CodeQualityMetrics: React.FC<CodeQualityMetricsProps> = ({
@@ -20,11 +21,11 @@ export const CodeQualityMetrics: React.FC<CodeQualityMetricsProps> = ({
 }) => {
   // Calculate metrics from analysis data
   const metrics = React.useMemo(() => {
-    const totalPatterns = Object.keys(analysis.pattern_statistics).length;
-    const antipatterns = analysis.summary.antipatterns_detected;
-    const complexPatterns = Object.values(analysis.pattern_statistics).filter(
-      (p: any) => p.complexity_level === "advanced"
-    ).length;
+    const totalPatterns = Object.keys(analysis.pattern_statistics || {}).length;
+    const antipatterns = analysis.summary?.antipatterns_detected || 0;
+    const complexPatterns = Object.values(
+      analysis.pattern_statistics || {}
+    ).filter((p: any) => p.complexity_level === "advanced").length;
 
     return {
       codeQuality: Math.max(0, 100 - antipatterns * 10),
@@ -32,10 +33,11 @@ export const CodeQualityMetrics: React.FC<CodeQualityMetricsProps> = ({
       maintainability: Math.max(0, 100 - complexPatterns * 15),
       evolutionScore: Math.min(
         100,
-        analysis.pattern_timeline.timeline.length * 5
+        (analysis.pattern_timeline?.timeline?.length || 0) * 5
       ),
       techDebt: antipatterns * 20,
-      modernization: Object.values(analysis.technologies).flat().length * 8,
+      modernization:
+        Object.values(analysis.technologies || {}).flat().length * 8,
     };
   }, [analysis]);
 
@@ -116,7 +118,7 @@ export const CodeQualityMetrics: React.FC<CodeQualityMetricsProps> = ({
       />
       <MetricCard
         title="Modernization"
-        value={metrics.modernization}
+        value={Math.min(100, metrics.modernization)}
         icon={Zap}
         color="text-yellow-500"
         description="Modern tech adoption"

@@ -59,6 +59,7 @@ ollama pull nomic-embed-text
 ```
 
 This will:
+
 - Start Docker services (PostgreSQL, Redis, ChromaDB)
 - Set up Python virtual environment
 - Install all dependencies
@@ -97,7 +98,7 @@ This will:
                               │
                               ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   PostgreSQL    │    │     Redis       │    │    ChromaDB     │
+│     SQLITE      │    │     Redis       │    │    ChromaDB     │
 │   (Metadata)    │    │    (Cache)      │    │   (Vectors)     │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
@@ -108,12 +109,13 @@ This will:
 - **Backend (FastAPI)**: RESTful API with async processing and WebSocket support
 - **AI Layer (Ollama + LangChain)**: Local AI models for pattern detection and analysis
 - **Vector Database (ChromaDB)**: Stores code embeddings for similarity search
-- **PostgreSQL**: Stores metadata, relationships, and analysis results
+- **SQLite**: Stores metadata, relationships, and analysis results
 - **Redis**: Caching and background job queue
 
 ## 📊 What It Analyzes
 
 ### Coding Patterns
+
 - **React Patterns**: Hooks (useState, useEffect), Context, Memoization
 - **JavaScript Patterns**: Async/await, Promises, ES6+ features
 - **Python Patterns**: Decorators, Context managers, List comprehensions
@@ -121,12 +123,14 @@ This will:
 - **Anti-patterns**: Code smells and problematic patterns
 
 ### Technology Evolution
+
 - **Languages**: JavaScript, TypeScript, Python, Java, Go, Rust, etc.
 - **Frameworks**: React, Angular, Vue, Django, Flask, Express, etc.
 - **Libraries**: Tracks adoption and usage patterns
 - **Tools**: Build tools, testing frameworks, CI/CD systems
 
 ### Insights Generated
+
 - **Learning Velocity**: How quickly you adopt new technologies
 - **Complexity Trends**: Whether your code complexity increases over time
 - **Pattern Maturity**: How sophisticated your patterns become
@@ -157,6 +161,7 @@ GITHUB_TOKEN=your-github-token
 ### Customizing Analysis
 
 Edit `backend/app/services/ai_service.py` to:
+
 - Add new pattern detection rules
 - Customize AI prompts
 - Add support for new languages
@@ -296,6 +301,7 @@ npm start
 ### Common Issues
 
 **Backend won't start**
+
 ```bash
 # Check Python version
 python --version  # Should be 3.11+
@@ -308,6 +314,7 @@ docker-compose ps
 ```
 
 **Frontend won't start**
+
 ```bash
 # Check Node version
 node --version  # Should be 18+
@@ -319,6 +326,7 @@ npm install
 ```
 
 **Ollama issues**
+
 ```bash
 # Check if Ollama is running
 ollama list
@@ -333,6 +341,7 @@ ollama pull nomic-embed-text
 ```
 
 **Analysis stuck**
+
 ```bash
 # Check backend logs
 tail -f backend.log
@@ -348,11 +357,13 @@ docker-compose logs postgres
 ### Performance Issues
 
 **Analysis too slow**
+
 - Reduce analysis batch size in `git_service.py`
 - Use smaller Ollama models (codellama:7b instead of 13b)
 - Limit commit history (reduce `max_commits` parameter)
 
 **High memory usage**
+
 - Restart Ollama periodically
 - Clear Redis cache: `redis-cli FLUSHALL`
 - Limit concurrent analyses
@@ -376,12 +387,14 @@ docker-compose logs postgres
 ## 🎯 Next Steps
 
 ### Immediate Improvements
+
 - [ ] Add more programming languages (Go, Rust, C++)
 - [ ] Implement real-time analysis streaming
 - [ ] Add pattern evolution recommendations
 - [ ] Create pattern comparison between developers
 
 ### Advanced Features
+
 - [ ] Multi-repository analysis
 - [ ] Team collaboration features
 - [ ] Custom pattern definitions
@@ -389,6 +402,7 @@ docker-compose logs postgres
 - [ ] Advanced ML models for code classification
 
 ### Scaling
+
 - [ ] Kubernetes deployment
 - [ ] Multi-tenant architecture
 - [ ] Distributed processing

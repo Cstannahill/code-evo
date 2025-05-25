@@ -11,10 +11,13 @@ function App() {
   const [backendStatus, setBackendStatus] = useState<
     "checking" | "online" | "offline"
   >("checking");
-  const [aiStatus, setAiStatus] = useState<{
-    available: boolean;
-    model?: string;
-  } | null>(null);
+  const [aiStatus, setAiStatus] = useState<
+    | {
+        available: boolean;
+        model?: string;
+      }
+    | undefined
+  >(undefined);
 
   useEffect(() => {
     logger.mount();
@@ -28,9 +31,10 @@ function App() {
         logger.info("Backend health check completed");
 
         const aiStat = await apiClient.getAnalysisStatus();
+        logger.info("AI status check started", { aiStat });
         setAiStatus({
           available: aiStat.ai_service.ollama_available,
-          model: aiStat.ai_service.model,
+          model: aiStat?.ai_service?.ollama_model,
         });
         logger.info("AI status check completed");
       } catch (err) {

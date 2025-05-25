@@ -1,12 +1,11 @@
-/**
- * @fileoverview Type extensions for Axios to support logging metadata
- */
+import "axios";
 
 declare module "axios" {
-  export interface InternalAxiosRequestConfig {
+  export interface AxiosRequestConfig {
     metadata?: {
-      startTime: number;
-      requestId: string;
+      // Make it optional if it's not always present
+      startTime?: number;
+      requestId?: string;
     };
   }
 }

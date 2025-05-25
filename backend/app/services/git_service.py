@@ -1,6 +1,7 @@
 from git import Repo, GitCommandError
 import tempfile
 import os
+import stat
 import shutil
 import re
 import logging
@@ -320,7 +321,10 @@ class GitService:
                                 "author": c["author_email"],
                             }
                         )
-        return candidates
+
+        # Sort by quality and return the best candidates
+        candidates.sort(key=lambda x: len(x["code"]), reverse=True)
+        return candidates[:50]  # Return top 50 candidates
 
     def _extract_code_snippets(self, content: str, language: str) -> List[str]:
         lines = content.split("\n")
@@ -387,13 +391,34 @@ class GitService:
         return snippets
 
     def cleanup(self) -> None:
-        """Remove all temp dirs"""
+        """Remove all temp dirs with better Windows compatibility"""
         for d in self.temp_dirs:
             try:
+                import stat
+
+                # Set write permissions on Windows before deletion
+                if os.name == "nt":  # Windows
+                    for root, dirs, files in os.walk(d):
+                        for dir in dirs:
+                            os.chmod(os.path.join(root, dir), stat.S_IWRITE)
+                        for file in files:
+                            os.chmod(os.path.join(root, file), stat.S_IWRITE)
+
                 shutil.rmtree(d)
                 logger.info(f"Cleaned {d}")
             except Exception as e:
-                logger.error(f"Cleanup error {d}: {e}")
+                logger.warning(f"Cleanup warning for {d}: {e}")
+                # Try alternative cleanup on Windows
+                if os.name == "nt":
+                    try:
+                        import subprocess
+
+                        subprocess.run(
+                            ["rmdir", "/s", "/q", d], shell=True, check=False
+                        )
+                        logger.info(f"Force cleaned {d}")
+                    except Exception as e2:
+                        logger.error(f"Force cleanup failed {d}: {e2}")
         self.temp_dirs = []
 
     def __del__(self):

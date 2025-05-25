@@ -45,13 +45,20 @@ export const PatternTimeline: React.FC<PatternTimelineProps> = ({
   height = 400,
 }) => {
   // Extract all unique pattern names
-  console.log("Pattern Timeline Data:", data);
   const patternNames = React.useMemo(() => {
     const names = new Set<string>();
     data.forEach((item) => {
       Object.keys(item.patterns).forEach((pattern) => names.add(pattern));
     });
     return Array.from(names);
+  }, [data]);
+
+  // Transform data for recharts - flatten the nested patterns object
+  const chartData = React.useMemo(() => {
+    return data.map((item) => ({
+      date: item.date,
+      ...item.patterns, // Spread patterns directly into the data object
+    }));
   }, [data]);
 
   const colors = [
@@ -74,7 +81,7 @@ export const PatternTimeline: React.FC<PatternTimelineProps> = ({
     >
       <ResponsiveContainer width="100%" height={height}>
         <LineChart
-          data={data}
+          data={chartData}
           margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
         >
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -90,7 +97,7 @@ export const PatternTimeline: React.FC<PatternTimelineProps> = ({
             <Line
               key={pattern}
               type="monotone"
-              dataKey={`patterns.${pattern}`}
+              dataKey={pattern}
               name={pattern}
               stroke={colors[index % colors.length]}
               strokeWidth={2}

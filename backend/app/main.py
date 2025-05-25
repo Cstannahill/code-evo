@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 import logging
 from rich.logging import RichHandler
 import sys
+import asyncio
 from datetime import datetime
 import traceback
 
@@ -25,33 +26,66 @@ logging.basicConfig(
 )
 logger = logging.getLogger("code_evolution_tracker")
 
+# Global set to track background tasks
+background_tasks = set()
+
+
+def track_background_task(task):
+    """Add task to tracking set and remove when done"""
+    background_tasks.add(task)
+    task.add_done_callback(background_tasks.discard)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage application lifecycle with detailed logging"""
-    logger.info(" Starting Code Evolution Tracker Backend...")
+    """Manage application lifecycle with proper task cleanup"""
+    logger.info("🚀 Starting Code Evolution Tracker Backend...")
 
     try:
         # Initialize database
         create_tables()
         db_info = get_db_info()
-        logger.info(f" Database initialized: {db_info}")
+        logger.info(f"📊 Database initialized: {db_info}")
 
         # Test all external connections
         from app.services.ai_service import AIService
 
         ai_service = AIService()
         ai_status = ai_service.get_status()
-        logger.info(f" AI Service Status: {ai_status}")
+        logger.info(f"🤖 AI Service Status: {ai_status}")
 
         yield
 
     except Exception as e:
-        logger.error(f" Startup failed: {str(e)}")
+        logger.error(f"❌ Startup failed: {str(e)}")
         logger.error(traceback.format_exc())
         raise
     finally:
-        logger.info("👋 Shutting down Code Evolution Tracker Backend...")
+        logger.info("🔄 Shutting down Code Evolution Tracker Backend...")
+
+        # Cancel all background tasks
+        if background_tasks:
+            logger.info(f"⏹️  Cancelling {len(background_tasks)} background tasks...")
+            for task in background_tasks.copy():
+                if not task.done():
+                    task.cancel()
+
+            # Wait for tasks to finish cancelling (with timeout)
+            if background_tasks:
+                try:
+                    await asyncio.wait_for(
+                        asyncio.gather(*background_tasks, return_exceptions=True),
+                        timeout=10.0,
+                    )
+                    logger.info("✅ All background tasks cancelled successfully")
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "⚠️  Some background tasks didn't cancel within timeout"
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️  Error during task cancellation: {e}")
+
+        logger.info("👋 Shutdown complete")
 
 
 # Create FastAPI app with enhanced configuration
@@ -73,8 +107,8 @@ EnhancedCORSMiddleware.configure(app)
 # Global exception handler with detailed error info
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f" Unhandled exception: {type(exc).__name__}: {str(exc)}")
-    logger.error(f"Request: {request.method} {request.url}")
+    logger.error(f"💥 Unhandled exception: {type(exc).__name__}: {str(exc)}")
+    logger.error(f"🌐 Request: {request.method} {request.url}")
     logger.error(traceback.format_exc())
 
     return JSONResponse(
@@ -112,6 +146,7 @@ async def health_check():
             "status": "healthy",
             "timestamp": current_time,  # Dynamic timestamp
             "version": "1.0.0",
+            "background_tasks": len(background_tasks),  # Track active tasks
             "services": {
                 "database": {
                     "connected": db_info.get("table_count", 0) > 0,
@@ -133,7 +168,7 @@ async def health_check():
             },
         }
     except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
+        logger.error(f"❌ Health check failed: {str(e)}")
         return JSONResponse(
             status_code=503,
             content={

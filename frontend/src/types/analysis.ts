@@ -1,23 +1,13 @@
-// s:\code-evolution-tracker\frontend\src\types\analysis.ts
+// Re-export Technology and TechnologiesByCategory from api.ts to avoid duplication
+export type { Technology, TechnologiesByCategory } from "./api";
 
-// Define a base type for a technology
-export interface Technology {
-  name: string;
-  usage_count: number;
-  category?: string; // Optional: if you want to store category directly on technology
+// Define a base type for a technology with extended properties for analysis
+export interface TechnologyWithAnalysis extends Technology {
+  adoption_rate?: number;
+  complexity_score?: number;
+  learning_curve?: "easy" | "moderate" | "difficult";
+  relationships?: string[];
   [key: string]: unknown; // For future extensibility
-}
-
-// Define the structure for the technologies prop, often received from an API
-export interface TechnologiesByCategory {
-  language?: Technology[];
-  framework?: Technology[];
-  library?: Technology[];
-  tool?: Technology[];
-  database?: Technology[];
-  platform?: Technology[];
-  other?: Technology[];
-  [key: string]: Technology[] | undefined; // Allows for other categories
 }
 
 // Data structure for individual items in a pie chart representing a tech category
@@ -49,18 +39,6 @@ export interface ComplexityChartData {
   totalOccurrences: number;
   patterns: PatternInfo[];
 }
-
-// export interface CodeQualityData {
-//   overall_quality_score: number;
-//   maintainability_score: number;
-//   readability_score: number;
-//   testability_score: number;
-//   detected_antipatterns: number;
-//   complex_patterns_identified: number;
-//   code_smells_breakdown: Record<string, number>; // Example: { "Large Class": 5, "Long Method": 3 }
-//   duplication_percentage: number;
-//   cyclomatic_complexity_avg: number;
-// }
 
 export interface CodeQualityData {
   overall: number;

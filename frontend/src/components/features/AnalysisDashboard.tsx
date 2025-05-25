@@ -26,9 +26,10 @@ import { ComplexityEvolutionChart } from "../charts/ComplexityEvolutionChart";
 import { LearningProgressionChart } from "../charts/LearningProgressionChart";
 import { TechStackComposition } from "../charts/TechStackComposition";
 import { TechnologyRelationshipGraph } from "../charts/TechnologyRelationShipGraph";
-import { InsightsDashboard } from "./InsightsDashBoard";
+import { InsightsDashboard } from "./InsightsDashboard";
 import { PatternDeepDive } from "./PatternDeepDive";
 import { CodeQualityDashboard } from "./CodeQualityDashboard";
+import type { Word } from "react-wordcloud";
 
 interface AnalysisDashboardProps {
   repositoryId: string;
@@ -44,33 +45,45 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
     error,
   } = useRepositoryAnalysis(repositoryId);
 
-  // Build the word‐cloud data
-  const wordCloudData = useMemo(() => {
-    if (!analysis) return [];
-    return Object.entries(analysis.pattern_statistics).map(
-      ([pattern, info]) => ({
-        text: pattern,
-        value: info.occurrences,
-      })
+  // Build the word cloud data
+  const wordCloudData: Word[] = useMemo(() => {
+    if (!analysis?.pattern_statistics) {
+      console.log("📊 No pattern_statistics available");
+      return [];
+    }
+
+    console.log("📊 Pattern statistics:", analysis.pattern_statistics);
+
+    const words = Object.entries(analysis.pattern_statistics).map(
+      ([pattern, info]) => {
+        console.log(`📊 Processing pattern: ${pattern}`, info);
+        return {
+          text: pattern,
+          value: info.occurrences || 1, // Ensure we always have a positive value
+        };
+      }
     );
+
+    console.log("📊 Word cloud data:", words);
+    return words.filter((w) => w.text && w.value > 0); // Extra safety filter
   }, [analysis?.pattern_statistics]);
 
   if (isLoading) return <DashboardSkeleton />;
   if (error || !analysis) return <ErrorState />;
 
   // Header metrics
-  const totalCommits = analysis.analysis_session?.commits_analyzed || 0;
-  const totalPatterns = Object.keys(analysis.pattern_statistics).length;
-  const totalTechnologies = Object.values(analysis.technologies).flat().length;
-  const timelineLength = analysis.pattern_timeline.timeline.length;
+  const totalCommits = analysis?.analysis_session?.commits_analyzed || 0;
+  const totalPatterns = Object.keys(analysis?.pattern_statistics || {}).length;
+  const totalTechnologies = Object.values(analysis?.technologies || {}).flat()
+    .length;
+  const timelineLength = analysis?.pattern_timeline?.timeline.length || 0;
 
-  // Prepare a simple string[] map of technologies for the Insights panel
+  // Prepare simplified data structures for components that need them
   const simpleTechnologies: Record<string, string[]> = {};
   Object.entries(analysis.technologies).forEach(([cat, arr]) => {
     simpleTechnologies[cat] = arr.map((t) => t.name);
   });
 
-  // Prepare a simple number map of patterns for the Insights panel
   const simplePatternStats: Record<string, number> = {};
   Object.entries(analysis.pattern_statistics).forEach(
     ([name, info]) => (simplePatternStats[name] = info.occurrences)
@@ -96,8 +109,8 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
         <MetricCard
           title="Repository Health"
           value={`${Math.round(
-            ((totalPatterns - analysis.summary.antipatterns_detected) /
-              totalPatterns) *
+            ((totalPatterns - (analysis?.summary?.antipatterns_detected || 0)) /
+              Math.max(totalPatterns, 1)) *
               100
           )}%`}
           subtitle="Based on pattern analysis"
@@ -167,7 +180,9 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
                 title="Repository Evolution Timeline"
                 icon={Calendar}
               >
-                {/* placeholder for future timeline */}
+                <div className="text-center text-muted-foreground py-8">
+                  Timeline visualization coming soon...
+                </div>
               </DashboardCard>
             </TabsContent>
 
@@ -226,7 +241,6 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
                 </DashboardCard>
               </div>
               <DashboardCard title="Technology Relationships" icon={Network}>
-                {/* only technologies needed */}
                 <TechnologyRelationshipGraph
                   analysis={{ technologies: analysis.technologies }}
                 />
@@ -277,7 +291,14 @@ const MetricCard = ({
   icon: Icon,
   trend,
   color,
-}: any) => (
+}: {
+  title: string;
+  value: string | number;
+  subtitle: string;
+  icon: React.ComponentType<{ className?: string }>;
+  trend?: string;
+  color: string;
+}) => (
   <motion.div
     whileHover={{ scale: 1.02 }}
     className="bg-card rounded-lg border p-6 relative overflow-hidden"
@@ -304,7 +325,15 @@ const MetricCard = ({
   </motion.div>
 );
 
-const DashboardCard = ({ title, icon: Icon, children }: any) => (
+const DashboardCard = ({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) => (
   <motion.div
     initial={{ opacity: 0 }}
     animate={{ opacity: 1 }}

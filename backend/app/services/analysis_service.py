@@ -68,73 +68,120 @@ class AnalysisService:
           - quality_analyses
           - evolution_analyses
           - insights
+          - pattern_candidates (for saving to database)
         """
         report: Dict[str, Any] = {}
         try:
+            logger.info(f"🔄 Starting repository analysis for {repo_url}")
+
             # Clone and inspect
+            logger.info(f"📥 Cloning repository {repo_url}...")
             repo = self.git.clone_repository(repo_url, branch)
+
+            logger.info(f"🔍 Extracting repository information...")
             report["repo_info"] = self.git.get_repository_info(repo)
             report["technologies"] = self.git.extract_technologies(repo)
 
+            logger.info(
+                f"📚 Found {len(report['technologies'].get('languages', {}))} languages"
+            )
+
             # Commit history
+            logger.info(f"📖 Analyzing commit history (limit: {commit_limit})...")
             commits = self.git.get_commit_history(repo, limit=commit_limit)
             report["commits"] = commits
+            logger.info(f"📈 Processed {len(commits)} commits")
 
             # Prepare pattern candidates
+            logger.info(f"🔍 Extracting code patterns...")
             candidates = self.git.get_pattern_candidates(commits)
             report["total_candidates"] = len(candidates)
-            candidates = candidates[:candidate_limit]
+            logger.info(f"🎯 Found {len(candidates)} code patterns to analyze")
+
+            # Limit candidates for analysis but keep all for database
+            report["pattern_candidates"] = candidates  # Full list for database
+            analysis_candidates = (
+                candidates[:candidate_limit] if candidate_limit else candidates
+            )
+
+            logger.info(
+                f"🤖 Running AI analysis on {len(analysis_candidates)} patterns..."
+            )
 
             # Run AI analyses in parallel
             pattern_tasks = [
                 self.ai.analyze_code_pattern(c["code"], c["language"])
-                for c in candidates
+                for c in analysis_candidates
             ]
             quality_tasks = [
                 self.ai.analyze_code_quality(c["code"], c["language"])
-                for c in candidates
+                for c in analysis_candidates
             ]
 
+            logger.info(
+                f"⚡ Processing {len(pattern_tasks)} pattern analyses and {len(quality_tasks)} quality analyses..."
+            )
             pattern_results, quality_results = await asyncio.gather(
                 asyncio.gather(*pattern_tasks), asyncio.gather(*quality_tasks)
             )
             report["pattern_analyses"] = pattern_results
             report["quality_analyses"] = quality_results
+            logger.info(f"✅ Completed AI analysis")
 
             # Evolution: compare first and last snippet if available
+            logger.info(f"🔄 Analyzing code evolution...")
             evolution: List[Dict[str, Any]] = []
-            if len(candidates) >= 2:
-                old = candidates[0]
-                new = candidates[-1]
+            if len(analysis_candidates) >= 2:
+                old = analysis_candidates[0]
+                new = analysis_candidates[-1]
                 evo = await self.ai.analyze_evolution(
                     old["code"], new["code"], context=repo_url
                 )
                 evolution.append(evo)
+                logger.info(f"📊 Evolution analysis completed")
             report["evolution_analyses"] = evolution
 
-            # Aggregate insights
-            insights_input = {
-                "patterns": {
-                    pat
+            # Aggregate insights - FIX THE SET ISSUE HERE
+            logger.info(f"💡 Generating insights...")
+
+            # Collect all unique patterns from analysis results
+            all_patterns = set()
+            for res in pattern_results:
+                all_patterns.update(res.get("combined_patterns", []))
+
+            # Convert set to dict with occurrence counts
+            pattern_dict = {}
+            for pattern in all_patterns:
+                # Count occurrences across all results
+                count = sum(
+                    1
                     for res in pattern_results
-                    for pat in res.get("combined_patterns", [])
-                },
+                    if pattern in res.get("combined_patterns", [])
+                )
+                pattern_dict[pattern] = count
+
+            insights_input = {
+                "patterns": pattern_dict,  # Now it's a proper dict, not a set
                 "technologies": list(
                     report["technologies"].get("languages", {}).keys()
                 ),
                 "commits": len(commits),
             }
             report["insights"] = await self.generate_insights(insights_input)
+            logger.info(
+                f"🎉 Analysis complete! Generated {len(report['insights'])} insights"
+            )
 
         except Exception as e:
-            logger.error(f"Analysis failed: {e}")
+            logger.error(f"💥 Analysis failed: {e}")
             report["error"] = str(e)
         finally:
             # Cleanup temp dirs
             try:
+                logger.info(f"🧹 Cleaning up temporary files...")
                 self.git.cleanup()
             except Exception as cleanup_err:
-                logger.warning(f"Cleanup error: {cleanup_err}")
+                logger.warning(f"⚠️ Cleanup error: {cleanup_err}")
 
         return report
 
