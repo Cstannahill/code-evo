@@ -35,6 +35,9 @@ class Settings(BaseSettings):
 
     # GitHub (optional)
     GITHUB_TOKEN: Optional[str] = None
+    # Security settings for secret scanning
+    ENABLE_SECRET_SCANNING: bool = True
+    ALLOW_SECRET_BYPASS: bool = False  # Set to True to allow bypassing secret detection
 
     class Config:
         env_file = ".env"

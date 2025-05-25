@@ -9,6 +9,7 @@ from datetime import datetime
 from urllib.parse import urlparse, urlunparse
 from pathlib import Path
 from typing import List, Dict, Optional
+from app.utils.secret_scanner import create_secret_scanner
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,8 @@ class GitService:
     def __init__(self):
         # Track temp directories for cleanup
         self.temp_dirs: List[str] = []
+        # Initialize secret scanner
+        self.secret_scanner = create_secret_scanner()
         # Language detection mapping (comprehensive)
         self.language_map: Dict[str, str] = {
             # JavaScript ecosystem

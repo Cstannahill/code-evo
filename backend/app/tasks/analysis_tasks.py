@@ -98,11 +98,32 @@ def analyze_repository_background(
             return
 
         if "error" in result:
-            logger.error(f"❌ Analysis failed: {result['error']}")
-            analysis_session.status = "failed"
-            analysis_session.error_message = result["error"]
+            error_msg = result["error"]
+            details = result.get("details", "")
+
+            if (
+                result.get("error")
+                == "Repository contains potential secrets and cannot be analyzed"
+            ):
+                logger.error(f"🚨 SECURITY VIOLATION: {error_msg}")
+                logger.error(f"   Details: {details}")
+                logger.error(
+                    f"   Findings: {result.get('secret_findings_count', 0)} potential secrets"
+                )
+                logger.error(f"   Recommendation: {result.get('recommendation', '')}")
+
+                analysis_session.status = "failed"
+                analysis_session.error_message = f"SECURITY: {error_msg}"
+                repo.status = "failed"
+
+                logger.error("🛑 Analysis terminated for security reasons")
+            else:
+                logger.error(f"❌ Analysis failed: {error_msg}")
+                analysis_session.status = "failed"
+                analysis_session.error_message = error_msg
+                repo.status = "failed"
+
             analysis_session.completed_at = datetime.utcnow()
-            repo.status = "failed"
             db.commit()
             return
 
