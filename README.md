@@ -31,7 +31,7 @@ An AI-powered system that analyzes your Git repositories to discover coding patt
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/Cstannahill/code-evo
 cd code-evolution-tracker
 
 # Make scripts executable
