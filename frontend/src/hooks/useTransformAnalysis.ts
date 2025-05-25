@@ -4,26 +4,38 @@ import type {
   RepositoryAnalysis,
   Technology,
 } from "../types/api";
+import logger, { type LogContext } from "../lib/logger";
 
 export const useTransformAnalysis = (
   rawData: RepositoryAnalysisResponse | null
-): RepositoryAnalysis | null => {
-  return useMemo(() => {
+): RepositoryAnalysis | null =>
+  useMemo<RepositoryAnalysis | null>(() => {
     if (!rawData) return null;
+    logger.info("useTransformAnalysis – rawData", {
+      rawData,
+    } as unknown as LogContext);
+    // Build pattern_stats with the required 'name' property
+    const patternStats: Record<
+      string,
+      {
+        name: string;
+        category: string;
+        occurrences: number;
+        complexity_level: string;
+        is_antipattern: boolean;
+      }
+    > = {};
+    const timelineMap: Record<string, Record<string, number>> = {};
 
-    // Extract unique patterns and build statistics
-    const patternStats: Record<string, any> = {};
-    const patternTimeline: Record<string, Record<string, number>> = {};
-
-    rawData.patterns.forEach((occurrence) => {
-      // Build pattern statistics
-      if (!patternStats[occurrence.pattern_name]) {
-        patternStats[occurrence.pattern_name] = {
-          category: occurrence.pattern_name.includes("react")
+    rawData.patterns.forEach(({ pattern_name, detected_at }) => {
+      if (!patternStats[pattern_name]) {
+        patternStats[pattern_name] = {
+          name: pattern_name,
+          category: pattern_name.includes("react")
             ? "react"
-            : occurrence.pattern_name.includes("async")
+            : pattern_name.includes("async")
             ? "async"
-            : occurrence.pattern_name.includes("javascript")
+            : pattern_name.includes("javascript")
             ? "javascript"
             : "other",
           occurrences: 0,
@@ -31,25 +43,19 @@ export const useTransformAnalysis = (
           is_antipattern: false,
         };
       }
-      patternStats[occurrence.pattern_name].occurrences++;
+      patternStats[pattern_name].occurrences++;
 
-      // Build timeline
-      const month = occurrence.detected_at.substring(0, 7); // YYYY-MM
-      if (!patternTimeline[month]) {
-        patternTimeline[month] = {};
-      }
-      if (!patternTimeline[month][occurrence.pattern_name]) {
-        patternTimeline[month][occurrence.pattern_name] = 0;
-      }
-      patternTimeline[month][occurrence.pattern_name]++;
+      const month = detected_at.slice(0, 7); // YYYY-MM
+      if (!timelineMap[month]) timelineMap[month] = {};
+      timelineMap[month][pattern_name] =
+        (timelineMap[month][pattern_name] || 0) + 1;
     });
 
-    // Convert timeline to array format
-    const timelineArray = Object.entries(patternTimeline)
+    const timelineArray = Object.entries(timelineMap)
       .map(([date, patterns]) => ({ date, patterns }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // Transform technologies - extract from language array
+    // Shape technologies to match TechnologiesByCategory
     const technologies: RepositoryAnalysis["technologies"] = {
       language: [],
       framework: [],
@@ -57,47 +63,29 @@ export const useTransformAnalysis = (
       tool: [],
     };
 
-    // Parse technologies from the language array
     if (rawData.technologies?.language) {
       rawData.technologies.language.forEach((tech: any) => {
-        const transformedTech: Technology = {
-          id: tech.name,
-          name: tech.name,
+        const base: Technology = {
+          ...tech,
           category: "language",
-          first_seen: "2024-01-01",
-          last_seen: "2024-01-01",
-          usage_count: tech.usage_count || 1,
-          metadata: {},
         };
-
-        // Categorize based on name
         if (
           ["JavaScript", "TypeScript", "Python", "Java", "Go"].includes(
             tech.name
           )
         ) {
-          technologies.language.push(transformedTech);
+          technologies.language.push(base);
         } else if (
           ["React", "Vue", "Angular", "Django", "Express"].includes(tech.name)
         ) {
-          technologies.framework.push({
-            ...transformedTech,
-            category: "framework",
-          });
+          technologies.framework.push({ ...base, category: "framework" });
         } else if (tech.name.includes("lib") || tech.name.includes("utils")) {
-          technologies.library.push({
-            ...transformedTech,
-            category: "library",
-          });
+          technologies.library.push({ ...base, category: "library" });
         } else {
-          technologies.tool.push({ ...transformedTech, category: "tool" });
+          technologies.tool.push({ ...base, category: "tool" });
         }
       });
     }
-
-    // Get insights from the separate insights endpoint data if available
-    const insights = rawData.insights || [];
-
     return {
       repository_id: rawData.repository_id,
       status: rawData.status,
@@ -109,7 +97,7 @@ export const useTransformAnalysis = (
         summary: {},
       },
       pattern_statistics: patternStats,
-      insights,
+      insights: rawData.insights ?? [],
       summary: {
         total_patterns: Object.keys(patternStats).length,
         antipatterns_detected: 0,
@@ -119,7 +107,6 @@ export const useTransformAnalysis = (
           advanced: 0,
         },
       },
-      ai_powered: true,
+      ai_powered: rawData?.ai_powered,
     };
   }, [rawData]);
-};

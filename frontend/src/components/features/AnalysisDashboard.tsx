@@ -1,12 +1,10 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity,
   BarChart3,
   Brain,
-  Code2,
   FileText,
-  GitBranch,
   Layers,
   LineChart,
   TrendingUp,
@@ -17,17 +15,20 @@ import {
   Award,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { useRepositoryAnalysis } from "../../hooks/useRepository";
+import { useRepositoryAnalysis } from "../../hooks/useRepositoryAnalysis";
 import { PatternTimeline } from "../charts/PatternTimeline";
 import { TechnologyRadar } from "../charts/TechRadar";
 import { PatternHeatmap } from "../charts/PatternHeatmap";
 import { CodeQualityMetrics } from "../charts/CodeQualityMetrics";
 import { PatternWordCloud } from "../charts/PatternWordCloud";
 import { TechnologyEvolutionChart } from "../charts/TechnologyEvolutionChart";
-import { InsightsDashboard } from "./InsightsDashboard";
+import { ComplexityEvolutionChart } from "../charts/ComplexityEvolutionChart";
+import { LearningProgressionChart } from "../charts/LearningProgressionChart";
+import { TechStackComposition } from "../charts/TechStackComposition";
+import { TechnologyRelationshipGraph } from "../charts/TechnologyRelationShipGraph";
+import { InsightsDashboard } from "./InsightsDashBoard";
 import { PatternDeepDive } from "./PatternDeepDive";
-// import { EvolutionMetrics } from "./EvolutionMetrics";
-import { format } from "date-fns";
+import { CodeQualityDashboard } from "./CodeQualityDashboard";
 
 interface AnalysisDashboardProps {
   repositoryId: string;
@@ -43,19 +44,37 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
     error,
   } = useRepositoryAnalysis(repositoryId);
 
-  if (isLoading) {
-    return <DashboardSkeleton />;
-  }
+  // Build the word‐cloud data
+  const wordCloudData = useMemo(() => {
+    if (!analysis) return [];
+    return Object.entries(analysis.pattern_statistics).map(
+      ([pattern, info]) => ({
+        text: pattern,
+        value: info.occurrences,
+      })
+    );
+  }, [analysis?.pattern_statistics]);
 
-  if (error || !analysis) {
-    return <ErrorState />;
-  }
+  if (isLoading) return <DashboardSkeleton />;
+  if (error || !analysis) return <ErrorState />;
 
-  // Calculate high-level metrics
+  // Header metrics
   const totalCommits = analysis.analysis_session?.commits_analyzed || 0;
   const totalPatterns = Object.keys(analysis.pattern_statistics).length;
   const totalTechnologies = Object.values(analysis.technologies).flat().length;
   const timelineLength = analysis.pattern_timeline.timeline.length;
+
+  // Prepare a simple string[] map of technologies for the Insights panel
+  const simpleTechnologies: Record<string, string[]> = {};
+  Object.entries(analysis.technologies).forEach(([cat, arr]) => {
+    simpleTechnologies[cat] = arr.map((t) => t.name);
+  });
+
+  // Prepare a simple number map of patterns for the Insights panel
+  const simplePatternStats: Record<string, number> = {};
+  Object.entries(analysis.pattern_statistics).forEach(
+    ([name, info]) => (simplePatternStats[name] = info.occurrences)
+  );
 
   const tabs = [
     { id: "overview", label: "Executive Overview", icon: Gauge },
@@ -111,7 +130,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
         />
       </motion.div>
 
-      {/* Tabbed Interface */}
+      {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid grid-cols-6 w-full">
           {tabs.map((tab) => (
@@ -134,33 +153,30 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
-            {/* Executive Overview Tab */}
+            {/* Overview */}
             <TabsContent value="overview" className="space-y-6 mt-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <DashboardCard title="Code Quality Metrics" icon={Gauge}>
                   <CodeQualityMetrics analysis={analysis} />
                 </DashboardCard>
-
                 <DashboardCard title="Pattern Distribution" icon={Brain}>
-                  <PatternWordCloud patterns={analysis.pattern_statistics} />
+                  <PatternWordCloud patterns={wordCloudData} />
                 </DashboardCard>
               </div>
-
               <DashboardCard
                 title="Repository Evolution Timeline"
                 icon={Calendar}
               >
-                {/* <EvolutionMetrics analysis={analysis} /> */}
+                {/* placeholder for future timeline */}
               </DashboardCard>
             </TabsContent>
 
-            {/* Pattern Analysis Tab */}
+            {/* Pattern Analysis */}
             <TabsContent value="patterns" className="space-y-6 mt-6">
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 <DashboardCard title="Pattern Heatmap" icon={BarChart3}>
                   <PatternHeatmap data={analysis} width={600} height={300} />
                 </DashboardCard>
-
                 <DashboardCard title="Pattern Timeline" icon={LineChart}>
                   <PatternTimeline
                     data={analysis.pattern_timeline.timeline}
@@ -168,7 +184,6 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
                   />
                 </DashboardCard>
               </div>
-
               <DashboardCard title="Pattern Deep Dive" icon={Brain}>
                 <PatternDeepDive
                   patterns={analysis.pattern_statistics}
@@ -177,7 +192,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
               </DashboardCard>
             </TabsContent>
 
-            {/* Code Evolution Tab */}
+            {/* Code Evolution */}
             <TabsContent value="evolution" className="space-y-6 mt-6">
               <DashboardCard
                 title="Technology Adoption Curve"
@@ -188,12 +203,10 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
                   timeline={analysis.pattern_timeline.timeline}
                 />
               </DashboardCard>
-
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <DashboardCard title="Learning Progression" icon={Brain}>
                   <LearningProgressionChart analysis={analysis} />
                 </DashboardCard>
-
                 <DashboardCard title="Complexity Evolution" icon={Layers}>
                   <ComplexityEvolutionChart
                     patterns={analysis.pattern_statistics}
@@ -202,34 +215,52 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
               </div>
             </TabsContent>
 
-            {/* Tech Stack Tab */}
+            {/* Tech Stack */}
             <TabsContent value="technologies" className="space-y-6 mt-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <DashboardCard title="Technology Radar" icon={Network}>
                   <TechnologyRadar technologies={analysis.technologies} />
                 </DashboardCard>
-
                 <DashboardCard title="Tech Stack Composition" icon={Layers}>
                   <TechStackComposition technologies={analysis.technologies} />
                 </DashboardCard>
               </div>
-
               <DashboardCard title="Technology Relationships" icon={Network}>
-                <TechnologyRelationshipGraph analysis={analysis} />
+                {/* only technologies needed */}
+                <TechnologyRelationshipGraph
+                  analysis={{ technologies: analysis.technologies }}
+                />
               </DashboardCard>
             </TabsContent>
 
-            {/* AI Insights Tab */}
+            {/* AI Insights */}
             <TabsContent value="insights" className="mt-6">
               <InsightsDashboard
                 insights={analysis.insights}
-                analysis={analysis}
+                analysis={{
+                  summary: analysis.summary,
+                  analysis_session: analysis.analysis_session,
+                  technologies: simpleTechnologies,
+                  pattern_statistics: simplePatternStats,
+                }}
               />
             </TabsContent>
 
-            {/* Code Quality Tab */}
+            {/* Code Quality */}
             <TabsContent value="quality" className="space-y-6 mt-6">
-              <CodeQualityDashboard analysis={analysis} />
+              <CodeQualityDashboard
+                analysis={{
+                  pattern_statistics: analysis.pattern_statistics,
+                  summary: {
+                    antipatterns_detected:
+                      analysis.summary.antipatterns_detected,
+                  },
+                  analysis_session: {
+                    commits_analyzed:
+                      analysis.analysis_session.commits_analyzed,
+                  },
+                }}
+              />
             </TabsContent>
           </motion.div>
         </AnimatePresence>
@@ -238,7 +269,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
   );
 };
 
-// Utility Components
+// Reusable components
 const MetricCard = ({
   title,
   value,

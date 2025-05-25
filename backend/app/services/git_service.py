@@ -1,94 +1,146 @@
-# app/services/git_service.py
 from git import Repo, GitCommandError
 import tempfile
 import os
 import shutil
-from typing import List, Dict, Optional, Generator
-from datetime import datetime
 import re
-from pathlib import Path
 import logging
+from datetime import datetime
+from urllib.parse import urlparse, urlunparse
+from pathlib import Path
+from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class GitService:
-    """Service for Git repository operations and analysis"""
+    """Enhanced Git service with robust URL handling, repository analysis, and cleanup"""
 
     def __init__(self):
-        self.temp_dirs = []  # Track temp directories for cleanup
-
-        # Language detection mapping
-        self.language_map = {
-            ".py": "Python",
+        # Track temp directories for cleanup
+        self.temp_dirs: List[str] = []
+        # Language detection mapping (comprehensive)
+        self.language_map: Dict[str, str] = {
+            # JavaScript ecosystem
             ".js": "JavaScript",
-            ".jsx": "React",
+            ".jsx": "JavaScript",
             ".ts": "TypeScript",
-            ".tsx": "React TypeScript",
+            ".tsx": "TypeScript",
+            ".mjs": "JavaScript",
+            ".cjs": "JavaScript",
+            # Python
+            ".py": "Python",
+            ".pyw": "Python",
+            ".pyx": "Python",
+            # Java ecosystem
             ".java": "Java",
-            ".go": "Go",
-            ".rs": "Rust",
-            ".c": "C",
-            ".cpp": "C++",
-            ".cs": "C#",
-            ".php": "PHP",
-            ".rb": "Ruby",
-            ".swift": "Swift",
             ".kt": "Kotlin",
             ".scala": "Scala",
-            ".sql": "SQL",
+            # C family
+            ".c": "C",
+            ".cpp": "C++",
+            ".cc": "C++",
+            ".cxx": "C++",
+            ".cs": "C#",
+            ".h": "C/C++",
+            ".hpp": "C++",
+            # Web
             ".html": "HTML",
+            ".htm": "HTML",
             ".css": "CSS",
             ".scss": "SCSS",
-            ".vue": "Vue",
+            ".sass": "Sass",
+            ".less": "Less",
+            # Data & Config
             ".json": "JSON",
+            ".xml": "XML",
             ".yaml": "YAML",
             ".yml": "YAML",
+            ".toml": "TOML",
+            # Other languages
+            ".go": "Go",
+            ".rs": "Rust",
+            ".rb": "Ruby",
+            ".php": "PHP",
+            ".swift": "Swift",
+            ".r": "R",
+            ".sql": "SQL",
+            ".sh": "Shell",
+            ".bash": "Bash",
+            # Documentation
             ".md": "Markdown",
-            ".dockerfile": "Docker",
+            ".rst": "reStructuredText",
+            ".tex": "LaTeX",
         }
+        logger.info("Git service initialized")
+
+    def _normalize_git_url(self, url: str) -> str:
+        """
+        Handle various Git URL formats (SSH, git://, HTTPS) and normalize to HTTPS .git
+        """
+        url = url.strip()
+        # SSH style: git@host:user/repo.git
+        ssh_pattern = r"^git@([^:]+):(.+?)(\.git)?$"
+        match = re.match(ssh_pattern, url)
+        if match:
+            host, path = match.group(1), match.group(2)
+            normalized = f"https://{host}/{path}"
+            if not normalized.endswith(".git"):
+                normalized += ".git"
+            logger.info(f"Converted SSH URL to HTTPS: {normalized}")
+            return normalized
+        # git:// -> https://
+        if url.startswith("git://"):
+            url = url.replace("git://", "https://", 1)
+            logger.info(f"Converted git:// URL to HTTPS: {url}")
+        # Parse and ensure valid
+        parsed = urlparse(url if "://" in url else f"https://{url}")
+        scheme = parsed.scheme.lower()
+        if scheme not in ("http", "https"):
+            raise ValueError(f"Unsupported Git URL scheme: {scheme}")
+        netloc = parsed.netloc
+        path = parsed.path
+        # Ensure .git extension
+        if any(
+            host in netloc for host in ("github.com", "gitlab.com", "bitbucket.org")
+        ) and not path.endswith(".git"):
+            path += ".git"
+        normalized = urlunparse(parsed._replace(path=path))
+        logger.info(f"Normalized Git URL: {normalized}")
+        return normalized
 
     def clone_repository(self, repo_url: str, branch: str = "main") -> Repo:
-        """Clone a repository to temporary directory"""
+        """Clone a repository (shallow) with fallback on default branch"""
+        temp_dir = tempfile.mkdtemp()
+        self.temp_dirs.append(temp_dir)
         try:
-            temp_dir = tempfile.mkdtemp()
-            self.temp_dirs.append(temp_dir)
-
-            logger.info(f"Cloning {repo_url} to {temp_dir}")
-
-            # Handle authentication if needed
-            if "github.com" in repo_url and not repo_url.startswith("https://"):
-                repo_url = f"https://github.com/{repo_url}"
-
-            repo = Repo.clone_from(
-                repo_url, temp_dir, branch=branch, depth=1000
-            )  # Limit depth for performance
+            url = self._normalize_git_url(repo_url)
+            repo_name = Path(urlparse(url).path).stem
+            logger.info(f"Cloning {url} into {temp_dir}")
+            try:
+                repo = Repo.clone_from(url, temp_dir, branch=branch, depth=1)
+                logger.info(f"✅ Cloned {repo_name}@{branch}")
+            except Exception:
+                logger.warning(f"Branch '{branch}' not found, cloning default branch")
+                repo = Repo.clone_from(url, temp_dir, depth=1)
+            # Fetch more history for analysis
+            repo.remotes.origin.fetch(depth=200)
             return repo
-
-        except GitCommandError as e:
-            logger.error(f"Failed to clone repository {repo_url}: {e}")
-            raise ValueError(f"Failed to clone repository: {e}")
+        except ValueError as ve:
+            logger.error(str(ve))
+            raise
+        except GitCommandError as ge:
+            msg = str(ge)
+            if "not found" in msg.lower():
+                raise ValueError(f"Repository not found: {repo_url}")
+            raise ValueError(f"Git clone error: {msg}")
 
     def get_repository_info(self, repo: Repo) -> Dict:
-        """Get basic repository information"""
+        """Basic repo info: commit count, dates, authors, branches"""
         try:
-            commits = list(repo.iter_commits(max_count=1))
-            if not commits:
-                return {
-                    "total_commits": 0,
-                    "first_commit_date": None,
-                    "last_commit_date": None,
-                    "authors": [],
-                    "branches": [],
-                }
-
-            # Get all commits for stats
             all_commits = list(repo.iter_commits())
-
-            authors = set()
-            for commit in all_commits:
-                authors.add(commit.author.email)
-
+            authors = {
+                c.author.email for c in all_commits if c.author and c.author.email
+            }
             return {
                 "total_commits": len(all_commits),
                 "first_commit_date": (
@@ -98,9 +150,8 @@ class GitService:
                     all_commits[0].committed_datetime if all_commits else None
                 ),
                 "authors": list(authors),
-                "branches": [branch.name for branch in repo.branches],
+                "branches": [b.name for b in repo.branches],
             }
-
         except Exception as e:
             logger.error(f"Error getting repository info: {e}")
             return {
@@ -111,412 +162,239 @@ class GitService:
                 "branches": [],
             }
 
-    def get_commit_history(self, repo: Repo, limit: int = 1000) -> List[Dict]:
-        """Extract detailed commit history"""
-        commits = []
-
+    def get_commit_history(self, repo: Repo, limit: int = 100) -> List[Dict]:
+        """Detailed commit history with diffs up to limit"""
+        commits: List[Dict] = []
         try:
-            for commit in repo.iter_commits(max_count=limit):
-                commit_data = {
+            commit_list = list(repo.iter_commits(max_count=limit))
+            for idx, commit in enumerate(commit_list):
+                data = {
                     "hash": commit.hexsha,
-                    "author_name": commit.author.name,
-                    "author_email": commit.author.email,
-                    "committed_date": commit.committed_datetime,
+                    "author": str(commit.author),
+                    "author_email": getattr(commit.author, "email", ""),
+                    "date": commit.committed_datetime,
                     "message": commit.message.strip(),
                     "files_changed": [],
-                    "stats": {
-                        "total_files": commit.stats.total["files"],
-                        "total_insertions": commit.stats.total["insertions"],
-                        "total_deletions": commit.stats.total["deletions"],
-                    },
+                    "stats": {"additions": 0, "deletions": 0, "files": 0},
                 }
-
-                # Get file changes
-                try:
-                    parent = commit.parents[0] if commit.parents else None
-                    for diff in commit.diff(parent):
-                        file_change = self._analyze_file_change(diff)
-                        if file_change:
-                            commit_data["files_changed"].append(file_change)
-                except Exception as e:
-                    logger.warning(
-                        f"Error analyzing diff for commit {commit.hexsha}: {e}"
-                    )
-
-                commits.append(commit_data)
-
+                parent = commit.parents[0] if commit.parents else None
+                diffs = commit.diff(parent)
+                for diff in diffs:
+                    info = self._analyze_file_change(diff)
+                    if info:
+                        data["files_changed"].append(info)
+                        data["stats"]["additions"] += info.get("additions", 0)
+                        data["stats"]["deletions"] += info.get("deletions", 0)
+                data["stats"]["files"] = len(data["files_changed"])
+                commits.append(data)
+            return commits
         except Exception as e:
-            logger.error(f"Error getting commit history: {e}")
-
-        return commits
+            logger.error(f"Error processing commit history: {e}")
+            raise
 
     def _analyze_file_change(self, diff) -> Optional[Dict]:
-        """Analyze a single file change"""
+        """Analyze a single file diff for metadata and snippet"""
         try:
-            file_path = diff.a_path or diff.b_path
-            if not file_path:
+            path = diff.b_path or diff.a_path
+            if not path or self._should_skip_file(path):
                 return None
-
-            # Get file extension and language
-            extension = Path(file_path).suffix.lower()
-            language = self.language_map.get(extension, "Other")
-
-            # Skip binary files and common non-code files
-            if self._should_skip_file(file_path):
-                return None
-
-            change_data = {
-                "file_path": file_path,
-                "old_path": diff.a_path,
+            ext = Path(path).suffix.lower()
+            language = self.language_map.get(ext, "Other")
+            info = {
+                "file_path": path,
                 "change_type": self._get_change_type(diff),
                 "language": language,
-                "extension": extension,
                 "additions": 0,
                 "deletions": 0,
                 "content": None,
             }
-
-            # Get content and diff stats
-            if diff.b_blob:  # File exists in new version
+            if diff.b_blob:
                 try:
-                    content = diff.b_blob.data_stream.read().decode(
+                    raw = diff.b_blob.data_stream.read().decode(
                         "utf-8", errors="ignore"
                     )
-                    change_data["content"] = content[:5000]  # Limit content size
-                except Exception as e:
-                    logger.warning(f"Could not read content for {file_path}: {e}")
-
-            # Calculate line changes
+                    info["content"] = raw[:5000]
+                except:
+                    pass
             try:
-                diff_text = diff.diff.decode("utf-8", errors="ignore")
-                change_data["additions"] = diff_text.count("\n+")
-                change_data["deletions"] = diff_text.count("\n-")
+                text = diff.diff.decode("utf-8", errors="ignore")
+                info["additions"] = text.count("\n+")
+                info["deletions"] = text.count("\n-")
             except:
                 pass
-
-            return change_data
-
+            return info
         except Exception as e:
-            logger.warning(f"Error analyzing file change: {e}")
+            logger.warning(f"Error analyzing diff: {e}")
             return None
 
     def _get_change_type(self, diff) -> str:
-        """Determine the type of change"""
         if diff.new_file:
             return "added"
-        elif diff.deleted_file:
+        if diff.deleted_file:
             return "deleted"
-        elif diff.renamed_file:
+        if diff.renamed_file:
             return "renamed"
-        else:
-            return "modified"
+        return "modified"
 
-    def _should_skip_file(self, file_path: str) -> bool:
-        """Check if file should be skipped in analysis"""
-        skip_patterns = [
+    def _should_skip_file(self, path: str) -> bool:
+        patterns = [
             r"\.git/",
             r"node_modules/",
             r"__pycache__/",
-            r"\.pyc$",
-            r"\.jpg$",
-            r"\.jpeg$",
-            r"\.png$",
-            r"\.gif$",
-            r"\.pdf$",
-            r"\.doc$",
-            r"\.docx$",
-            r"\.zip$",
-            r"\.tar$",
-            r"\.gz$",
-            r"package-lock\.json$",
-            r"yarn\.lock$",
-            r"\.DS_Store$",
-            r"\.env$",
-            r"\.env\..*$",
+            r"\.(jpg|jpeg|png|gif|pdf|docx?)$",
+            r"\.(pyc|lock)$",
+            r"\.env",
         ]
-
-        for pattern in skip_patterns:
-            if re.search(pattern, file_path, re.IGNORECASE):
-                return True
-
-        return False
+        return any(re.search(p, path, re.IGNORECASE) for p in patterns)
 
     def extract_technologies(self, repo: Repo) -> Dict:
-        """Extract technologies used in the repository"""
-        technologies = {
+        """Scan latest commit tree for languages, frameworks, tools"""
+        tech: Dict = {
             "languages": {},
             "frameworks": set(),
             "libraries": set(),
             "tools": set(),
         }
-
         try:
-            # Get latest commit
-            latest_commit = next(repo.iter_commits())
-
-            # Analyze files in the latest commit
-            for item in latest_commit.tree.traverse():
-                if item.type == "blob":  # It's a file
-                    file_path = item.path
-                    extension = Path(file_path).suffix.lower()
-
-                    # Count languages
-                    language = self.language_map.get(extension, "Other")
-                    if language != "Other":
-                        technologies["languages"][language] = (
-                            technologies["languages"].get(language, 0) + 1
-                        )
-
-                    # Analyze specific files for technologies
-                    self._analyze_tech_file(file_path, item, technologies)
-
+            latest = next(repo.iter_commits())
+            for item in latest.tree.traverse():
+                if item.type != "blob":
+                    continue
+                ext = Path(item.path).suffix.lower()
+                lang = self.language_map.get(ext, "Other")
+                if lang != "Other":
+                    tech["languages"][lang] = tech["languages"].get(lang, 0) + 1
+                name = Path(item.path).name.lower()
+                # parse known files
+                if name == "package.json":
+                    self._parse_package_json(item.data_stream.read().decode(), tech)
+                if name == "requirements.txt":
+                    self._parse_requirements_txt(item.data_stream.read().decode(), tech)
         except Exception as e:
             logger.error(f"Error extracting technologies: {e}")
+        tech["frameworks"] = list(tech["frameworks"])
+        tech["libraries"] = list(tech["libraries"])
+        tech["tools"] = list(tech["tools"])
+        return tech
 
-        # Convert sets to lists for JSON serialization
-        technologies["frameworks"] = list(technologies["frameworks"])
-        technologies["libraries"] = list(technologies["libraries"])
-        technologies["tools"] = list(technologies["tools"])
-
-        return technologies
-
-    def _analyze_tech_file(self, file_path: str, blob, technologies: Dict):
-        """Analyze specific files for technology indicators"""
-        filename = Path(file_path).name.lower()
-
-        try:
-            # Package files
-            if filename == "package.json":
-                content = blob.data_stream.read().decode("utf-8", errors="ignore")
-                self._parse_package_json(content, technologies)
-            elif filename == "requirements.txt":
-                content = blob.data_stream.read().decode("utf-8", errors="ignore")
-                self._parse_requirements_txt(content, technologies)
-            elif filename == "gemfile":
-                technologies["languages"]["Ruby"] = (
-                    technologies["languages"].get("Ruby", 0) + 1
-                )
-                technologies["tools"].add("Bundler")
-            elif filename == "pom.xml":
-                technologies["languages"]["Java"] = (
-                    technologies["languages"].get("Java", 0) + 1
-                )
-                technologies["tools"].add("Maven")
-            elif filename == "build.gradle":
-                technologies["languages"]["Java"] = (
-                    technologies["languages"].get("Java", 0) + 1
-                )
-                technologies["tools"].add("Gradle")
-            elif filename == "dockerfile":
-                technologies["tools"].add("Docker")
-            elif filename in [".travis.yml", ".github/workflows/ci.yml"]:
-                technologies["tools"].add("CI/CD")
-
-        except Exception as e:
-            logger.warning(f"Error analyzing tech file {file_path}: {e}")
-
-    def _parse_package_json(self, content: str, technologies: Dict):
-        """Parse package.json for JavaScript technologies"""
+    def _parse_package_json(self, content: str, tech: Dict) -> None:
         import json
 
         try:
             data = json.loads(content)
-
-            # Dependencies
             deps = {**data.get("dependencies", {}), **data.get("devDependencies", {})}
-
-            # Framework detection
             if "react" in deps:
-                technologies["frameworks"].add("React")
-            if "vue" in deps:
-                technologies["frameworks"].add("Vue.js")
-            if "@angular/core" in deps:
-                technologies["frameworks"].add("Angular")
+                tech["frameworks"].add("React")
             if "express" in deps:
-                technologies["frameworks"].add("Express.js")
+                tech["frameworks"].add("Express.js")
             if "next" in deps:
-                technologies["frameworks"].add("Next.js")
-
-            # Tools
+                tech["frameworks"].add("Next.js")
             if "webpack" in deps:
-                technologies["tools"].add("Webpack")
-            if "typescript" in deps:
-                technologies["languages"]["TypeScript"] = (
-                    technologies["languages"].get("TypeScript", 0) + 1
-                )
-            if "jest" in deps:
-                technologies["tools"].add("Jest")
-
+                tech["tools"].add("Webpack")
         except Exception as e:
             logger.warning(f"Error parsing package.json: {e}")
 
-    def _parse_requirements_txt(self, content: str, technologies: Dict):
-        """Parse requirements.txt for Python technologies"""
-        lines = content.split("\n")
-
-        for line in lines:
-            line = line.strip().lower()
-            if not line or line.startswith("#"):
-                continue
-
-            # Extract package name
-            package = line.split("==")[0].split(">=")[0].split("~=")[0].strip()
-
-            # Framework detection
-            if package in ["django", "flask", "fastapi", "tornado"]:
-                technologies["frameworks"].add(package.capitalize())
-            elif package in [
-                "numpy",
-                "pandas",
-                "scikit-learn",
-                "tensorflow",
-                "pytorch",
-            ]:
-                technologies["libraries"].add(package)
+    def _parse_requirements_txt(self, content: str, tech: Dict) -> None:
+        for line in content.split("\n"):
+            pkg = line.strip().split("==")[0].lower()
+            if pkg in ("django", "flask", "fastapi"):
+                tech["frameworks"].add(pkg.capitalize())
+            if pkg in ("numpy", "pandas"):
+                tech["libraries"].add(pkg)
 
     def get_pattern_candidates(self, commits: List[Dict]) -> List[Dict]:
-        """Extract code snippets that could be patterns"""
+        """Extract code snippets for pattern analysis"""
         candidates = []
-
-        for commit in commits:
-            for file_change in commit["files_changed"]:
-                if file_change["content"] and file_change["language"] != "Other":
-                    # Extract meaningful code snippets
-                    snippets = self._extract_code_snippets(
-                        file_change["content"], file_change["language"]
-                    )
-
-                    for snippet in snippets:
+        for c in commits:
+            for f in c["files_changed"]:
+                if f.get("content") and f["language"] != "Other":
+                    snips = self._extract_code_snippets(f["content"], f["language"])
+                    for s in snips:
                         candidates.append(
                             {
-                                "code": snippet,
-                                "language": file_change["language"],
-                                "file_path": file_change["file_path"],
-                                "commit_hash": commit["hash"],
-                                "commit_date": commit["committed_date"],
-                                "author": commit["author_email"],
+                                "code": s,
+                                "language": f["language"],
+                                "file_path": f["file_path"],
+                                "commit_hash": c["hash"],
+                                "commit_date": c["date"],
+                                "author": c["author_email"],
                             }
                         )
-
         return candidates
 
     def _extract_code_snippets(self, content: str, language: str) -> List[str]:
-        """Extract meaningful code snippets from file content"""
-        snippets = []
         lines = content.split("\n")
-
-        # Different strategies for different languages
-        if language in ["JavaScript", "TypeScript", "React", "React TypeScript"]:
-            snippets.extend(self._extract_js_snippets(lines))
-        elif language == "Python":
-            snippets.extend(self._extract_python_snippets(lines))
-
-        return [s for s in snippets if len(s.strip()) > 20]  # Filter out tiny snippets
+        out = []
+        if language in ("JavaScript", "TypeScript"):
+            out.extend(self._extract_js_snippets(lines))
+        if language == "Python":
+            out.extend(self._extract_python_snippets(lines))
+        return [s for s in out if len(s) > 20]
 
     def _extract_js_snippets(self, lines: List[str]) -> List[str]:
-        """Extract JavaScript/React code snippets"""
         snippets = []
-        current_snippet = []
-        in_function = False
-        brace_count = 0
-
+        curr = []
+        in_fn = False
+        braces = 0
         for line in lines:
-            stripped_line = line.strip()
-
-            # Skip empty lines and comments
-            if (
-                not stripped_line
-                or stripped_line.startswith("//")
-                or stripped_line.startswith("/*")
-            ):
+            s = line.strip()
+            if not s or s.startswith("//"):
                 continue
-
-            # Look for function declarations, React components, hooks
-            if any(
-                pattern in stripped_line
-                for pattern in [
-                    "function ",
-                    "const ",
-                    "let ",
-                    "var ",
-                    "useState",
-                    "useEffect",
-                    "class ",
-                    "export ",
-                ]
-            ):
-                if current_snippet and len("\n".join(current_snippet)) > 50:
-                    snippets.append("\n".join(current_snippet))
-                current_snippet = [line]
-                in_function = True
-                brace_count = stripped_line.count("{") - stripped_line.count("}")
-            elif in_function:
-                current_snippet.append(line)
-                brace_count += stripped_line.count("{") - stripped_line.count("}")
-
-                if brace_count <= 0:
-                    in_function = False
-                    if len("\n".join(current_snippet)) > 50:
-                        snippets.append("\n".join(current_snippet))
-                    current_snippet = []
-
+            if any(tok in s for tok in ("function ", "const ", "useState", "class ")):
+                if in_fn and len("\n".join(curr)) > 50:
+                    snippets.append("\n".join(curr))
+                curr = [line]
+                in_fn = True
+                braces = s.count("{") - s.count("}")
+            elif in_fn:
+                curr.append(line)
+                braces += s.count("{") - s.count("}")
+                if braces <= 0:
+                    in_fn = False
+                    if len("\n".join(curr)) > 50:
+                        snippets.append("\n".join(curr))
+                    curr = []
         return snippets
 
     def _extract_python_snippets(self, lines: List[str]) -> List[str]:
-        """Extract Python code snippets"""
         snippets = []
-        current_snippet = []
-        in_function = False
-        current_indent = 0
-
+        curr = []
+        in_fn = False
+        indent = 0
         for line in lines:
-            stripped_line = line.strip()
-
-            if not stripped_line or stripped_line.startswith("#"):
+            s = line.strip()
+            if not s or s.startswith("#"):
                 continue
-
-            line_indent = len(line) - len(line.lstrip())
-
-            # Look for function/class definitions
-            if stripped_line.startswith(("def ", "class ", "async def ")):
-                if current_snippet and len("\n".join(current_snippet)) > 50:
-                    snippets.append("\n".join(current_snippet))
-                current_snippet = [line]
-                in_function = True
-                current_indent = line_indent
-            elif in_function:
-                if line_indent > current_indent or stripped_line == "":
-                    current_snippet.append(line)
+            lvl = len(line) - len(line.lstrip())
+            if s.startswith(("def ", "class ")):
+                if in_fn and len("\n".join(curr)) > 50:
+                    snippets.append("\n".join(curr))
+                curr = [line]
+                in_fn = True
+                indent = lvl
+            elif in_fn:
+                if lvl > indent:
+                    curr.append(line)
                 else:
-                    # Function ended
-                    in_function = False
-                    if len("\n".join(current_snippet)) > 50:
-                        snippets.append("\n".join(current_snippet))
-                    current_snippet = []
-
-                    # Start new snippet if this is also a definition
-                    if stripped_line.startswith(("def ", "class ", "async def ")):
-                        current_snippet = [line]
-                        in_function = True
-                        current_indent = line_indent
-
+                    in_fn = False
+                    if len("\n".join(curr)) > 50:
+                        snippets.append("\n".join(curr))
+                    curr = []
+                    if s.startswith(("def ", "class ")):
+                        curr = [line]
+                        in_fn = True
+                        indent = lvl
         return snippets
 
-    def cleanup(self):
-        """Clean up temporary directories"""
-        for temp_dir in self.temp_dirs:
+    def cleanup(self) -> None:
+        """Remove all temp dirs"""
+        for d in self.temp_dirs:
             try:
-                import stat
-
-                def handle_remove_readonly(func, path, exc):
-                    os.chmod(path, stat.S_IWRITE)
-                    func(path)
-
-                shutil.rmtree(temp_dir, onerror=handle_remove_readonly)
+                shutil.rmtree(d)
+                logger.info(f"Cleaned {d}")
             except Exception as e:
-                logger.error(f"Error cleaning up temp directories: {e}")
+                logger.error(f"Cleanup error {d}: {e}")
         self.temp_dirs = []
 
     def __del__(self):
-        """Cleanup on destruction"""
         self.cleanup()
