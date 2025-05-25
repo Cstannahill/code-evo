@@ -11,3 +11,23 @@ backend/.venv/
 backend/__pycache__/
 backend/*.py[cod]
 node_modules
+
+# Database files (added by cleanup script)
+backend/code_evolution.db
+backend/chroma_db/
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files with secrets
+.env
+.env.*
+!.env.example
+
+# Secret files
+*secret*
+*key*
+*token*
+*password*
+credentials/
+secrets/
