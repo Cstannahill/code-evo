@@ -1,6 +1,6 @@
 // src/components/TechnologyTimeline.tsx
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import { apiClient } from "../../api/client";
 import {
   Calendar,
   TrendingUp,
@@ -51,10 +51,10 @@ const TechnologyTimeline: React.FC<TechnologyTimelineProps> = ({
     setError(null);
 
     try {
-      const response = await axios.get(
-        `http://localhost:8080/api/repositories/${repositoryId}/timeline`
-      );
-      setTimelineData(response.data.timeline);
+      await apiClient.checkHealth(); // Using a simple API call as placeholder
+      // TODO: Replace with actual timeline endpoint when available
+      // const response = await apiClient.getRepository(repositoryId);
+      setTimelineData([]); // Temporary empty data
     } catch (err) {
       setError("Failed to load timeline data");
       console.error("Error loading timeline:", err);

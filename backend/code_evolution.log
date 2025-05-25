@@ -1,0 +1,4 @@
+2025-05-25 02:49:18,263 - app.core.database - INFO - Initializing SQLite database at: S:\code-evolution-tracker\backend\code_evolution.db
+2025-05-25 02:49:18,287 - app.core.database - ERROR - Error getting database info: Not an executable object: "SELECT COUNT(*) FROM sqlite_master WHERE type='table';"
+2025-05-25 02:53:11,963 - app.core.database - INFO - Initializing SQLite database at: S:\code-evolution-tracker\backend\code_evolution.db
+2025-05-25 02:53:11,985 - app.core.database - ERROR - Error getting database info: Not an executable object: "SELECT COUNT(*) FROM sqlite_master WHERE type='table';"
