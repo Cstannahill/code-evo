@@ -11,13 +11,13 @@ from app.services.ai_service import AIService  # Now working!
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/api/analysis", tags=["Analysis"])
 
 # Initialize AI service
 ai_service = AIService()
 
 
-@router.get("/analysis/status")
+@router.get("/status")
 async def get_ai_status():
     logger.info(f"Status Hit")
     """Get AI service status - NEW ENDPOINT"""
@@ -35,7 +35,7 @@ async def get_ai_status():
     }
 
 
-@router.post("/analysis/code")
+@router.post("/code")
 async def analyze_code_snippet(request: Dict[str, str], db: Session = Depends(get_db)):
     """Analyze a code snippet for patterns - NOW WITH REAL AI!"""
     try:
@@ -76,7 +76,7 @@ async def analyze_code_snippet(request: Dict[str, str], db: Session = Depends(ge
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/analysis/patterns")
+@router.get("/patterns")
 async def get_all_patterns(db: Session = Depends(get_db)):
     """Get all detected patterns across repositories"""
     try:
@@ -153,7 +153,7 @@ async def get_pattern_details(pattern_name: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/analysis/insights/{repo_id}")
+@router.get("/insights/{repo_id}")
 async def get_repository_insights(repo_id: str, db: Session = Depends(get_db)):
     """Get AI-generated insights for a repository - NOW WITH REAL AI!"""
     try:
@@ -247,7 +247,7 @@ async def get_repository_insights(repo_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/analysis/evolution")
+@router.post("/evolution")
 async def analyze_code_evolution(request: Dict, db: Session = Depends(get_db)):
     """Analyze evolution between two code versions - NEW ENDPOINT"""
     try:
@@ -278,7 +278,7 @@ async def analyze_code_evolution(request: Dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/analysis/compare/{repo_id1}/{repo_id2}")
+@router.get("/compare/{repo_id1}/{repo_id2}")
 async def compare_repositories(
     repo_id1: str, repo_id2: str, db: Session = Depends(get_db)
 ):

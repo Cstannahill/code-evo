@@ -19,7 +19,7 @@ export interface AnalysisSession {
   patterns_found: number;
   started_at: string;
   completed_at?: string;
-  configuration?: Record<string, any>;
+  configuration?: Record<string, unknown>;
   error_message?: string;
 }
 
@@ -47,7 +47,7 @@ export interface Technology {
   first_seen: string;
   last_seen: string;
   usage_count: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 export interface RepositoryAnalysisResponse {
   repository_id: string;
@@ -66,7 +66,7 @@ export interface RepositoryAnalysisResponse {
     confidence_score: number;
     detected_at: string;
   }>;
-  insights: any[]; // Single insight object in array
+  insights: Insight[]; // Single insight object in array
 }
 export interface RepositoryAnalysis {
   repository_id: string;
@@ -78,13 +78,13 @@ export interface RepositoryAnalysis {
     library: Technology[];
     tool: Technology[];
   };
-  patterns: Pattern[];
+  patterns: PatternOccurrence[];
   pattern_timeline: {
     timeline: Array<{
       date: string;
       patterns: Record<string, number>;
     }>;
-    summary: Record<string, any>;
+    summary: Record<string, unknown>;
   };
   pattern_statistics: Record<
     string,
@@ -115,7 +115,7 @@ export interface Insight {
   title: string;
   description: string;
   severity?: "info" | "warning" | "critical";
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
 }
 
 export interface CodeAnalysisResult {

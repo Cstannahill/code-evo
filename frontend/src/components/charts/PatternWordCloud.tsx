@@ -1,54 +1,51 @@
 import React from "react";
-import ReactWordcloud from "react-wordcloud";
-import { motion } from "framer-motion";
+import ReactWordCloud, { type Word } from "react-wordcloud";
 
 interface PatternWordCloudProps {
-  patterns: Record<string, any>;
+  /**
+   * Array of words with `text` and `value`.
+   * Example: [{ text: "react_hooks", value: 10 }, …]
+   */
+  patterns?: Word[];
+  /** Height of the cloud container (px) */
+  height?: number;
+  /** Width of the cloud container (px) */
+  width?: number;
 }
 
 export const PatternWordCloud: React.FC<PatternWordCloudProps> = ({
-  patterns,
+  patterns = [],
+  height = 300,
+  width = 600,
 }) => {
-  const words = React.useMemo(() => {
-    return Object.entries(patterns).map(([pattern, stats]) => ({
-      text: pattern,
-      value: stats.occurrences * (stats.is_antipattern ? 0.5 : 1),
-      category: stats.category,
-    }));
-  }, [patterns]);
+  // If no data, render a placeholder
+  if (!patterns.length) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height,
+          color: "#888",
+        }}
+      >
+        No pattern data available
+      </div>
+    );
+  }
 
+  // WordCloud configuration
   const options = {
-    colors: ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4"],
-    enableTooltip: true,
-    deterministic: true,
-    fontFamily: "Inter, sans-serif",
-    fontSizes: [20, 80],
-    fontStyle: "normal",
-    fontWeight: "bold",
-    padding: 8,
-    rotations: 0,
-    scale: "sqrt",
-    spiral: "archimedean",
-    transitionDuration: 1000,
-  };
-
-  const callbacks = {
-    onWordClick: (word: any) => {
-      console.log(`Clicked on ${word.text}`);
-    },
-    onWordMouseOver: (word: any) => {
-      console.log(`Mouse over ${word.text}`);
-    },
+    rotations: 2,
+    rotationAngles: [-90, 0] as [number, number],
+    fontSizes: [12, 60] as [number, number],
+    // You can add more options here if needed
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.8 }}
-      className="w-full h-96"
-    >
-      <ReactWordcloud words={words} options={options} callbacks={callbacks} />
-    </motion.div>
+    <div style={{ width, height }}>
+      <ReactWordCloud words={patterns} options={options} />
+    </div>
   );
 };

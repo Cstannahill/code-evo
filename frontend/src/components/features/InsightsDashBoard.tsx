@@ -1,52 +1,110 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   Lightbulb,
   TrendingUp,
   AlertTriangle,
-  CheckCircle,
   BookOpen,
-  Target,
   Zap,
   Award,
 } from "lucide-react";
 
-interface InsightsDashboardProps {
-  insights: any[];
-  analysis: any;
+// Possible insight types
+export type InsightType =
+  | "recommendation"
+  | "ai_analysis"
+  | "achievement"
+  | "warning"
+  | "trend"
+  | "pattern_summary"
+  | string;
+
+// Insight data structure
+export interface Insight {
+  type: InsightType;
+  title: string;
+  description: string;
+  data?: unknown;
 }
+
+// Analysis data structures
+interface AnalysisSummary {
+  total_patterns: number;
+  antipatterns_detected: number;
+}
+
+interface AnalysisSession {
+  commits_analyzed: number;
+}
+
+export interface Analysis {
+  summary: AnalysisSummary;
+  analysis_session: AnalysisSession;
+  technologies: Record<string, string[]>;
+  pattern_statistics: Record<string, number>;
+}
+
+// Component props
+interface InsightsDashboardProps {
+  insights: Insight[];
+  analysis: Analysis;
+}
+
+// Categorized insights
+interface CategorizedInsights {
+  recommendations: Insight[];
+  achievements: Insight[];
+  warnings: Insight[];
+  trends: Insight[];
+}
+
+// Safely stringify unknown data
+const safeStringify = (data: unknown): string => {
+  try {
+    if (typeof data === "object" && data !== null) {
+      return JSON.stringify(data, null, 2);
+    }
+    return String(data);
+  } catch {
+    return "Unable to display data";
+  }
+};
 
 export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({
   insights,
   analysis,
 }) => {
-  const categorizedInsights = React.useMemo(() => {
-    const categories = {
+  const categorizedInsights: CategorizedInsights = useMemo(() => {
+    const categories: CategorizedInsights = {
       recommendations: [],
       achievements: [],
       warnings: [],
       trends: [],
     };
-
     insights.forEach((insight) => {
-      if (insight.type === "recommendation" || insight.type === "ai_analysis") {
-        categories.recommendations.push(insight);
-      } else if (insight.type === "achievement") {
-        categories.achievements.push(insight);
-      } else if (insight.type === "warning") {
-        categories.warnings.push(insight);
-      } else if (
-        insight.type === "trend" ||
-        insight.type === "pattern_summary"
-      ) {
-        categories.trends.push(insight);
+      switch (insight.type) {
+        case "recommendation":
+        case "ai_analysis":
+          categories.recommendations.push(insight);
+          break;
+        case "achievement":
+          categories.achievements.push(insight);
+          break;
+        case "warning":
+          categories.warnings.push(insight);
+          break;
+        case "trend":
+        case "pattern_summary":
+          categories.trends.push(insight);
+          break;
       }
     });
-
     return categories;
   }, [insights]);
 
-  const getIcon = (type: string) => {
+  const getIcon = (
+    type: InsightType
+  ): React.ComponentType<React.SVGProps<SVGSVGElement>> => {
     switch (type) {
       case "recommendation":
       case "ai_analysis":
@@ -62,7 +120,7 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({
     }
   };
 
-  const getColor = (type: string) => {
+  const getColor = (type: InsightType): string => {
     switch (type) {
       case "recommendation":
       case "ai_analysis":
@@ -77,6 +135,9 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({
         return "text-gray-500 bg-gray-500/10";
     }
   };
+
+  const firstPatternKey =
+    Object.keys(analysis.pattern_statistics)[0]?.replace("_", " ") || "";
 
   return (
     <div className="space-y-6">
@@ -96,12 +157,11 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({
               Your repository demonstrates {analysis.summary.total_patterns}{" "}
               distinct coding patterns across{" "}
               {analysis.analysis_session.commits_analyzed} commits. The codebase
-              shows
+              shows{" "}
               {Object.values(analysis.technologies).flat().length > 5
                 ? "high"
                 : "moderate"}{" "}
-              technological diversity with a focus on{" "}
-              {Object.keys(analysis.pattern_statistics)[0]?.replace("_", " ")}{" "}
+              technological diversity with a focus on {firstPatternKey}{" "}
               patterns.
               {analysis.summary.antipatterns_detected > 0 &&
                 ` ${analysis.summary.antipatterns_detected} areas have been identified for potential improvement.`}
@@ -115,13 +175,13 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({
         {/* Recommendations */}
         <div className="space-y-4">
           <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            <Lightbulb className="w-4 h-4" />
-            Recommendations ({categorizedInsights.recommendations.length})
+            <Lightbulb className="w-4 h-4" /> Recommendations (
+            {categorizedInsights.recommendations.length})
           </h4>
           <div className="space-y-3">
-            {categorizedInsights.recommendations.map((insight, i) => (
+            {categorizedInsights.recommendations.map((insight, idx) => (
               <InsightCard
-                key={i}
+                key={idx}
                 insight={insight}
                 getIcon={getIcon}
                 getColor={getColor}
@@ -133,13 +193,13 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({
         {/* Achievements */}
         <div className="space-y-4">
           <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            <Award className="w-4 h-4" />
-            Achievements ({categorizedInsights.achievements.length})
+            <Award className="w-4 h-4" /> Achievements (
+            {categorizedInsights.achievements.length})
           </h4>
           <div className="space-y-3">
-            {categorizedInsights.achievements.map((insight, i) => (
+            {categorizedInsights.achievements.map((insight, idx) => (
               <InsightCard
-                key={i}
+                key={idx}
                 insight={insight}
                 getIcon={getIcon}
                 getColor={getColor}
@@ -151,13 +211,13 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({
         {/* Warnings */}
         <div className="space-y-4">
           <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4" />
-            Areas for Improvement ({categorizedInsights.warnings.length})
+            <AlertTriangle className="w-4 h-4" /> Areas for Improvement (
+            {categorizedInsights.warnings.length})
           </h4>
           <div className="space-y-3">
-            {categorizedInsights.warnings.map((insight, i) => (
+            {categorizedInsights.warnings.map((insight, idx) => (
               <InsightCard
-                key={i}
+                key={idx}
                 insight={insight}
                 getIcon={getIcon}
                 getColor={getColor}
@@ -169,13 +229,13 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({
         {/* Trends */}
         <div className="space-y-4">
           <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            <TrendingUp className="w-4 h-4" />
-            Identified Trends ({categorizedInsights.trends.length})
+            <TrendingUp className="w-4 h-4" /> Identified Trends (
+            {categorizedInsights.trends.length})
           </h4>
           <div className="space-y-3">
-            {categorizedInsights.trends.map((insight, i) => (
+            {categorizedInsights.trends.map((insight, idx) => (
               <InsightCard
-                key={i}
+                key={idx}
                 insight={insight}
                 getIcon={getIcon}
                 getColor={getColor}
@@ -193,20 +253,19 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({
         className="bg-card rounded-lg border p-6"
       >
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <BookOpen className="w-5 h-5" />
-          Recommended Learning Path
+          <BookOpen className="w-5 h-5" /> Recommended Learning Path
         </h3>
         <div className="space-y-4">
-          {generateLearningPath(analysis).map((step, i) => (
-            <div key={i} className="flex items-start gap-4">
+          {generateLearningPath(analysis).map((step, idx) => (
+            <div key={idx} className="flex items-start gap-4">
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                  i === 0
+                  idx === 0
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground"
                 }`}
               >
-                {i + 1}
+                {idx + 1}
               </div>
               <div className="flex-1">
                 <h4 className="font-medium">{step.title}</h4>
@@ -230,14 +289,27 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({
   );
 };
 
-const InsightCard = ({ insight, getIcon, getColor }: any) => {
+interface InsightCardProps {
+  insight: Insight;
+  getIcon: (
+    type: InsightType
+  ) => React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  getColor: (type: InsightType) => string;
+}
+
+const InsightCard: React.FC<InsightCardProps> = ({
+  insight,
+  getIcon,
+  getColor,
+}) => {
   const Icon = getIcon(insight.type);
   const colorClass = getColor(insight.type);
+  const [, bgClass] = colorClass.split(" ");
 
   return (
     <motion.div
       whileHover={{ scale: 1.02 }}
-      className={`rounded-lg p-4 ${colorClass.split(" ")[1]}`}
+      className={`rounded-lg p-4 ${bgClass}`}
     >
       <div className="flex items-start gap-3">
         <Icon className={`w-5 h-5 mt-0.5 ${colorClass.split(" ")[0]}`} />
@@ -246,9 +318,9 @@ const InsightCard = ({ insight, getIcon, getColor }: any) => {
           <p className="text-sm text-muted-foreground mt-1">
             {insight.description}
           </p>
-          {insight.data && (
+          {insight.data !== undefined && (
             <div className="mt-3 p-2 bg-background/50 rounded text-xs">
-              <pre>{JSON.stringify(insight.data, null, 2)}</pre>
+              <pre>{safeStringify(insight.data)}</pre>
             </div>
           )}
         </div>
@@ -257,9 +329,15 @@ const InsightCard = ({ insight, getIcon, getColor }: any) => {
   );
 };
 
-const generateLearningPath = (analysis: any) => {
-  const paths = [];
+export interface PathStep {
+  title: string;
+  description: string;
+  difficulty: string;
+  estimatedTime: string;
+}
 
+export const generateLearningPath = (analysis: Analysis): PathStep[] => {
+  const paths: PathStep[] = [];
   if (analysis.summary.antipatterns_detected > 0) {
     paths.push({
       title: "Refactoring Anti-patterns",
@@ -269,7 +347,6 @@ const generateLearningPath = (analysis: any) => {
       estimatedTime: "2-3 weeks",
     });
   }
-
   const techCount = Object.values(analysis.technologies).flat().length;
   if (techCount < 5) {
     paths.push({
@@ -280,13 +357,11 @@ const generateLearningPath = (analysis: any) => {
       estimatedTime: "4-6 weeks",
     });
   }
-
   paths.push({
     title: "Advanced Pattern Implementation",
     description: "Master advanced design patterns for scalable architecture",
     difficulty: "Advanced",
     estimatedTime: "6-8 weeks",
   });
-
   return paths;
 };

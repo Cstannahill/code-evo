@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Dashboard } from "./components/features/Dashboard";
 import { apiClient } from "./api/client";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
-// import type { ErrorPayload } from "vite/types/hmrPayload.js";
+import ErrorBoundary from "./components/ErrorBoundary";
+import LoggingDemo from "./components/LoggingDemo";
+import { useLogger } from "./hooks/useLogger";
 
 function App() {
+  const logger = useLogger("App");
   const [backendStatus, setBackendStatus] = useState<
     "checking" | "online" | "offline"
   >("checking");
@@ -14,33 +17,38 @@ function App() {
   } | null>(null);
 
   useEffect(() => {
-    checkBackendStatus();
+    logger.mount();
+
+    const doCheck = async () => {
+      logger.info("Checking backend status");
+
+      try {
+        const health = await apiClient.checkHealth();
+        setBackendStatus(health.status === "healthy" ? "online" : "offline");
+        logger.info("Backend health check completed");
+
+        const aiStat = await apiClient.getAnalysisStatus();
+        setAiStatus({
+          available: aiStat.ai_service.ollama_available,
+          model: aiStat.ai_service.model,
+        });
+        logger.info("AI status check completed");
+      } catch (err) {
+        logger.error("Error checking backend status", err as Error);
+        setBackendStatus("offline");
+      }
+    };
+
+    doCheck();
+
+    return () => {
+      logger.unmount();
+    };
   }, []);
-
-  const checkBackendStatus = async () => {
-    try {
-      console.log("Checking backend status...");
-      const health = await apiClient.checkHealth();
-      console.log("Health check response:", health);
-      setBackendStatus(health.status === "healthy" ? "online" : "offline");
-
-      // Check AI status
-      const aiStatusResponse = await apiClient.getAnalysisStatus();
-      console.log("AI status response:", aiStatusResponse);
-      setAiStatus({
-        available: aiStatusResponse.ai_service.ollama_available,
-        model: aiStatusResponse.ai_service.model,
-      });
-    } catch (error: ErrorPayload | unknown) {
-      console.error("Error checking backend status:", error);
-      setBackendStatus("offline");
-    }
-  };
-
   return (
     <>
       {/* Status Bar */}
-      <div className="fixed top-0 left-0 right-0 bg-background border-b z-50">
+      <div className="fixed top-0 left-0 right-0 bg-background border-b z-50 backdrop-blur-sm bg-opacity-90">
         <div className="container mx-auto px-4 py-2">
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-4">
@@ -82,7 +90,25 @@ function App() {
 
       {/* Main Content */}
       <div className="pt-10">
-        <Dashboard />
+        <ErrorBoundary
+          onError={(error, _errorInfo) => {
+            logger.error("Application Error Boundary triggered", error);
+          }}
+        >
+          <Dashboard />
+        </ErrorBoundary>
+
+        {/* Development Mode: Logging Demo */}
+        {import.meta.env.DEV && (
+          <div className="container mx-auto px-4 py-8">
+            <div className="border-t pt-8">
+              <h2 className="text-xl font-bold mb-4">
+                Development: Logging System Demo
+              </h2>
+              <LoggingDemo />
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
