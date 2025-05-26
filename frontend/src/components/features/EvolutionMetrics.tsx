@@ -51,13 +51,15 @@ export const EvolutionMetrics: React.FC<EvolutionMetricsProps> = ({
   const metrics: CalculatedEvolutionMetrics = React.useMemo(() => {
     const timeline = analysis.pattern_timeline.timeline;
     const firstDate = timeline[0]?.date
-      ? new Date(timeline[0].date)
+      ? new Date(timeline[0].date + "-01") // Add day for proper parsing
       : new Date();
     const lastDate = timeline[timeline.length - 1]?.date
-      ? new Date(timeline[timeline.length - 1].date)
+      ? new Date(timeline[timeline.length - 1].date + "-01")
       : new Date();
 
-    const daysDiff = differenceInDays(lastDate, firstDate) || 1;
+    const daysDiff = Math.max(differenceInDays(lastDate, firstDate), 1);
+    const monthsDiff = Math.max(timeline.length, 1);
+
     const totalPatternOccurrences = Object.values(
       analysis.pattern_statistics
     ).reduce(
@@ -65,15 +67,21 @@ export const EvolutionMetrics: React.FC<EvolutionMetricsProps> = ({
       0
     );
 
-    const commitsAnalyzed = analysis.analysis_session.commits_analyzed || 1; // Avoid division by zero
-    const timelineLength = timeline.length || 1; // Avoid division by zero
+    const commitsAnalyzed = analysis.analysis_session.commits_analyzed || 1;
+
+    // More realistic velocity calculation
+    const monthlyVelocity = commitsAnalyzed / monthsDiff;
+    const dailyVelocity = commitsAnalyzed / daysDiff;
+
+    // Use whichever gives more meaningful numbers
+    const velocity = monthsDiff > 12 ? dailyVelocity * 30 : monthlyVelocity;
 
     return {
       timespan: daysDiff,
-      velocity: ((commitsAnalyzed / daysDiff) * 30).toFixed(1),
+      velocity: velocity.toFixed(1),
       patternDensity: (totalPatternOccurrences / commitsAnalyzed).toFixed(2),
       evolutionRate: (
-        Object.keys(analysis.pattern_statistics).length / timelineLength
+        Object.keys(analysis.pattern_statistics).length / monthsDiff
       ).toFixed(2),
       firstCommit: format(firstDate, "MMM dd, yyyy"),
       lastCommit: format(lastDate, "MMM dd, yyyy"),
@@ -136,8 +144,7 @@ export const EvolutionMetrics: React.FC<EvolutionMetricsProps> = ({
           icon={Zap}
           label="Evolution Rate"
           value={metrics.evolutionRate}
-          // unit="new patterns/month" // More descriptive unit
-          unit="patterns/timeline entry" // Clarified unit based on calculation
+          unit="patterns/month" // More descriptive unit
           color="bg-yellow-500" // Adjusted color
         />
       </div>

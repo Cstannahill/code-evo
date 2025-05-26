@@ -1,4 +1,5 @@
-# app/models/repository.py (SQLite compatible - fixed JSONB issue)
+# app/models/repository.py - Enhanced with AI model tracking
+
 from sqlalchemy import (
     Column,
     String,
@@ -10,70 +11,36 @@ from sqlalchemy import (
     Float,
     JSON,
 )
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
 from app.core.database import Base
 
 
-# Use string UUIDs for SQLite compatibility
 def generate_uuid():
     return str(uuid.uuid4())
 
 
-class User(Base):
-    __tablename__ = "users"
+# New table for AI model information
+class AIModel(Base):
+    __tablename__ = "ai_models"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    email = Column(String(255), unique=True, nullable=False, index=True)
-    username = Column(String(100), unique=True, nullable=False, index=True)
-    full_name = Column(String(255))
-    avatar_url = Column(Text)
-    github_token = Column(Text)  # Store encrypted
+    name = Column(String(100), unique=True, nullable=False)  # e.g., "codellama:7b"
+    display_name = Column(String(200), nullable=False)  # e.g., "CodeLlama 7B"
+    provider = Column(String(100), nullable=False)  # e.g., "Meta/Ollama"
+    model_type = Column(String(50), nullable=False)  # e.g., "local", "api"
+    context_window = Column(Integer, default=4096)
+    cost_per_1k_tokens = Column(Float, default=0.0)
+    strengths = Column(JSON, default=[])  # List of model strengths
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    repositories = relationship(
-        "Repository", back_populates="user", cascade="all, delete-orphan"
-    )
-    analysis_sessions = relationship("AnalysisSession", back_populates="user")
+    analysis_results = relationship("AIAnalysisResult", back_populates="model")
 
 
-class Repository(Base):
-    __tablename__ = "repositories"
-
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    user_id = Column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True
-    )  # Made nullable for now
-    url = Column(String(500), unique=True, nullable=False, index=True)
-    name = Column(String(255), nullable=False)
-    default_branch = Column(String(100), default="main")
-    total_commits = Column(Integer, default=0)
-    first_commit_date = Column(DateTime)
-    last_commit_date = Column(DateTime)
-    last_analyzed = Column(DateTime)
-    status = Column(
-        String(50), default="pending", index=True
-    )  # pending, analyzing, completed, failed
-    repo_metadata = Column(JSON, default={})  # Changed from JSONB to JSON for SQLite
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationships
-    user = relationship("User", back_populates="repositories")
-    commits = relationship(
-        "Commit", back_populates="repository", cascade="all, delete-orphan"
-    )
-    analysis_sessions = relationship("AnalysisSession", back_populates="repository")
-    technologies = relationship(
-        "Technology", back_populates="repository", cascade="all, delete-orphan"
-    )
-    pattern_occurrences = relationship("PatternOccurrence", back_populates="repository")
-
-
+# Enhanced AnalysisSession with model tracking
 class AnalysisSession(Base):
     __tablename__ = "analysis_sessions"
 
@@ -83,125 +50,67 @@ class AnalysisSession(Base):
     )
     user_id = Column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True
-    )  # Made nullable
-    status = Column(
-        String(50), default="running"
-    )  # running, completed, failed, cancelled
+    )
+    status = Column(String(50), default="running")
     commits_analyzed = Column(Integer, default=0)
     patterns_found = Column(Integer, default=0)
     started_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime)
-    configuration = Column(JSON, default={})  # Changed from JSONB to JSON
+    configuration = Column(JSON, default={})
     error_message = Column(Text)
+
+    # NEW: Model selection for this analysis
+    selected_models = Column(JSON, default=[])  # List of model names used
+    is_comparison_analysis = Column(Boolean, default=False)
 
     # Relationships
     repository = relationship("Repository", back_populates="analysis_sessions")
     user = relationship("User", back_populates="analysis_sessions")
+    ai_results = relationship("AIAnalysisResult", back_populates="analysis_session")
     insights = relationship("Insight", back_populates="analysis_session")
 
 
-class Commit(Base):
-    __tablename__ = "commits"
+# New table for storing AI analysis results per model
+class AIAnalysisResult(Base):
+    __tablename__ = "ai_analysis_results"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
+    analysis_session_id = Column(
+        String(36),
+        ForeignKey("analysis_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    model_id = Column(
+        String(36), ForeignKey("ai_models.id", ondelete="CASCADE"), nullable=False
+    )
     repository_id = Column(
         String(36), ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False
     )
-    commit_hash = Column(String(40), unique=True, nullable=False, index=True)
-    author_name = Column(String(255))
-    author_email = Column(String(255), index=True)
-    committed_date = Column(DateTime, nullable=False, index=True)
-    message = Column(Text)
-    files_changed_count = Column(Integer, default=0)
-    additions = Column(Integer, default=0)
-    deletions = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Relationships
-    repository = relationship("Repository", back_populates="commits")
-    file_changes = relationship(
-        "FileChange", back_populates="commit", cascade="all, delete-orphan"
-    )
-    pattern_occurrences = relationship("PatternOccurrence", back_populates="commit")
-
-
-class FileChange(Base):
-    __tablename__ = "file_changes"
-
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    commit_id = Column(
-        String(36), ForeignKey("commits.id", ondelete="CASCADE"), nullable=False
-    )
-    file_path = Column(Text, nullable=False, index=True)
-    old_path = Column(Text)  # For renames
-    change_type = Column(
-        String(20), nullable=False
-    )  # added, modified, deleted, renamed
-    language = Column(String(50), index=True)
-    additions = Column(Integer, default=0)
-    deletions = Column(Integer, default=0)
-    patch = Column(Text)  # Store the actual diff
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    # Relationships
-    commit = relationship("Commit", back_populates="file_changes")
-
-
-class Technology(Base):
-    __tablename__ = "technologies"
-
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    repository_id = Column(
-        String(36), ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False
-    )
-    name = Column(String(100), nullable=False, index=True)
-    category = Column(String(50), index=True)  # language, framework, library, tool
-    version = Column(String(50))
-    first_seen = Column(DateTime, nullable=False)
-    last_seen = Column(DateTime, nullable=False)
-    usage_count = Column(Integer, default=1)
-    tech_metadata = Column(JSON, default={})  # Changed from JSONB to JSON
-
-    # Relationships
-    repository = relationship("Repository", back_populates="technologies")
-    timeline_entries = relationship("TechnologyTimeline", back_populates="technology")
-
-
-class TechnologyTimeline(Base):
-    __tablename__ = "technology_timeline"
-
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    repository_id = Column(
-        String(36), ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False
-    )
-    technology_id = Column(
-        String(36), ForeignKey("technologies.id", ondelete="CASCADE"), nullable=False
-    )
-    date = Column(DateTime, nullable=False, index=True)
-    commit_count = Column(Integer, default=0)
-    file_count = Column(Integer, default=0)
+    # Analysis results from this specific model
+    detected_patterns = Column(JSON, default=[])  # Raw patterns from model
     complexity_score = Column(Float, default=0.0)
+    skill_level = Column(String(50), default="intermediate")
+    suggestions = Column(JSON, default=[])
+    confidence_score = Column(Float, default=0.0)
+
+    # Performance metrics
+    processing_time = Column(Float, default=0.0)  # seconds
+    token_usage = Column(JSON, default={})  # input/output/total tokens
+    cost_estimate = Column(Float, default=0.0)  # USD cost
+
+    # Metadata
+    model_version = Column(String(100))  # Track model version
+    analysis_timestamp = Column(DateTime, default=datetime.utcnow)
+    error_message = Column(Text)  # If analysis failed
 
     # Relationships
-    technology = relationship("Technology", back_populates="timeline_entries")
+    analysis_session = relationship("AnalysisSession", back_populates="ai_results")
+    model = relationship("AIModel", back_populates="analysis_results")
+    repository = relationship("Repository")
 
 
-class Pattern(Base):
-    __tablename__ = "patterns"
-
-    id = Column(String(36), primary_key=True, default=generate_uuid)
-    name = Column(String(100), unique=True, nullable=False, index=True)
-    category = Column(String(50), nullable=False, index=True)
-    description = Column(Text)
-    complexity_level = Column(String(20), default="intermediate")
-    detection_rules = Column(JSON, default={})  # Changed from JSONB to JSON
-    is_antipattern = Column(Boolean, default=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    # Relationships
-    occurrences = relationship("PatternOccurrence", back_populates="pattern")
-
-
+# Enhanced PatternOccurrence with model attribution
 class PatternOccurrence(Base):
     __tablename__ = "pattern_occurrences"
 
@@ -215,6 +124,15 @@ class PatternOccurrence(Base):
     commit_id = Column(
         String(36), ForeignKey("commits.id", ondelete="CASCADE"), nullable=False
     )
+
+    # NEW: Track which AI model detected this pattern
+    detected_by_model_id = Column(
+        String(36), ForeignKey("ai_models.id", ondelete="CASCADE")
+    )
+    ai_analysis_result_id = Column(
+        String(36), ForeignKey("ai_analysis_results.id", ondelete="CASCADE")
+    )
+
     file_path = Column(Text, nullable=False)
     line_number = Column(Integer)
     code_snippet = Column(Text)
@@ -225,26 +143,82 @@ class PatternOccurrence(Base):
     pattern = relationship("Pattern", back_populates="occurrences")
     repository = relationship("Repository", back_populates="pattern_occurrences")
     commit = relationship("Commit", back_populates="pattern_occurrences")
+    detected_by_model = relationship("AIModel")
+    ai_analysis_result = relationship("AIAnalysisResult")
 
 
-class Insight(Base):
-    __tablename__ = "insights"
+# New table for model comparison experiments
+class ModelComparison(Base):
+    __tablename__ = "model_comparisons"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    analysis_session_id = Column(
-        String(36), ForeignKey("analysis_sessions.id", ondelete="CASCADE")
-    )
     repository_id = Column(
         String(36), ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False
     )
-    type = Column(
-        String(50), nullable=False, index=True
-    )  # recommendation, warning, achievement, trend
-    title = Column(String(255), nullable=False)
-    description = Column(Text)
-    data = Column(JSON, default={})  # Changed from JSONB to JSON
-    severity = Column(String(20), default="info", index=True)  # info, warning, critical
+    analysis_session_id = Column(
+        String(36),
+        ForeignKey("analysis_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # Comparison metadata
+    models_compared = Column(JSON, default=[])  # List of model IDs
+    comparison_type = Column(
+        String(50), default="pattern_detection"
+    )  # pattern_detection, quality_analysis, etc.
+
+    # Comparison results
+    consensus_patterns = Column(JSON, default=[])  # Patterns all models agreed on
+    disputed_patterns = Column(JSON, default=[])  # Patterns with disagreement
+    model_agreement_score = Column(Float, default=0.0)  # 0-1 how much models agreed
+
+    # Performance comparison
+    total_processing_time = Column(Float, default=0.0)
+    total_cost_estimate = Column(Float, default=0.0)
+    fastest_model = Column(String(36), ForeignKey("ai_models.id"))
+    most_accurate_model = Column(String(36), ForeignKey("ai_models.id"))
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
-    analysis_session = relationship("AnalysisSession", back_populates="insights")
+    repository = relationship("Repository")
+    analysis_session = relationship("AnalysisSession")
+
+
+# Enhanced Repository to track model usage
+class Repository(Base):
+    __tablename__ = "repositories"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
+    url = Column(String(500), unique=True, nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    default_branch = Column(String(100), default="main")
+    total_commits = Column(Integer, default=0)
+    first_commit_date = Column(DateTime)
+    last_commit_date = Column(DateTime)
+    last_analyzed = Column(DateTime)
+    status = Column(String(50), default="pending", index=True)
+    repo_metadata = Column(JSON, default={})
+
+    # NEW: Track which models have analyzed this repo
+    analyzed_by_models = Column(
+        JSON, default=[]
+    )  # List of model IDs that analyzed this repo
+    preferred_models = Column(JSON, default=[])  # User's preferred models for this repo
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="repositories")
+    commits = relationship(
+        "Commit", back_populates="repository", cascade="all, delete-orphan"
+    )
+    analysis_sessions = relationship("AnalysisSession", back_populates="repository")
+    technologies = relationship(
+        "Technology", back_populates="repository", cascade="all, delete-orphan"
+    )
+    pattern_occurrences = relationship("PatternOccurrence", back_populates="repository")

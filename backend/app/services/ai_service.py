@@ -492,6 +492,36 @@ class AIService:
     def _detect_patterns_simple(self, code: str, language: str) -> List[str]:
         """Enhanced pattern detection with comprehensive rule-based analysis"""
         patterns: List[str] = []
+        css_patterns_to_exclude = {
+            "justify-center",
+            "whitespace-nowrap",
+            "font-medium",
+            "rounded-md",
+            "focus-visible:outline-none",
+            "inline-flex",
+            "text-sm",
+            "items-center",
+            "transition-colors",
+            "disabled:opacity-50",
+            "gap-2",
+            "focus-visible:ring-1",
+            "[&_svg]:size-4",
+            "[&_svg]:shrink-0",
+            "[&_svg]:pointer-events-none",
+            "focus-visible:ring-ring",
+            "disabled:pointer-events-none",
+            "text-xs",
+            "focus-visible",
+            "outline-none",
+            "ring-2",
+            "ring-ring",
+            "ring-offset-2",
+            "pointer-events-none",
+            "opacity-50",
+            "size-4",
+            "shrink-0",
+        }
+
         code_lower = code.lower()
 
         # JavaScript/TypeScript patterns
@@ -565,8 +595,8 @@ class AIService:
             patterns.append("large_code_block")
         if code.count("function") > 5 or code.count("def ") > 5:
             patterns.append("multi_function_module")
-
-        return list(set(patterns))  # Remove duplicates
+        filtered_patterns = [p for p in patterns if p not in css_patterns_to_exclude]
+        return list(set(filtered_patterns))  # Remove duplicates
 
     def _enhanced_simple_analysis(
         self, code: str, patterns: List[str], language: str
