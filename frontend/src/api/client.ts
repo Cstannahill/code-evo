@@ -1,192 +1,159 @@
-import axios, { type AxiosInstance, type AxiosResponse } from "axios";
-import type {
-  Repository,
-  RepositoryCreate,
-  RepositoryAnalysis,
-  CodeAnalysisResult,
-  CodeAnalysisRequest,
-  TimelineResponse,
-  HealthResponse,
-  AIServiceStatus,
-  Insight,
-} from "../types/api";
+// src/api/client.ts - Enhanced with model selection and analytics
+interface CreateRepositoryRequest {
+  url: string;
+  branch?: string;
+  model_id?: string; // Add model selection support
+}
 
-class ApiClient {
-  private client: AxiosInstance;
+interface MultiModelAnalysisRequest {
+  models: string[];
+  code: string;
+  language?: string;
+  repository_id?: string;
+}
 
-  constructor() {
-    this.client = axios.create({
-      baseURL: import.meta.env.VITE_API_URL || "http://localhost:8080",
-      timeout: 60000, // 60 seconds for analysis operations
+// Enhanced API client with model selection
+export class ApiClient {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = "http://localhost:8080") {
+    this.baseUrl = baseUrl;
+  }
+
+  // Existing methods...
+  async checkHealth() {
+    const response = await fetch(`${this.baseUrl}/health`);
+    return response.json();
+  }
+
+  async getAnalysisStatus() {
+    const response = await fetch(`${this.baseUrl}/api/analysis/status`);
+    return response.json();
+  }
+
+  // Enhanced repository creation with model selection
+  async createRepository(data: CreateRepositoryRequest) {
+    // Track analytics
+    this.trackModelSelection(data.model_id);
+
+    const response = await fetch(`${this.baseUrl}/api/repositories`, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify(data),
     });
 
-    // Request interceptor for logging
-    this.client.interceptors.request.use(
-      (config) => {
-        const startTime = Date.now();
-        const requestId = Math.random().toString(36).substring(7);
+    if (!response.ok) {
+      throw new Error(`Failed to create repository: ${response.statusText}`);
+    }
 
-        config.metadata = {
-          startTime,
-          requestId,
-        };
+    const result = await response.json();
 
-        console.log(`🚀 API Request [${requestId}]:`, {
-          method: config.method?.toUpperCase(),
-          url: config.url,
-          data: config.data,
-        });
+    // Track successful analysis start
+    this.trackRepositoryAnalysis(data.model_id || "default", data.url);
 
-        return config;
-      },
-      (error) => {
-        console.error("❌ API Request Error:", error);
-        return Promise.reject(error);
+    return result;
+  }
+
+  // Get available AI models
+  async getAvailableModels() {
+    const response = await fetch(
+      `${this.baseUrl}/api/multi-model/models/available`
+    );
+    if (!response.ok) {
+      throw new Error("Failed to fetch available models");
+    }
+    return response.json();
+  }
+
+  // Multi-model analysis endpoints
+  async compareModels(data: MultiModelAnalysisRequest) {
+    const response = await fetch(
+      `${this.baseUrl}/api/multi-model-v2/analyze/compare-enhanced`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
       }
     );
 
-    // Response interceptor for logging
-    this.client.interceptors.response.use(
-      (response) => {
-        const duration =
-          Date.now() - (response.config.metadata?.startTime || 0);
-        const requestId = response.config.metadata?.requestId;
+    if (!response.ok) {
+      throw new Error(`Multi-model analysis failed: ${response.statusText}`);
+    }
 
-        console.log(`✅ API Response [${requestId}]:`, {
-          status: response.status,
-          duration: `${duration}ms`,
-          data: response.data,
-        });
+    const result = await response.json();
 
-        return response;
-      },
-      (error) => {
-        const duration = Date.now() - (error.config?.metadata?.startTime || 0);
-        const requestId = error.config?.metadata?.requestId;
+    // Track multi-model comparison
+    this.trackMultiModelComparison(data.models);
 
-        console.error(`❌ API Error [${requestId}]:`, {
-          status: error.response?.status,
-          duration: `${duration}ms`,
-          message: error.message,
-          data: error.response?.data,
-        });
+    return result;
+  }
 
-        return Promise.reject(error);
-      }
+  async getComparisonResults(comparisonId: string) {
+    const response = await fetch(
+      `${this.baseUrl}/api/multi-model-v2/comparison/${comparisonId}`
     );
+    if (!response.ok) {
+      throw new Error("Failed to fetch comparison results");
+    }
+    return response.json();
   }
 
-  // Health check
-  async checkHealth(): Promise<HealthResponse> {
-    const response: AxiosResponse<HealthResponse> = await this.client.get(
-      "/health"
+  // Analytics tracking methods
+  private trackModelSelection(modelId?: string) {
+    if (typeof gtag !== "undefined" && modelId) {
+      gtag("event", "model_selected", {
+        model_name: modelId,
+        analysis_type: "single",
+      });
+    }
+  }
+
+  private trackRepositoryAnalysis(modelId: string, repoUrl: string) {
+    if (typeof gtag !== "undefined") {
+      gtag("event", "repository_analysis_started", {
+        model_name: modelId,
+        repository_domain: new URL(repoUrl).hostname,
+      });
+    }
+  }
+
+  private trackMultiModelComparison(models: string[]) {
+    if (typeof gtag !== "undefined") {
+      gtag("event", "multi_model_comparison", {
+        models: models.join(","),
+        model_count: models.length,
+      });
+    }
+  }
+
+  // Existing methods...
+  async getRepositories() {
+    const response = await fetch(`${this.baseUrl}/api/repositories`);
+    return response.json();
+  }
+
+  async getRepository(id: string) {
+    const response = await fetch(`${this.baseUrl}/api/repositories/${id}`);
+    return response.json();
+  }
+
+  async getRepositoryAnalysis(id: string) {
+    const response = await fetch(
+      `${this.baseUrl}/api/repositories/${id}/analysis`
     );
-    return response.data;
-  }
-
-  // Connection test
-  async testConnection(): Promise<unknown> {
-    const response = await this.client.get("/api/connection-test");
-    return response.data;
-  }
-
-  // AI service status
-  async getAnalysisStatus(): Promise<AIServiceStatus> {
-    const response: AxiosResponse<AIServiceStatus> = await this.client.get(
-      "/api/analysis/status"
-    );
-    return response.data;
-  }
-
-  // Repository operations
-  async getRepositories(): Promise<Repository[]> {
-    const response: AxiosResponse<Repository[]> = await this.client.get(
-      "/api/repositories/"
-    );
-    return response.data;
-  }
-
-  async getRepository(id: string): Promise<Repository> {
-    const response: AxiosResponse<Repository> = await this.client.get(
-      `/api/repositories/${id}`
-    );
-    return response.data;
-  }
-
-  async createRepository(data: RepositoryCreate): Promise<Repository> {
-    const response: AxiosResponse<Repository> = await this.client.post(
-      "/api/repositories/",
-      data
-    );
-    return response.data;
-  }
-
-  // Analysis operations
-  async getRepositoryAnalysis(repoId: string): Promise<RepositoryAnalysis> {
-    const response: AxiosResponse<RepositoryAnalysis> = await this.client.get(
-      `/api/repositories/${repoId}/analysis`
-    );
-    return response.data;
-  }
-
-  async getRepositoryTimeline(repoId: string): Promise<TimelineResponse> {
-    const response: AxiosResponse<TimelineResponse> = await this.client.get(
-      `/api/repositories/${repoId}/timeline`
-    );
-    return response.data;
-  }
-
-  async getInsights(repoId: string): Promise<{ insights: Insight[] }> {
-    const response: AxiosResponse<{ insights: Insight[] }> =
-      await this.client.get(`/api/analysis/insights/${repoId}`);
-    return response.data;
-  }
-
-  // Code analysis
-  async analyzeCode(request: CodeAnalysisRequest): Promise<CodeAnalysisResult> {
-    const response: AxiosResponse<CodeAnalysisResult> = await this.client.post(
-      "/api/analysis/code",
-      request
-    );
-    return response.data;
-  }
-
-  // Pattern operations
-  async getAllPatterns(): Promise<never[]> {
-    const response = await this.client.get("/api/analysis/patterns");
-    return response.data;
-  }
-
-  async getPatternDetails(patternName: string): Promise<any> {
-    const response = await this.client.get(
-      `/api/analysis/patterns/${patternName}`
-    );
-    return response.data;
-  }
-
-  // Evolution analysis
-  async analyzeEvolution(data: {
-    old_code: string;
-    new_code: string;
-    context?: string;
-  }): Promise<unknown> {
-    const response = await this.client.post("/api/analysis/evolution", data);
-    return response.data;
-  }
-
-  // Repository comparison
-  async compareRepositories(
-    repoId1: string,
-    repoId2: string
-  ): Promise<unknown> {
-    const response = await this.client.get(
-      `/api/analysis/compare/${repoId1}/${repoId2}`
-    );
-    return response.data;
+    return response.json();
   }
 }
 
+// Export singleton instance
 export const apiClient = new ApiClient();
+
+// Type declarations for gtag (add to src/types/global.d.ts)
+declare global {
+  function gtag(command: string, targetId: string, config?: any): void;
+  function gtag(command: string, action: string, parameters?: any): void;
+}

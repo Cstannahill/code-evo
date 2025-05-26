@@ -2,14 +2,18 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from motor.motor_asyncio import AsyncIOMotorClient
 import logging
 import os
 import redis
 import chromadb
 from chromadb.config import Settings as ChromaSettings
+from datetime import datetime
+from dotenv import load_dotenv
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
+env_path = Path(__file__).resolve().parents[2] / ".env"
 # SQLite setup (keeping this simple)
 DATABASE_PATH = "code_evolution.db"
 SQLITE_URL = f"sqlite:///{DATABASE_PATH}"
@@ -19,7 +23,10 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
     echo=False,
 )
-
+load_dotenv(dotenv_path=env_path)
+MONGODB_URL = os.getenv("MONGODB_URL", "your-cluster-connection-string")
+mongodb_client = AsyncIOMotorClient(MONGODB_URL)
+mongodb_db = mongodb_client.code_evolution_ai
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -52,6 +59,22 @@ except Exception as e:
 
 # Fallback in-memory cache
 _memory_cache = {}
+
+
+async def test_mongodb_connection():
+    try:
+        await mongodb_client.admin.command("ping")
+        print("✅ MongoDB Atlas connection successful!")
+
+        # Test insert
+        test_doc = {"test": "multi-model-ai", "timestamp": datetime.utcnow()}
+        result = await mongodb_db.test_collection.insert_one(test_doc)
+        print(f"✅ Test document inserted: {result.inserted_id}")
+
+        return True
+    except Exception as e:
+        print(f"❌ MongoDB connection failed: {e}")
+        return False
 
 
 class CacheService:
