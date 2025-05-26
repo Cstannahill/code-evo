@@ -28,16 +28,18 @@ export const CodeQualityMetrics: React.FC<CodeQualityMetricsProps> = ({
     ).filter((p: any) => p.complexity_level === "advanced").length;
 
     return {
-      codeQuality: Math.max(0, 100 - antipatterns * 10),
-      patternDiversity: Math.min(100, totalPatterns * 10),
-      maintainability: Math.max(0, 100 - complexPatterns * 15),
+      codeQuality: Math.max(0, Math.min(100, 90 - antipatterns * 15)),
+      patternDiversity: Math.min(100, totalPatterns * 12),
+      maintainability: Math.max(0, Math.min(100, 85 - complexPatterns * 12)),
       evolutionScore: Math.min(
         100,
-        (analysis.pattern_timeline?.timeline?.length || 0) * 5
+        (analysis.pattern_timeline?.timeline?.length || 0) * 8 + 20
       ),
-      techDebt: antipatterns * 20,
-      modernization:
-        Object.values(analysis.technologies || {}).flat().length * 8,
+      techDebt: Math.max(0, 100 - antipatterns * 25),
+      modernization: Math.min(
+        100,
+        Object.values(analysis.technologies || {}).flat().length * 10 + 30
+      ),
     };
   }, [analysis]);
 
@@ -53,34 +55,49 @@ export const CodeQualityMetrics: React.FC<CodeQualityMetricsProps> = ({
     icon: any;
     color: string;
     description: string;
-  }) => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-card rounded-lg border p-6"
-    >
-      <div className="flex items-center justify-between mb-4">
-        <h4 className="text-sm font-medium text-muted-foreground">{title}</h4>
-        <Icon className={`w-5 h-5 ${color}`} />
-      </div>
-      <div className="w-32 h-32 mx-auto mb-4">
-        <CircularProgressbar
-          value={value}
-          text={`${value}%`}
-          styles={buildStyles({
-            textSize: "20px",
-            pathColor: color.replace("text-", "#").replace("500", ""),
-            textColor: "white",
-            trailColor: "#374151",
-          })}
-        />
-      </div>
-      <p className="text-xs text-center text-muted-foreground">{description}</p>
-    </motion.div>
-  );
+  }) => {
+    // Extract the color hex value for CircularProgressbar
+    const colorMap: Record<string, string> = {
+      "text-green-500": "#10b981",
+      "text-blue-500": "#3b82f6",
+      "text-purple-500": "#8b5cf6",
+      "text-cyan-500": "#06b6d4",
+      "text-orange-500": "#f97316",
+      "text-yellow-500": "#eab308",
+    };
+
+    const hexColor = colorMap[color] || "#6b7280";
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gray-800 rounded-lg border border-gray-700 p-6 shadow-lg"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-sm font-medium text-gray-300">{title}</h4>
+          <Icon className={`w-5 h-5 ${color}`} />
+        </div>
+        <div className="w-24 h-24 mx-auto mb-4">
+          <CircularProgressbar
+            value={value}
+            text={`${Math.round(value)}%`}
+            styles={buildStyles({
+              textSize: "18px",
+              pathColor: hexColor,
+              textColor: "#f3f4f6", // gray-100
+              trailColor: "#374151", // gray-700
+              pathTransition: "stroke-dashoffset 0.5s ease 0s",
+            })}
+          />
+        </div>
+        <p className="text-xs text-center text-gray-400">{description}</p>
+      </motion.div>
+    );
+  };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
       <MetricCard
         title="Code Quality"
         value={metrics.codeQuality}
@@ -111,14 +128,14 @@ export const CodeQualityMetrics: React.FC<CodeQualityMetricsProps> = ({
       />
       <MetricCard
         title="Tech Debt"
-        value={100 - metrics.techDebt}
+        value={metrics.techDebt}
         icon={AlertTriangle}
         color="text-orange-500"
         description="Freedom from antipatterns"
       />
       <MetricCard
         title="Modernization"
-        value={Math.min(100, metrics.modernization)}
+        value={metrics.modernization}
         icon={Zap}
         color="text-yellow-500"
         description="Modern tech adoption"

@@ -45,38 +45,28 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
     error,
   } = useRepositoryAnalysis(repositoryId);
 
-  // Build the word cloud data
+  // Build the word cloud data with better processing
   const wordCloudData: Word[] = useMemo(() => {
-    if (!analysis?.pattern_statistics) {
-      console.log("📊 No pattern_statistics available");
-      return [];
-    }
-
-    console.log("📊 Pattern statistics:", analysis.pattern_statistics);
-
-    const words = Object.entries(analysis.pattern_statistics).map(
-      ([pattern, info]) => {
-        console.log(`📊 Processing pattern: ${pattern}`, info);
-        return {
-          text: pattern,
-          value: info.occurrences || 1, // Ensure we always have a positive value
-        };
-      }
-    );
-
-    console.log("📊 Word cloud data:", words);
-    return words.filter((w) => w.text && w.value > 0); // Extra safety filter
+    if (!analysis?.pattern_statistics) return [];
+    return Object.entries(analysis.pattern_statistics)
+      .map(([pattern, info]) => ({
+        text: pattern.replace(/_/g, " "), // More readable names
+        value: info.occurrences,
+      }))
+      .filter((item) => item.value > 0)
+      .sort((a, b) => b.value - a.value); // Sort by frequency
   }, [analysis?.pattern_statistics]);
 
   if (isLoading) return <DashboardSkeleton />;
   if (error || !analysis) return <ErrorState />;
 
-  // Header metrics
+  // Header metrics with better calculations
   const totalCommits = analysis?.analysis_session?.commits_analyzed || 0;
   const totalPatterns = Object.keys(analysis?.pattern_statistics || {}).length;
   const totalTechnologies = Object.values(analysis?.technologies || {}).flat()
     .length;
   const timelineLength = analysis?.pattern_timeline?.timeline.length || 0;
+  const antipatterns = analysis?.summary?.antipatterns_detected || 0;
 
   // Prepare simplified data structures for components that need them
   const simpleTechnologies: Record<string, string[]> = {};
@@ -100,7 +90,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Header Metrics */}
+      {/* Header Metrics with improved calculations */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -109,19 +99,21 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
         <MetricCard
           title="Repository Health"
           value={`${Math.round(
-            ((totalPatterns - (analysis?.summary?.antipatterns_detected || 0)) /
-              Math.max(totalPatterns, 1)) *
-              100
+            ((totalPatterns - antipatterns) / Math.max(totalPatterns, 1)) * 100
           )}%`}
           subtitle="Based on pattern analysis"
           icon={Activity}
-          trend="+12%"
+          trend={antipatterns === 0 ? "+5%" : "-2%"}
           color="text-green-500"
         />
         <MetricCard
           title="Evolution Velocity"
-          value={`${(timelineLength * 3.2).toFixed(1)}`}
-          subtitle="Learning rate index"
+          value={
+            timelineLength > 0
+              ? `${(totalCommits / timelineLength).toFixed(1)}`
+              : "0"
+          }
+          subtitle="Commits per timeline entry"
           icon={TrendingUp}
           trend="+8%"
           color="text-blue-500"
@@ -136,7 +128,13 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
         />
         <MetricCard
           title="Code Maturity"
-          value="Advanced"
+          value={
+            totalPatterns > 15
+              ? "Advanced"
+              : totalPatterns > 8
+              ? "Intermediate"
+              : "Basic"
+          }
           subtitle={`${totalCommits} commits analyzed`}
           icon={Award}
           color="text-yellow-500"
@@ -173,16 +171,30 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
                   <CodeQualityMetrics analysis={analysis} />
                 </DashboardCard>
                 <DashboardCard title="Pattern Distribution" icon={Brain}>
-                  <PatternWordCloud patterns={wordCloudData} />
+                  {wordCloudData.length > 0 ? (
+                    <PatternWordCloud patterns={wordCloudData} height={280} />
+                  ) : (
+                    <div className="flex items-center justify-center h-64 text-muted-foreground">
+                      <div className="text-center">
+                        <div className="text-4xl mb-2">🧠</div>
+                        <p>Analyzing patterns...</p>
+                        <p className="text-sm mt-1">
+                          {Object.keys(analysis.pattern_statistics).length}{" "}
+                          patterns detected
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </DashboardCard>
               </div>
               <DashboardCard
                 title="Repository Evolution Timeline"
                 icon={Calendar}
               >
-                <div className="text-center text-muted-foreground py-8">
-                  Timeline visualization coming soon...
-                </div>
+                <PatternTimeline
+                  data={analysis.pattern_timeline.timeline}
+                  height={250}
+                />
               </DashboardCard>
             </TabsContent>
 
