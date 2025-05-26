@@ -32,6 +32,16 @@ class AnalysisService:
 
         logger.info("AnalysisService initialized")
 
+    def set_preferred_model(self, model_id: str):
+        """Set the preferred model for AI analysis."""
+        if hasattr(self.ai, "set_preferred_model"):
+            self.ai.set_preferred_model(model_id)
+            logger.info(f"🤖 Set preferred model to: {model_id}")
+        else:
+            logger.warning(
+                f"⚠️ AIService does not support model selection. Ignoring model_id: {model_id}"
+            )
+
     def get_status(self) -> Dict[str, Any]:
         """
         Delegate health/status check to the underlying AIService.
@@ -185,7 +195,7 @@ class AnalysisService:
 
         return report
 
-    def analyze_local_path(
+    async def analyze_local_path(
         self,
         local_path: str,
         commit_limit: int = 50,
@@ -193,7 +203,7 @@ class AnalysisService:
     ) -> Dict[str, Any]:
         """
         Analyze an already-cloned local repository at `local_path`.
-        Synchronous wrapper for analyze_repository when repo is on disk.
+        Now properly async to avoid event loop conflicts.
         """
         report: Dict[str, Any] = {}
 
@@ -210,35 +220,61 @@ class AnalysisService:
         commits = self.git.get_commit_history(repo, limit=commit_limit)
         report["commits"] = commits
 
-        candidates = self.git.get_pattern_candidates(commits)[:candidate_limit]
+        candidates = self.git.get_pattern_candidates(commits)
+        report["pattern_candidates"] = candidates  # Full list for database
+        analysis_candidates = (
+            candidates[:candidate_limit] if candidate_limit else candidates
+        )
         report["total_candidates"] = len(candidates)
 
-        # Run full async analysis using repository URL placeholder
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        async_report = loop.run_until_complete(
-            self.analyze_repository(
-                repo_url=local_path,
-                branch="",
-                commit_limit=commit_limit,
-                candidate_limit=candidate_limit,
-            )
-        )
-        loop.close()
+        # Run AI analyses in parallel (same as analyze_repository)
+        logger.info(f"🤖 Running AI analysis on {len(analysis_candidates)} patterns...")
 
-        # Merge async results
-        report.update(
-            {
-                k: v
-                for k, v in async_report.items()
-                if k
-                in (
-                    "pattern_analyses",
-                    "quality_analyses",
-                    "evolution_analyses",
-                    "insights",
-                )
-            }
+        pattern_tasks = [
+            self.ai.analyze_code_pattern(c["code"], c["language"])
+            for c in analysis_candidates
+        ]
+        quality_tasks = [
+            self.ai.analyze_code_quality(c["code"], c["language"])
+            for c in analysis_candidates
+        ]
+
+        pattern_results, quality_results = await asyncio.gather(
+            asyncio.gather(*pattern_tasks), asyncio.gather(*quality_tasks)
         )
+        report["pattern_analyses"] = pattern_results
+        report["quality_analyses"] = quality_results
+
+        # Evolution analysis
+        evolution: List[Dict[str, Any]] = []
+        if len(analysis_candidates) >= 2:
+            old = analysis_candidates[0]
+            new = analysis_candidates[-1]
+            evo = await self.ai.analyze_evolution(
+                old["code"], new["code"], context=local_path
+            )
+            evolution.append(evo)
+        report["evolution_analyses"] = evolution
+
+        # Generate insights
+        all_patterns = set()
+        for res in pattern_results:
+            all_patterns.update(res.get("combined_patterns", []))
+
+        pattern_dict = {}
+        for pattern in all_patterns:
+            count = sum(
+                1
+                for res in pattern_results
+                if pattern in res.get("combined_patterns", [])
+            )
+            pattern_dict[pattern] = count
+
+        insights_input = {
+            "patterns": pattern_dict,
+            "technologies": list(report["technologies"].get("languages", {}).keys()),
+            "commits": len(commits),
+        }
+        report["insights"] = await self.generate_insights(insights_input)
 
         return report

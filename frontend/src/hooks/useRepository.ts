@@ -1,13 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../api/client";
 import toast from "react-hot-toast";
+import type { RepositoryCreateRequest } from "../types/api";
 
 export const useCreateRepository = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { url: string; branch?: string }) =>
-      apiClient.createRepository(data),
+    mutationFn: (
+      data: RepositoryCreateRequest // Updated type here
+    ) => apiClient.createRepository(data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["repositories"] });
       toast.success(`Repository ${data.name} created!`);
