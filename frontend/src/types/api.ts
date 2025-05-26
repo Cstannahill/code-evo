@@ -13,6 +13,11 @@ export interface Repository {
   last_analyzed?: string;
 }
 
+export interface RepositoryCreateRequest {
+  url: string;
+  branch?: string;
+  model_id?: string; // Add this field
+}
 export interface AnalysisSession {
   id: string | null;
   repository_id?: string;

@@ -88,13 +88,14 @@ async def create_repository(
     db.commit()
     db.refresh(repo)
 
-    # Start background analysis
+    # Start background analysis - FIXED: Now passing model_id here too
     background_tasks.add_task(
         analyze_repository_background,
         repo_data.url,
         repo_data.branch or "main",
         100,  # commit_limit
         20,  # candidate_limit
+        repo_data.model_id,  # Pass model_id to analysis
     )
     return repo
 
