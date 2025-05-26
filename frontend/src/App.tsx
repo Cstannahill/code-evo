@@ -3,7 +3,7 @@ import { Dashboard } from "./components/features/Dashboard";
 import { apiClient } from "./api/client";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import ErrorBoundary from "./components/ErrorBoundary";
-import LoggingDemo from "./components/LoggingDemo";
+// import LoggingDemo from "./components/LoggingDemo";
 import { useLogger } from "./hooks/useLogger";
 
 function App() {
@@ -103,7 +103,7 @@ function App() {
         </ErrorBoundary>
 
         {/* Development Mode: Logging Demo */}
-        {import.meta.env.DEV && (
+        {/* {import.meta.env.DEV && (
           <div className="container mx-auto px-4 py-8">
             <div className="border-t pt-8">
               <h2 className="text-xl font-bold mb-4">
@@ -112,7 +112,7 @@ function App() {
               <LoggingDemo />
             </div>
           </div>
-        )}
+        )} */}
       </div>
     </>
   );

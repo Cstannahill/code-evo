@@ -12,6 +12,42 @@ from langchain.llms import Ollama
 logger = logging.getLogger(__name__)
 
 
+# New MongoDB-optimized multi-model service
+# class MongoMultiModelService:
+#     async def store_comparison_result(self, comparison_data):
+#         """Store multi-model comparison in MongoDB"""
+#         document = {
+#             "comparison_id": str(uuid.uuid4()),
+#             "repository_id": comparison_data["repository_id"],
+#             "models_compared": comparison_data["models"],
+#             "individual_results": [
+#                 {
+#                     "model": result.model.value,
+#                     "patterns": result.patterns,
+#                     "complexity_score": result.complexity_score,
+#                     "confidence": result.confidence,
+#                     "processing_time": result.processing_time,
+#                     "suggestions": result.suggestions,
+#                     "token_usage": result.token_usage,
+#                 }
+#                 for result in comparison_data["results"]
+#             ],
+#             "comparison_analysis": {
+#                 "consensus_patterns": comparison_data["consensus_patterns"],
+#                 "disputed_patterns": comparison_data["disputed_patterns"],
+#                 "agreement_score": comparison_data["agreement_score"],
+#             },
+#             "created_at": datetime.utcnow(),
+#             "metadata": {
+#                 "code_language": comparison_data.get("language"),
+#                 "analysis_type": "multi_model_comparison",
+#             },
+#         }
+
+#         result = await model_comparisons_collection.insert_one(document)
+#         return str(result.inserted_id)
+
+
 class AIModel(str, Enum):
     """Supported AI models for code analysis"""
 

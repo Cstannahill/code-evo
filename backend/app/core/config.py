@@ -28,14 +28,12 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    # DB Migration
-    script_location: str = "alembic"
-
     # App settings
     APP_NAME: str = "Code Evolution Tracker"
     DEBUG: bool = True
     VERSION: str = "1.0.0"
-
+    # MongoDB
+    MONGODB_URL: str
     # GitHub (optional)
     GITHUB_TOKEN: Optional[str] = None
     # Security settings for secret scanning

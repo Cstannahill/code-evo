@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Toaster } from "react-hot-toast";
 import { Github, Loader2, Search, X } from "lucide-react";
@@ -7,27 +7,76 @@ import {
   useCreateRepository,
   useRepository,
   useRepositories,
-} from "../../hooks/useRepository";
+} from "../../hooks/useRepository"; // Assuming useCreateRepository's input type is defined here or in a related file
 import { AnalysisDashboard } from "./AnalysisDashboard";
+import { ModelSelectComponent } from "../ai/ModelSelectComponent";
+// Corrected type-only import for AIModel due to verbatimModuleSyntax
+import { defaultModels, type AIModel } from "../../types/ai";
+
+// This interface describes the shape ModelSelectComponent expects for its 'models' prop values,
+// based on the error message (needs 'available') and component usage (uses 'display_name').
+interface ModelInfoForSelect {
+  id: string; // Keep id for consistency if needed, and it's part of AIModel
+  display_name: string; // Used by ModelSelectComponent
+  available: boolean; // Required by ModelInfo as per error TS2322
+  // Include other properties from AIModel if they are intended to be passed through
+  // or used by ModelSelectComponent indirectly.
+  name: string;
+  provider: string;
+  model_type: string;
+  context_window: number;
+  cost_per_1k_tokens: number;
+  strengths: string[];
+  created_at: string;
+  usage_count: number;
+}
 
 export const Dashboard: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState("");
   const [selectedRepoId, setSelectedRepoId] = useState<string | null>(null);
+  const [selectedModelId, setSelectedModelId] = useState<string | undefined>(
+    undefined
+  );
 
   const createRepo = useCreateRepository();
   const { data: selectedRepo } = useRepository(selectedRepoId);
   const { data: repositories = [] } = useRepositories();
 
+  // Transform defaultModels (AIModel[]) into Record<string, ModelInfoForSelect>
+  // to match the structure expected by ModelSelectComponent.
+  const modelsForSelect: Record<string, ModelInfoForSelect> = useMemo(() => {
+    return defaultModels.reduce((acc, model) => {
+      // Create a new object conforming to ModelInfoForSelect
+      // by mapping is_available to available and including other necessary fields.
+      const { is_available, ...restOfModel } = model;
+      acc[model.id] = {
+        ...restOfModel,
+        available: is_available, // Map AIModel's 'is_available' to 'available'
+      };
+      return acc;
+    }, {} as Record<string, ModelInfoForSelect>);
+  }, []); // defaultModels is a constant import
+
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!repoUrl.trim()) return;
+    if (!repoUrl.trim() || !selectedModelId) return;
 
     try {
-      const repo = await createRepo.mutateAsync({ url: repoUrl });
+      // TODO: The type for useCreateRepository().mutateAsync needs to be updated
+      // in its definition (likely in '../../hooks/useRepository.ts')
+      // to include 'model_id: string'.
+      // For example: interface CreateRepositoryInput { url: string; branch?: string; model_id?: string; }
+      const repoPayload: any = {
+        // Using 'any' temporarily to bypass TS error; type definition should be fixed
+        url: repoUrl,
+        model_id: selectedModelId,
+      };
+      const repo = await createRepo.mutateAsync(repoPayload);
       setSelectedRepoId(repo.id);
       setRepoUrl("");
     } catch (error) {
       // Error handled by mutation
+      console.error("Failed to create repository for analysis:", error);
     }
   };
 
@@ -52,6 +101,22 @@ export const Dashboard: React.FC = () => {
             </p>
           </motion.header>
 
+          {/* Model Selection */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="mb-6"
+          >
+            <ModelSelectComponent
+              models={modelsForSelect} // Pass the transformed Record
+              selectedModelName={selectedModelId}
+              onSelectedModelChange={setSelectedModelId}
+              placeholder="Select an AI Model..."
+              disabled={createRepo.isPending || isAnalyzing}
+            />
+          </motion.div>
+
           {/* Repository Selection */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -73,7 +138,10 @@ export const Dashboard: React.FC = () => {
               </div>
               <Button
                 type="submit"
-                disabled={createRepo.isPending || !repoUrl.trim()}
+                disabled={
+                  createRepo.isPending || !repoUrl.trim() || !selectedModelId
+                }
+                className="border border-gray-400/60"
               >
                 {createRepo.isPending ? (
                   <>
@@ -120,6 +188,7 @@ export const Dashboard: React.FC = () => {
                 exit={{ opacity: 0 }}
               >
                 {isAnalyzing ? (
+                  // ... (rest of the component is the same)
                   <div className="text-center py-20">
                     <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin text-primary" />
                     <h3 className="text-xl font-semibold mb-2">
@@ -159,9 +228,8 @@ export const Dashboard: React.FC = () => {
                   No Repository Selected
                 </h3>
                 <p className="text-muted-foreground max-w-md mx-auto">
-                  Enter a GitHub repository URL above to start analyzing your
-                  code evolution and discover patterns in your development
-                  journey.
+                  Enter a GitHub repository URL to start the analysis. Make sure
+                  to select an AI model above.
                 </p>
               </motion.div>
             )}

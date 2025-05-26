@@ -19,21 +19,21 @@ logger = logging.getLogger(__name__)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def analyze_repository_background(
+async def analyze_repository_background(
     repo_url: str,
-    branch: str = "main",
-    commit_limit: int = 100,
-    candidate_limit: int = 20,
-) -> None:
-    """
-    Fire-and-forget wrapper for AnalysisService.analyze_repository
-    Now properly saves results to database and handles cancellation
-    """
-    db = SessionLocal()
-    repo = None
-    analysis_session = None
+    branch: str,
+    commit_limit: int,
+    candidate_limit: int,
+    model_id: Optional[str] = None,  # Add model parameter
+):
+    """Background task with model selection support"""
 
     try:
+        # Use specific model if provided
+        if model_id:
+            logger.info(f"🤖 Using selected model: {model_id}")
+            # Configure AI service to use specific model
+            analysis_service.set_preferred_model(model_id)
         # Find the repository
         repo = db.query(Repository).filter(Repository.url == repo_url).first()
         if not repo:

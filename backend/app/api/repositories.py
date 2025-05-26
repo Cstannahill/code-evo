@@ -21,11 +21,20 @@ from app.schemas.repository import (
 )
 from app.services.analysis_service import AnalysisService
 from app.tasks.analysis_tasks import analyze_repository_background
+from app.schemas.repository import RepositoryCreate
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
+
 analysis_service = AnalysisService()
 router = APIRouter(prefix="/api/repositories", tags=["Repositories"])
+
+
+class RepositoryCreateWithModel(BaseModel):
+    url: str
+    branch: str = "main"
+    model_id: Optional[str] = None
 
 
 def _get_complexity_distribution(patterns: List[Pattern]) -> Dict[str, int]:
@@ -44,7 +53,7 @@ async def list_repositories(db: Session = Depends(get_db)):
 
 @router.post("/", response_model=RepositoryResponse)
 async def create_repository(
-    repo_data: RepositoryCreate,
+    repo_data: RepositoryCreateWithModel,
     background_tasks: BackgroundTasks,
     force_reanalyze: bool = Query(
         False, description="Force re-analysis of existing repository"
@@ -65,6 +74,7 @@ async def create_repository(
             repo_data.branch or "main",
             100,  # commit_limit
             20,  # candidate_limit
+            repo_data.model_id,  # Pass model_id to analysis
         )
         return existing
 
