@@ -5,6 +5,7 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 import ErrorBoundary from "./components/ErrorBoundary";
 // import LoggingDemo from "./components/LoggingDemo";
 import { useLogger } from "./hooks/useLogger";
+import { MultiAnalysisDashboard } from "./components/features/MultiAnalysisDashboard";
 
 function App() {
   const logger = useLogger("App");
@@ -99,7 +100,7 @@ function App() {
             logger.error("Application Error Boundary triggered", error);
           }}
         >
-          <Dashboard />
+          <MultiAnalysisDashboard />
         </ErrorBoundary>
 
         {/* Development Mode: Logging Demo */}
