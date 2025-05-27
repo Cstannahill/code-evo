@@ -234,3 +234,29 @@ export interface AIServiceStatus {
     ready_for_analysis: boolean;
   };
 }
+export interface ModelComparisonResult {
+  model: string;
+  model_info: {
+    display_name: string;
+    provider: string;
+    strengths: string[];
+  };
+  patterns: string[];
+  complexity_score: number;
+  skill_level: string;
+  suggestions: string[];
+  confidence: number;
+  processing_time: number;
+  token_usage?: {
+    total_tokens: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+  };
+  error?: string;
+}
+export interface MultiModelComparisonRequest {
+  models: string[];
+  code: string;
+  language?: string;
+  repository_id?: string;
+}

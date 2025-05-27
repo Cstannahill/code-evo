@@ -25,7 +25,7 @@ import { TechnologyEvolutionChart } from "../charts/TechnologyEvolutionChart";
 import { ComplexityEvolutionChart } from "../charts/ComplexityEvolutionChart";
 import { LearningProgressionChart } from "../charts/LearningProgressionChart";
 import { TechStackComposition } from "../charts/TechStackComposition";
-import { TechnologyRelationshipGraph } from "../charts/TechnologyRelationShipGraph";
+import { TechnologyRelationshipGraph } from "../charts/TechnologyRelationshipGraph";
 import { InsightsDashboard } from "./InsightsDashboard";
 import { PatternDeepDive } from "./PatternDeepDive";
 import { CodeQualityDashboard } from "./CodeQualityDashboard";
@@ -44,7 +44,11 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
     isLoading,
     error,
   } = useRepositoryAnalysis(repositoryId);
-
+  // Validate analysis data structure
+  console.log("Analysis data:", analysis);
+  if (analysis && !analysis.pattern_statistics) {
+    console.warn("Analysis data missing pattern_statistics:", analysis);
+  }
   // Build the word cloud data with better processing
   const wordCloudData: Word[] = useMemo(() => {
     if (!analysis?.pattern_statistics) return [];
@@ -71,7 +75,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
   // Prepare simplified data structures for components that need them
   const simpleTechnologies: Record<string, string[]> = {};
   Object.entries(analysis.technologies).forEach(([cat, arr]) => {
-    simpleTechnologies[cat] = arr.map((t) => t.name);
+    simpleTechnologies[cat] = arr.map((t: any) => t.name);
   });
 
   const simplePatternStats: Record<string, number> = {};

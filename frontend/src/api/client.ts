@@ -68,9 +68,13 @@ export class ApiClient {
   }
 
   // Multi-model analysis endpoints
-  async compareModels(data: MultiModelAnalysisRequest) {
+  async compareModels(data: {
+    models: string[];
+    code: string;
+    language?: string;
+  }) {
     const response = await fetch(
-      `${this.baseUrl}/api/multi-model-v2/analyze/compare-enhanced`,
+      `${this.baseUrl}/api/multi-model/analyze/compare`,
       {
         method: "POST",
         headers: {
@@ -81,15 +85,10 @@ export class ApiClient {
     );
 
     if (!response.ok) {
-      throw new Error(`Multi-model analysis failed: ${response.statusText}`);
+      throw new Error(`Comparison failed: ${response.statusText}`);
     }
 
-    const result = await response.json();
-
-    // Track multi-model comparison
-    this.trackMultiModelComparison(data.models);
-
-    return result;
+    return response.json();
   }
 
   async getComparisonResults(comparisonId: string) {
