@@ -13,6 +13,14 @@ import {
 } from "lucide-react";
 import { Button } from "../ui/button";
 
+interface ModelStats {
+  usage_stats?: {
+    avg_processing_time: number;
+    total_analyses: number;
+    avg_confidence: number;
+  };
+}
+
 export interface ModelInfo {
   name: string;
   display_name: string;
@@ -21,19 +29,6 @@ export interface ModelInfo {
   cost_per_1k_tokens: number;
   strengths: string[];
   available: boolean;
-}
-interface AIModel {
-  id: string;
-  name: string; // e.g., 'codellama:7b'
-  display_name: string; // e.g., 'CodeLlama 7B'
-  provider: string;
-  model_type: "code_analysis" | "general" | string; // Allows specific known types plus any others
-  context_window: number;
-  cost_per_1k_tokens: number;
-  strengths: string[];
-  is_available: boolean;
-  created_at: string; // ISO 8601 date string (e.g., "2023-10-26T10:00:00.000Z")
-  usage_count: number;
 }
 
 interface ModelSelectionProps {
@@ -56,17 +51,25 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
   const [availableModels, setAvailableModels] = useState<
     Record<string, ModelInfo>
   >({});
-  const [modelStats, setModelStats] = useState<Record<string, any>>({});
+  const [modelStats, setModelStats] = useState<Record<string, ModelStats>>({});
   const [loadingModels, setLoadingModels] = useState(true);
 
   useEffect(() => {
     fetchAvailableModels();
   }, []);
-
   const fetchAvailableModels = async () => {
     try {
-      const response = await fetch("/api/multi-model/models/available");
+      const response = await fetch(
+        "http://localhost:8080/api/multi-model/models/available"
+      );
       const data = await response.json();
+      console.log("ModelSelection: Raw API data:", data);
+      console.log("ModelSelection: Available models:", data.available_models);
+      console.log(
+        "ModelSelection: Model keys:",
+        Object.keys(data.available_models || {})
+      );
+
       setAvailableModels(data.available_models);
 
       // Fetch stats for each model
@@ -74,7 +77,7 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
         async (modelName) => {
           try {
             const statsResponse = await fetch(
-              `/api/multi-model/models/${modelName}/stats`
+              `http://localhost:8080/api/multi-model/models/${modelName}/stats`
             );
             const statsData = await statsResponse.json();
             return { [modelName]: statsData };
@@ -212,12 +215,19 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
       </div>
     );
   }
-
   const localModels = Object.entries(availableModels).filter(
     ([_, model]) => model.cost_per_1k_tokens === 0
   );
   const apiModels = Object.entries(availableModels).filter(
     ([_, model]) => model.cost_per_1k_tokens > 0
+  );
+
+  console.log("ModelSelection: Available models object:", availableModels);
+  console.log("ModelSelection: Local models:", localModels);
+  console.log("ModelSelection: API models:", apiModels);
+  console.log(
+    "ModelSelection: Looking for codellama:13b:",
+    availableModels["codellama:13b"]
   );
 
   return (

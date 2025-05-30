@@ -160,8 +160,32 @@ def create_tables():
         logger.info(
             f"🚀 Initializing SQLite database at: {os.path.abspath(DATABASE_PATH)}"
         )
+
+        # Import all models to ensure they're registered with Base
+        from app.models.repository import (
+            Repository,
+            Commit,
+            FileChange,
+            Technology,
+            Pattern,
+            PatternOccurrence,
+            AnalysisSession,
+            AIModel,
+            AIAnalysisResult,
+            ModelComparison,
+            ModelBenchmark,
+        )
+
+        # Now create all tables
         Base.metadata.create_all(bind=engine)
         logger.info("✅ Database tables created successfully")
+
+        # List all tables created
+        from sqlalchemy import inspect
+
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+        logger.info(f"📊 Created tables: {', '.join(tables)}")
 
         db_size = os.path.getsize(DATABASE_PATH) if os.path.exists(DATABASE_PATH) else 0
         logger.info(f"📊 Database size: {db_size} bytes")

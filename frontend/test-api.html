@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>API Test</title>
+    <style>
+      body {
+        font-family: monospace;
+        padding: 20px;
+      }
+      pre {
+        background: #f0f0f0;
+        padding: 10px;
+        overflow: auto;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 10px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Direct API Test</h1>
+    <button onclick="testAPI()">Test API</button>
+    <div id="output"></div>
+
+    <script>
+      async function testAPI() {
+        const output = document.getElementById("output");
+        output.innerHTML = "<p>Testing API...</p>";
+
+        try {
+          console.log("Fetching from API...");
+          const response = await fetch(
+            "http://localhost:8080/api/multi-model/models/available"
+          );
+          console.log("Response:", response);
+
+          const data = await response.json();
+          console.log("Data:", data);
+
+          const models = data.available_models;
+          console.log("Models object:", models);
+          console.log("Model keys:", Object.keys(models));
+
+          // Check specifically for CodeLlama 13B
+          const codellama13b = models["codellama:13b"];
+          console.log("CodeLlama 13B:", codellama13b);
+
+          // Filter local models (cost = 0)
+          const localModels = Object.entries(models).filter(
+            ([_, model]) => model.cost_per_1k_tokens === 0
+          );
+          console.log("Local models:", localModels);
+
+          output.innerHTML = `
+                    <h2>Results:</h2>
+                    <p><strong>Status:</strong> ${response.status}</p>
+                    <p><strong>Total models:</strong> ${
+                      Object.keys(models).length
+                    }</p>
+                    <p><strong>Model keys:</strong> ${Object.keys(models).join(
+                      ", "
+                    )}</p>
+                    <p><strong>CodeLlama 13B present:</strong> ${
+                      codellama13b ? "YES" : "NO"
+                    }</p>
+                    <p><strong>CodeLlama 13B available:</strong> ${
+                      codellama13b?.available ? "YES" : "NO"
+                    }</p>
+                    <p><strong>Local models count:</strong> ${
+                      localModels.length
+                    }</p>
+                    <p><strong>Local model keys:</strong> ${localModels
+                      .map(([key]) => key)
+                      .join(", ")}</p>
+                    
+                    <h3>Full Response:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+        } catch (error) {
+          console.error("Error:", error);
+          output.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+        }
+      }
+    </script>
+  </body>
+</html>

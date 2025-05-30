@@ -68,8 +68,8 @@ async def get_available_models():
             "available_models": models,
             "total_count": len(models),
             "categories": {
-                "local": [m for m in models.values() if m.cost_per_1k_tokens == 0.0],
-                "api": [m for m in models.values() if m.cost_per_1k_tokens > 0.0],
+                "local": [m for m in models.values() if m["cost_per_1k_tokens"] == 0.0],
+                "api": [m for m in models.values() if m["cost_per_1k_tokens"] > 0.0],
             },
             "recommendations": {
                 "fastest": "codellama:7b",

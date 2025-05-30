@@ -204,10 +204,18 @@ class MultiModelAIService:
         except Exception as e:
             logger.warning(f"❌ Anthropic models initialization failed: {e}")
 
-    def get_available_models(self) -> Dict[str, ModelInfo]:
+    def get_available_models(self) -> Dict[str, Dict]:
         """Get all available models with their info"""
         return {
-            model.value: info.__dict__
+            model.value: {
+                "name": info.name,
+                "provider": info.provider,
+                "context_window": info.context_window,
+                "cost_per_1k_tokens": info.cost_per_1k_tokens,
+                "strengths": info.strengths,
+                "available": info.available,
+                "display_name": info.name,  # Add display_name for frontend compatibility
+            }
             for model, info in self.available_models.items()
             if info.available
         }

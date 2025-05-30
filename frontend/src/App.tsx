@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 // import LoggingDemo from "./components/LoggingDemo";
 import { useLogger } from "./hooks/useLogger";
 import { MultiAnalysisDashboard } from "./components/features/MultiAnalysisDashboard";
+import ModelDebugTest from "./components/ModelDebugTest";
 
 function App() {
   const logger = useLogger("App");
@@ -75,10 +76,7 @@ function App() {
                     <AlertCircle className="w-4 h-4 text-orange-500" />
                   )}
                   <span className="text-muted-foreground">
-                    AI:{" "}
-                    {aiStatus.available
-                      ? `Active (${aiStatus.model})`
-                      : "Not Available"}
+                    AI: {aiStatus.available ? `Active` : "Not Available"}
                   </span>
                 </div>
               )}

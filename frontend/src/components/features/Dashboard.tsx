@@ -104,7 +104,7 @@ export const Dashboard: React.FC = () => {
             className="mb-12"
           >
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
-              Code Evolution Tracker
+              Code Evolution
             </h1>
             <p className="text-lg text-muted-foreground">
               AI-powered repository analysis to understand your coding journey
