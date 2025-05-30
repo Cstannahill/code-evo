@@ -1,7 +1,3 @@
-# Copilot Instructions
-
-## Rules - Important
-
 - @error Rule - Robust Error Handling: Always include comprehensive error handling with meaningful error messages and appropriate logging levels.
 - @performance Rule - Performance Considerations: When generating code that processes large datasets or handles high traffic, include performance optimizations and scalability considerations.
 
@@ -33,6 +29,18 @@
   - Use consistent naming: PascalCase for interfaces/types, SCREAMING_SNAKE_CASE for enums
   - Include a `types/common.ts` for shared utility types across domains
 
+- @nextjs Rule - Next.js 15+ Dynamic Routes Compliance: When generating Next.js dynamic route code, enforce these requirements:
+
+  - Always declare `params` prop as `Promise<{ [key]: type }>` type
+  - Use `async/await` syntax to resolve params - never synchronous access
+  - Apply correct TypeScript types: `[slug]` → `{ slug: string }`, `[...slug]` → `{ slug: string[] }`, `[[...slug]]` → `{ slug?: string[] }`
+  - Make page/layout components async functions when using params
+  - Include try/catch error handling for param resolution
+  - Apply Promise pattern to pages, layouts, and API route handlers consistently
+  - For client components, use React's `use()` hook instead of await
+  - Always destructure params after awaiting: `const { slug } = await params;`
+  - Generate proper generateStaticParams functions for static generation
+
 - @componentization Rule - Strict Component Decomposition: When generating page or complex components, enforce modular architecture:
 
   - Break monolithic components into single-responsibility sections (max 50 lines per page component)
@@ -46,7 +54,6 @@
   - Prefer composition over complex prop drilling - components should be independently functional
 
 - @context Rule - Automated Project Context Management: Implement mandatory context tracking workflow:
-
   - **Before every action**: Check root directory for `project-context.md`
   - **If missing**: Create `project-context.md` with initial project assessment
   - **After every action**: Update `project-context.md` with two required sections:
@@ -56,13 +63,3 @@
   - Use consistent markdown formatting with clear section headers
   - Update context reflects actual code changes made, not just planned changes
   - Treat context file as project's living development roadmap
-
-<!-- - @debugging Rule - Debugging: When generating code, include debugging and testing best practices:
-  - Use `console.log` or similar for debugging information
-  - Ensure debugging information is styled and formatted for clarity and readability
-  - Always include the File, Function, and Line Number in debugging messages
-  - Use `console.error` for error messages and `console.warn` for warnings
-  - Use `console.table` for structured data output
-  - Always include a way to toggle debugging information on and off
-  - Use consistent naming conventions for debugging variables and functions
-  - Document any known issues or limitations in the code comments -->
