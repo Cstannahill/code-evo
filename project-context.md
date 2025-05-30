@@ -1,6 +1,6 @@
 # Code Evolution Tracker - Current Project Status and Project Context
 
-**Last Updated**: May 30, 2025
+**Last Updated**: May 31, 2025
 
 ## CURRENT STATE OVERVIEW
 
@@ -12,7 +12,10 @@
 
 - **FastAPI Server**: Full-featured API with enhanced middleware, CORS, and global exception handling
 - **Multi-Model AI Service**: Supports 6 AI models (CodeLlama 7B/13B, CodeGemma 7B, GPT-4, GPT-3.5, Claude Sonnet)
-- **Database**: SQLite with SQLAlchemy ORM + MongoDB integration for advanced analytics
+- **Database**: MongoDB (primary) with SQLite backup + ChromaDB for vector operations
+  - MongoDB infrastructure fully implemented with ODMantic models
+  - Complete MongoDB models in `repository2.py` with multi-model AI support
+  - Dual-database testing framework ready for migration
 - **Vector Database**: ChromaDB for similarity search and pattern matching
 - **Cache Layer**: Redis integration with fallback to memory caching
 - **Background Processing**: FastAPI BackgroundTasks with proper lifecycle management
@@ -94,14 +97,14 @@ The Code Evolution Tracker has evolved into a **sophisticated AI-powered code an
 
 #### Core Services
 
-```
+```bash
 GET  /health                           # Comprehensive service health check
 GET  /api/connection-test              # Connection debugging
 ```
 
 #### Repository Management
 
-```
+```bash
 POST /api/repositories                 # Create repository with model selection
 GET  /api/repositories                 # List all repositories
 GET  /api/repositories/{id}            # Repository details
@@ -111,7 +114,7 @@ GET  /api/repositories/{id}/timeline   # Technology timeline
 
 #### Multi-Model Analysis
 
-```
+```bash
 GET  /api/multi-model/models/available    # Available AI models
 POST /api/multi-model/analyze/compare     # Multi-model comparison
 POST /api/multi-model/analyze/code        # Single code analysis
@@ -120,7 +123,7 @@ GET  /api/multi-model/comparisons/{id}    # Comparison results
 
 #### Pattern Analysis
 
-```
+```bash
 GET  /api/analysis/patterns               # Detected patterns
 GET  /api/analysis/insights/{repo_id}     # AI insights
 POST /api/analysis/evolution              # Code evolution tracking
@@ -310,7 +313,7 @@ POST /api/analysis/evolution              # Code evolution tracking
 
 **🔄 Data Flow:**
 
-```
+```bash
 User Action → Component → Hook → API Client → Backend
      ↓           ↓         ↓        ↓         ↓
     UI Update ← State ← Query ← Response ← Analysis
@@ -347,7 +350,7 @@ User Action → Component → Hook → API Client → Backend
 
 ### Immediate Next Steps
 
-1. **✅ Complete Enterprise-Grade README Documentation**
+1.  **✅ Complete Enterprise-Grade README Documentation**
 
    - ✅ Updated README to enterprise/production level standards
    - ✅ Added comprehensive feature documentation based on frontend analysis
@@ -355,35 +358,116 @@ User Action → Component → Hook → API Client → Backend
    - ✅ Added detailed development workflow and component architecture documentation
    - ✅ Fixed markdown linting issues for professional presentation
 
-2. **Enable Cloud Models for Demo/Testing**
+2.  **🔄 Database Migration to MongoDB** (High Priority):
 
-   - Configure OpenAI API key in backend environment
-   - Test GPT-4 and GPT-3.5 Turbo integration
-   - Verify model switching functionality in frontend
+   **Phase 1: MongoDB Infrastructure Completion**
 
-3. **Enhance Dashboard Visualization**
+   - Complete MongoDB models implementation in `app/models/repository2.py`
+   - Finalize database connection management in `app/core/database2.py`
+   - Update schema definitions in `app/schemas/repository2.py`
+   - Implement ODMantic-based data access layer
+   - Create comprehensive MongoDB indexes for performance
+
+   **Phase 2: Service Layer Migration**
+
+   - Update AI service to use MongoDB for analysis results storage
+   - Migrate repository service to MongoDB collections
+   - Implement dual-database service layer for transition period
+   - Add MongoDB-specific aggregation queries for analytics
+   - Update multi-model analysis service for MongoDB storage
+
+   **Phase 3: API Layer Updates**
+
+   - Update repository API endpoints to use MongoDB
+   - Modify analysis endpoints for MongoDB document operations
+   - Implement MongoDB-based pagination and filtering
+   - Update error handling for MongoDB operations
+   - Add MongoDB health checks to status endpoints
+
+   **Phase 4: Testing & Validation**
+
+   - Create comprehensive test suite for MongoDB operations
+   - Validate data integrity during migration process
+   - Performance testing with large datasets in MongoDB
+   - Test dual-database operations and failover scenarios
+   - Verify aggregation queries and analytics functionality
+
+   **Phase 5: Migration & Backup Strategy**
+
+   - Implement SQLite to MongoDB data migration scripts
+   - Configure MongoDB as primary with SQLite as backup
+   - Update configuration management for database switching
+   - Document migration procedures and rollback strategies
+   - Production deployment with zero-downtime migration
+
+3.  **Enhance Dashboard Visualization**
 
    - Complete remaining chart component implementations
    - Improve data visualization responsiveness
    - Add advanced filtering and search capabilities
    - Implement export functionality for analysis results
 
-4. **Performance & User Experience Optimization**
+4.  **Performance & User Experience Optimization**
 
    - Optimize large dataset rendering performance
    - Implement progressive loading for complex visualizations
    - Add advanced keyboard shortcuts and accessibility features
    - Enhance mobile responsiveness for smaller screens
 
-### Configuration Requirements
+### Configuration Requirements & Implementation Guide
 
-**For Cloud Model Access:**
+**Environment Configuration Files:**
 
 ```bash
-# Backend environment configuration
-OPENAI_API_KEY=your_openai_api_key_here
+# Backend/.env (Create from .env.example)
+OPENAI_API_KEY=sk-your-openai-api-key-here
+OPENAI_ORG_ID=org-your-organization-id  # Optional
+OPENAI_MODEL_TIMEOUT=60  # Request timeout in seconds
+OPENAI_MAX_RETRIES=3     # Number of retry attempts
 ANTHROPIC_API_KEY=your_anthropic_api_key_here  # Future use
+
+# Development/Testing Configuration
+DEBUG_OPENAI_CALLS=true  # Log API calls for debugging
+OPENAI_RATE_LIMIT_PER_MINUTE=60  # Rate limiting configuration
 ```
+
+**Backend Implementation Requirements:**
+
+1. **Configuration Validation (`app/config.py`)**:
+
+   ```python
+   # Add OpenAI settings to existing config
+   openai_api_key: Optional[str] = None
+   openai_org_id: Optional[str] = None
+   openai_timeout: int = 60
+   openai_max_retries: int = 3
+   ```
+
+2. **AI Service Enhancement (`app/services/ai_service.py`)**:
+
+   - Add OpenAI client initialization with error handling
+   - Implement model availability checking for cloud models
+   - Add cost tracking and usage monitoring
+   - Enhanced error messages for API key issues
+
+3. **API Endpoints Updates**:
+   - `/models/available` - Include OpenAI models when configured
+   - `/models/health` - Check OpenAI API connectivity
+   - `/analysis/cost-estimate` - Provide cost estimates for cloud models
+
+**Frontend Implementation Requirements:**
+
+1. **Model Selection Component Updates**:
+
+   - Display cloud model status (available/configured/error)
+   - Add cost indicators for cloud vs local models
+   - Implement model recommendation system
+   - Show estimated analysis time for different models
+
+2. **Configuration Status Display**:
+   - Settings page with API key configuration status
+   - Visual indicators for configured vs missing API keys
+   - Link to configuration documentation
 
 **Current Working Models:**
 
@@ -421,26 +505,45 @@ pnpm dev                       # Development server (port 5173)
 
 **✅ CURRENT FUNCTIONALITY:**
 
-- Backend: Production-ready multi-model AI analysis system
-- Frontend: Modern React architecture with comprehensive component system (51 files analyzed)
-- UI Components: 10 chart components, 11 feature components, 3 AI integration components
-- Database: SQLite + MongoDB + ChromaDB + Redis operational
-- API: All endpoints functional and documented
-- Local AI Models: CodeLlama 7B/13B and CodeGemma 7B working in frontend
-- Advanced Features: Real-time analysis, error boundaries, production logging, accessibility
-- **Documentation**: Enterprise-grade README.md with comprehensive setup and development guides
+*   **Backend**: Production-ready multi-model AI analysis system.
+*   **Database**: **MongoDB is now the primary database.**
+    *   MongoDB infrastructure (`database2_enhanced.py`, `repository2.py` models) is fully integrated.
+    *   Service layer (`repository_service.py`, `pattern_service.py`, `ai_analysis_service.py`, `analysis_service.py`) updated to use MongoDB.
+    *   API layer (`repositories_mongodb.py`, `analysis_mongodb.py`, `main.py`) migrated to use MongoDB services and v2 endpoints.
+    *   Background tasks (`analysis_tasks.py`) refactored for MongoDB.
+    *   Health check (`/health`) now verifies MongoDB status.
+    *   Migration script (`migrate_to_enhanced_mongodb.py`) executed successfully, validating and initializing the enhanced MongoDB system.
+*   **Frontend**: Modern React architecture with comprehensive component system.
+*   **Local AI Models**: CodeLlama 7B/13B and CodeGemma 7B working.
+*   **Vector Database**: ChromaDB for similarity search.
+*   **Cache Layer**: Redis integration.
 
-**🔧 IMMEDIATE CONFIGURATION NEEDED:**
+**Migration to Enhanced MongoDB: COMPLETE**
 
-- OpenAI API key setup to enable GPT-4 and GPT-3.5 Turbo for demo/testing
-- Anthropic API key for Claude Sonnet integration
+The migration of the backend system to the enhanced MongoDB (`database2_enhanced.py` and `repository2.py`) is complete. All relevant services, API endpoints, and background tasks now utilize the new MongoDB infrastructure. The `migrate_to_enhanced_mongodb.py` script was run successfully, confirming the system's readiness.
 
-**🎯 NEXT DEVELOPMENT PHASE:**
+## Immediate Next Steps
 
-- Enable cloud AI models for comprehensive testing (OpenAI API key configuration)
-- Complete remaining visualization components and enhance dashboard features
-- Performance optimization for large repository analysis
-- Advanced user experience features and mobile optimization
-- Deployment preparation and production scaling considerations
-
-**STATUS**: System is fully functional with local models and comprehensive frontend architecture. Ready for cloud model integration and advanced feature development.
+1.  **Import Verification & Cleanup**:
+    *   Thoroughly review all backend files (services, APIs, tasks, core) to ensure all database-related imports consistently point to `app.core.database2_enhanced` and `app.models.repository2`.
+    *   Remove any lingering imports from `app.core.database` (SQLite) or `app.core.database2` (initial MongoDB) if they are no longer needed for primary operations.
+2.  **Comprehensive Testing**:
+    *   Execute and update existing tests (e.g., `test_mongodb.py`) to ensure they cover the new MongoDB services and v2 API endpoints.
+    *   Perform end-to-end testing of all application functionalities, focusing on data persistence and retrieval through the MongoDB backend.
+    *   Test all `/api/v2/...` endpoints thoroughly.
+3.  **Frontend Integration**:
+    *   Update the frontend application to consume the new `/api/v2/...` MongoDB-backed endpoints.
+    *   Verify that all frontend features relying on backend data operate correctly with the new API versions.
+4.  **SQLAlchemy Deprecation Strategy**:
+    *   Once the MongoDB backend is confirmed stable and fully functional through comprehensive testing, plan the phased removal of:
+        *   Old SQLAlchemy-based API endpoints (v1).
+        *   SQLAlchemy models (`app.models.repository`).
+        *   SQLite database configuration and connection logic (`app.core.database`).
+        *   Any remaining SQLite-specific code in services or tasks.
+5.  **Data Migration Script (if applicable)**:
+    *   If there's existing data in an SQLite database that needs to be migrated to the new MongoDB instance, finalize and run the `complete_migration.py` script (mentioned in previous context). This is only necessary if production data from SQLite needs to be preserved.
+6.  **Monitoring & Alerting**:
+    *   Continuously monitor the MongoDB health dashboard.
+    *   Consider implementing automated alerts based on the `/health` endpoint status or specific MongoDB metrics.
+7.  **Documentation Update**:
+    *   Update all relevant backend documentation (README, API docs) to reflect the new MongoDB architecture, v2 endpoints, and removal of v1/SQLAlchemy components once deprecated.

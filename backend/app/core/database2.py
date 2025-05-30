@@ -1,5 +1,9 @@
-from motor.motor_asyncio import AsyncIOMotorClient
-from odmantic import AIOEngine
+"""
+Enhanced MongoDB Database Configuration
+Production-ready MongoDB setup with comprehensive monitoring, indexing, and error handling.
+Uses the new MongoDB configuration system with health checks and performance monitoring.
+"""
+
 import logging
 import os
 import redis
@@ -8,18 +12,26 @@ from chromadb.config import Settings as ChromaSettings
 from datetime import datetime
 from dotenv import load_dotenv
 from pathlib import Path
+from typing import Optional, Dict, Any
+
+# Import enhanced MongoDB components
+from .mongodb_config import (
+    MongoDBManager,
+    MongoDBConfig,
+    initialize_mongodb,
+    get_mongodb_manager,
+)
+from .mongodb_indexes import MongoDBIndexManager
+from .mongodb_monitoring import MongoDBMonitor, HealthCheckResult
 
 logger = logging.getLogger(__name__)
 env_path = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(dotenv_path=env_path)
 
-# MongoDB setup (primary database)
-MONGODB_URL = os.getenv("MONGODB_URL", "your-cluster-connection-string")
-mongodb_client = AsyncIOMotorClient(MONGODB_URL)
-mongodb_db = mongodb_client.code_evolution_ai
-
-# ODMantic engine for document modeling (optional - provides Pydantic-like models)
-engine = AIOEngine(motor_client=mongodb_client, database="code_evolution_ai")
+# Global MongoDB components
+mongodb_manager: Optional[MongoDBManager] = None
+index_manager: Optional[MongoDBIndexManager] = None
+monitor: Optional[MongoDBMonitor] = None
 
 # Redis setup (caching)
 try:

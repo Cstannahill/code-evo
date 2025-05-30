@@ -1,19 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
-from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import logging
 
-from app.core.database import get_db
-from app.models.repository import (
-    Repository,
-    Commit,
-    Technology,
-    Pattern,
-    PatternOccurrence,
-    AnalysisSession,
-    FileChange,
-)
+# MongoDB imports
+from app.services.repository_service import RepositoryService
+from app.services.pattern_service import PatternService
+from app.services.ai_analysis_service import AIAnalysisService
 from app.schemas.repository import (
     RepositoryCreate,
     RepositoryResponse,
@@ -21,12 +14,14 @@ from app.schemas.repository import (
 )
 from app.services.analysis_service import AnalysisService
 from app.tasks.analysis_tasks import analyze_repository_background
-from app.schemas.repository import RepositoryCreate
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-
+# Initialize MongoDB services
+repository_service = RepositoryService()
+pattern_service = PatternService()
+ai_analysis_service = AIAnalysisService()
 analysis_service = AnalysisService()
 router = APIRouter(prefix="/api/repositories", tags=["Repositories"])
 
