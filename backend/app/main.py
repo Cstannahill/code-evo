@@ -20,13 +20,18 @@ from app.models.repository import (
     ModelComparison,
     ModelBenchmark,
 )
-from app.core.database import create_tables, engine, get_db_info
+from app.core.database import create_tables, engine, get_db_info  # Legacy SQLAlchemy
+from app.core.database2_enhanced import (
+    get_enhanced_database_manager,
+)  # Enhanced MongoDB
 from app.core.middleware import (
     EnhancedCORSMiddleware,
     ConnectionLoggingMiddleware,
     RequestValidationMiddleware,
 )
 from app.api import auth, repositories, analysis
+from app.api import repositories_mongodb  # New MongoDB-based API
+from app.api import analysis_mongodb  # New MongoDB-based Analysis API
 from app.core.config import settings
 from app.api.multi_model_analysis import router as multi_model_router
 from app.api.multi_model_test import router as test_router
@@ -147,8 +152,23 @@ async def health_check():
         # Get current timestamp (Fix #2: Static timestamps)
         current_time = datetime.utcnow().isoformat()
 
-        # Check database
+        # Check legacy database
         db_info = get_db_info()
+
+        # Check enhanced MongoDB database
+        try:
+            db_manager = get_enhanced_database_manager()
+            mongo_health = await db_manager.health_check()
+            mongodb_status = {
+                "connected": mongo_health.get("mongodb", {}).get("connected", False),
+                "response_time": mongo_health.get("mongodb", {}).get(
+                    "response_time", 0
+                ),
+                "collections": mongo_health.get("mongodb", {}).get("collections", 0),
+            }
+        except Exception as e:
+            logger.warning(f"MongoDB health check failed: {e}")
+            mongodb_status = {"connected": False, "error": str(e)}
 
         # Check AI service
         from app.services.ai_service import AIService
@@ -162,11 +182,12 @@ async def health_check():
             "version": "1.0.0",
             "background_tasks": len(background_tasks),  # Track active tasks
             "services": {
-                "database": {
+                "database_legacy": {
                     "connected": db_info.get("table_count", 0) > 0,
                     "type": db_info.get("database_type", "Unknown"),
                     "tables": db_info.get("table_count", 0),
                 },
+                "database_mongodb": mongodb_status,
                 "ai": {
                     "available": ai_status["ollama_available"],
                     "model": ai_status.get("ollama_model", "None"),
@@ -210,8 +231,16 @@ async def connection_test(request: Request):
 
 # Include routers
 app.include_router(auth.router)
-app.include_router(repositories.router)
-app.include_router(analysis.router)
+app.include_router(
+    repositories.router
+)  # Keep old SQLAlchemy API for backward compatibility
+app.include_router(repositories_mongodb.router, prefix="/api/v2")  # New MongoDB API
+app.include_router(
+    analysis.router
+)  # Keep old SQLAlchemy API for backward compatibility
+app.include_router(
+    analysis_mongodb.router, prefix="/api/v2"
+)  # New MongoDB Analysis API
 app.include_router(multi_model_router)
 app.include_router(test_router)
 
