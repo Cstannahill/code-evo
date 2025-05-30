@@ -62,7 +62,9 @@ class Commit(Base):
     author_email = Column(String)
     committed_date = Column(DateTime)
     message = Column(Text)
-    stats = Column(JSON)  # additions, deletions, files
+    files_changed_count = Column(Integer, default=0)
+    additions = Column(Integer, default=0)
+    deletions = Column(Integer, default=0)
 
     # Relationships
     repository = relationship("Repository", back_populates="commits")

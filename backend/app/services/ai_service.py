@@ -492,6 +492,7 @@ class AIService:
     def _detect_patterns_simple(self, code: str, language: str) -> List[str]:
         """Enhanced pattern detection with comprehensive rule-based analysis"""
         patterns: List[str] = []
+        logger.debug(f"Analyzing {len(code)} chars of {language} code")
         css_patterns_to_exclude = {
             "justify-center",
             "whitespace-nowrap",
@@ -596,6 +597,7 @@ class AIService:
         if code.count("function") > 5 or code.count("def ") > 5:
             patterns.append("multi_function_module")
         filtered_patterns = [p for p in patterns if p not in css_patterns_to_exclude]
+        logger.info(f"Detected {len(patterns)} patterns: {patterns}")
         return list(set(filtered_patterns))  # Remove duplicates
 
     def _enhanced_simple_analysis(

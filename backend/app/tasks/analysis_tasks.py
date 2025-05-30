@@ -416,3 +416,50 @@ def _infer_pattern_category(pattern_name: str) -> str:
         return "error_handling"
     else:
         return "general"
+
+
+def _save_pattern_analysis(
+    db, repo_id: str, session_id: str, pattern_analysis: dict, candidate: dict
+):
+    """Save pattern analysis results"""
+
+    # Get or create patterns
+    patterns = pattern_analysis.get("combined_patterns", [])
+
+    if not patterns:
+        # Fallback to detected_patterns if combined_patterns is empty
+        patterns = pattern_analysis.get("detected_patterns", [])
+
+    for pattern_name in patterns:
+        try:
+            # Get or create the pattern
+            pattern = db.query(Pattern).filter(Pattern.name == pattern_name).first()
+            if not pattern:
+                pattern = Pattern(
+                    name=pattern_name,
+                    category=_infer_pattern_category(pattern_name),
+                    description=f"Auto-detected pattern: {pattern_name}",
+                    complexity_level=pattern_analysis.get(
+                        "skill_level", "intermediate"
+                    ),
+                    is_antipattern=False,
+                )
+                db.add(pattern)
+                db.flush()
+
+            # Create pattern occurrence WITHOUT requiring commit_id
+            occurrence = PatternOccurrence(
+                pattern_id=pattern.id,
+                repository_id=repo_id,
+                file_path=candidate.get("file_path", "unknown"),
+                code_snippet=candidate.get("code", "")[:1000],
+                confidence_score=pattern_analysis.get("complexity_score", 1.0) / 10.0,
+                detected_at=datetime.utcnow(),
+                # Make commit_id optional
+                commit_id=None,  # We'll update this later if we can map it
+            )
+            db.add(occurrence)
+
+        except Exception as e:
+            logger.error(f"💥 Error saving pattern {pattern_name}: {e}")
+            continue

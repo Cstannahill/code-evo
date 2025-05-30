@@ -135,7 +135,28 @@ async def get_repository_analysis(repo_id: str, db: Session = Depends(get_db)):
     technologies_query = (
         db.query(Technology).filter(Technology.repository_id == repo_id).all()
     )
+    all_patterns_count = db.query(Pattern).count()
+    repo_patterns_count = (
+        db.query(PatternOccurrence)
+        .filter(PatternOccurrence.repository_id == repo_id)
+        .count()
+    )
 
+    logger.info(f"📊 Debug - Total patterns in DB: {all_patterns_count}")
+    logger.info(f"📊 Debug - Patterns for this repo: {repo_patterns_count}")
+
+    # Get all patterns and their occurrences
+    pattern_occurrences_query = (
+        db.query(PatternOccurrence)
+        .join(Pattern)
+        .filter(PatternOccurrence.repository_id == repo_id)
+        .all()
+    )
+
+    logger.info(
+        f"📊 Debug - Pattern occurrences found: {len(pattern_occurrences_query)}"
+    )
+    # ---
     # Organize technologies by category
     technologies = {
         "language": [],
@@ -148,11 +169,23 @@ async def get_repository_analysis(repo_id: str, db: Session = Depends(get_db)):
     }
 
     for tech in technologies_query:
-        category = tech.category.lower() if tech.category else "other"
-        if category not in technologies:
-            category = "other"
+        # Map the category correctly
+        category_map = {
+            "languages": "language",
+            "frameworks": "framework",
+            "libraries": "library",
+            "tools": "tool",
+            "databases": "database",
+            "platforms": "platform",
+        }
 
-        technologies[category].append(
+        tech_category = tech.category.lower() if tech.category else "other"
+        mapped_category = category_map.get(tech_category, tech_category)
+
+        if mapped_category not in technologies:
+            mapped_category = "other"
+
+        technologies[mapped_category].append(
             {
                 "id": tech.id,
                 "name": tech.name,
@@ -164,7 +197,7 @@ async def get_repository_analysis(repo_id: str, db: Session = Depends(get_db)):
                 "metadata": tech.tech_metadata or {},
             }
         )
-
+    # ----
     # Get all patterns and their occurrences
     pattern_occurrences_query = (
         db.query(PatternOccurrence)
