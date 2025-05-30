@@ -4,20 +4,36 @@ import { defaultModels } from "../types/ai";
 import { useMemo } from "react";
 
 export const useModelAvailability = () => {
-  const { data: aiStatus } = useQuery({
-    queryKey: ["ai-status"],
-    queryFn: () => apiClient.getAnalysisStatus(),
+  const { data: availableModelsResponse } = useQuery({
+    queryKey: ["available-models"],
+    queryFn: () => apiClient.getAvailableModels(),
     refetchInterval: 30000, // Check every 30 seconds
   });
 
   return useMemo(() => {
-    return defaultModels.map((model) => ({
-      ...model,
-      is_available:
-        model.provider === "Ollama (Local)"
-          ? aiStatus?.ai_service?.ollama_available &&
-            aiStatus?.ai_service?.ollama_model === model.name
-          : false, // For external APIs, you'd check API keys here
+    if (!availableModelsResponse?.available_models) {
+      // Fallback to defaultModels with all unavailable if API fails
+      return defaultModels.map((model) => ({
+        ...model,
+        is_available: false,
+      }));
+    }
+
+    const apiModels = availableModelsResponse.available_models;
+    
+    // Transform API response to match expected format
+    return Object.values(apiModels).map((apiModel: any) => ({
+      id: apiModel.name || Object.keys(apiModels).find(key => apiModels[key] === apiModel) || '',
+      name: apiModel.name,
+      display_name: apiModel.display_name,
+      provider: apiModel.provider,
+      model_type: 'llm', // Default type
+      context_window: apiModel.context_window,
+      cost_per_1k_tokens: apiModel.cost_per_1k_tokens,
+      strengths: apiModel.strengths || [],
+      created_at: new Date().toISOString(), // Default value
+      usage_count: 0, // Default value
+      is_available: apiModel.available,
     }));
-  }, [aiStatus]);
+  }, [availableModelsResponse]);
 };

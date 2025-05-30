@@ -152,6 +152,7 @@ export const MultiAnalysisDashboard: React.FC = () => {
     useRepository(selectedRepoId);
   const { data: repositories = [] } = useRepositories();
   const availableModels = useModelAvailability();
+  console.log("Available Models:", availableModels);
 
   // Set default model when models are loaded
   useEffect(() => {
@@ -262,7 +263,7 @@ export const MultiAnalysisDashboard: React.FC = () => {
             className="mb-12 text-center"
           >
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 brand-title">
-              Code Evolution Tracker
+              Code Evolution
             </h1>
             <p className="text-lg text-ctan-text-secondary">
               AI-powered repository analysis to understand your coding journey

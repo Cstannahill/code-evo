@@ -7,7 +7,19 @@ import sys
 import asyncio
 from datetime import datetime
 import traceback
-
+from app.models.repository import (
+    Repository,
+    Commit,
+    FileChange,
+    Technology,
+    Pattern,
+    PatternOccurrence,
+    AnalysisSession,
+    AIModel,
+    AIAnalysisResult,
+    ModelComparison,
+    ModelBenchmark,
+)
 from app.core.database import create_tables, engine, get_db_info
 from app.core.middleware import (
     EnhancedCORSMiddleware,

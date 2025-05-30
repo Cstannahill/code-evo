@@ -17,8 +17,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 import uuid
-
-Base = declarative_base()
+from app.core.database import Base
 
 
 class Repository(Base):
@@ -65,6 +64,7 @@ class Commit(Base):
     files_changed_count = Column(Integer, default=0)
     additions = Column(Integer, default=0)
     deletions = Column(Integer, default=0)
+    stats = Column(JSON)  # Keep the original stats field too
 
     # Relationships
     repository = relationship("Repository", back_populates="commits")
@@ -211,7 +211,7 @@ class AIModel(Base):
     )  # code_analysis, general, specialized
     context_window = Column(Integer)
     cost_per_1k_tokens = Column(Float, default=0.0)
-    strengths = Column(ARRAY(String))  # List of model strengths
+    strengths = Column(JSON)  # List of model strengths
     is_available = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_used = Column(DateTime)
@@ -242,10 +242,10 @@ class AIAnalysisResult(Base):
     language = Column(String)
 
     # Analysis results
-    detected_patterns = Column(ARRAY(String))  # List of pattern names
+    detected_patterns = Column(JSON)  # List of pattern names
     complexity_score = Column(Float)
     skill_level = Column(String)  # beginner, intermediate, advanced
-    suggestions = Column(ARRAY(String))  # List of suggestions
+    suggestions = Column(JSON)  # List of suggestions
     confidence_score = Column(Float)
 
     # Performance metrics
@@ -277,13 +277,13 @@ class ModelComparison(Base):
     repository_id = Column(String, ForeignKey("repositories.id", ondelete="CASCADE"))
 
     # Comparison details
-    models_compared = Column(ARRAY(String), nullable=False)  # List of model names
+    models_compared = Column(JSON, nullable=False)  # List of model names
     analysis_type = Column(
         String, default="comparison"
     )  # comparison, benchmark, evaluation
 
     # Comparison results
-    consensus_patterns = Column(ARRAY(String))  # Patterns all models agreed on
+    consensus_patterns = Column(JSON)  # Patterns all models agreed on
     disputed_patterns = Column(JSON)  # Patterns with disagreement
     agreement_score = Column(Float)  # Overall agreement score (0-1)
     diversity_score = Column(Float)  # How diverse the analyses were
