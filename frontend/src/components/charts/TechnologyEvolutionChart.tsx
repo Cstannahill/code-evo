@@ -21,27 +21,36 @@ export const TechnologyEvolutionChart: React.FC<
   TechnologyEvolutionChartProps
 > = ({ technologies, timeline }) => {
   const data = React.useMemo(() => {
-    // Create cumulative technology adoption data
-    const chartData = [];
+    if (!timeline || timeline.length === 0) {
+      // Generate sample data if no timeline provided
+      const currentDate = new Date();
+      return Array.from({ length: 6 }, (_, i) => {
+        const date = new Date(currentDate);
+        date.setMonth(date.getMonth() - (5 - i));
 
-    timeline.forEach((point, index) => {
-      const dataPoint: any = { month: point.date };
+        const dataPoint: any = {
+          month: date.toISOString().slice(0, 7),
+        };
 
-      // Simulate technology adoption based on timeline position
-      Object.entries(technologies).forEach(([category, techList]) => {
-        techList.forEach((tech) => {
-          const adoptionRate = Math.min(
-            100,
-            (index + 1) * 15 + Math.random() * 20
-          );
-          dataPoint[tech.name] = adoptionRate;
-        });
+        // Add all technologies with simulated growth
+        Object.values(technologies)
+          .flat()
+          .forEach((tech) => {
+            dataPoint[tech.name] = Math.min(
+              100,
+              (i + 1) * 15 + Math.random() * 10
+            );
+          });
+
+        return dataPoint;
       });
+    }
 
-      chartData.push(dataPoint);
-    });
-
-    return chartData;
+    // Use actual timeline if provided
+    return timeline.map((point) => ({
+      month: point.date,
+      ...point.patterns,
+    }));
   }, [technologies, timeline]);
 
   const colors = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444"];
