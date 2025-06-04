@@ -19,8 +19,14 @@ from datetime import datetime
 import uuid
 from app.core.database import Base
 
+# Imports for MongoDB/ODMantic models
+from odmantic import Model, Field, Reference
+from typing import List, Optional, Dict, Any
+from pydantic import validator
+from bson import ObjectId
 
-class Repository(Base):
+
+class RepositorySQL(Base):
     __tablename__ = "repositories"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -35,23 +41,23 @@ class Repository(Base):
 
     # Relationships
     commits = relationship(
-        "Commit", back_populates="repository", cascade="all, delete-orphan"
+        "CommitSQL", back_populates="repository", cascade="all, delete-orphan"
     )
     technologies = relationship(
-        "Technology", back_populates="repository", cascade="all, delete-orphan"
+        "TechnologySQL", back_populates="repository", cascade="all, delete-orphan"
     )
     analysis_sessions = relationship(
-        "AnalysisSession", back_populates="repository", cascade="all, delete-orphan"
+        "AnalysisSessionSQL", back_populates="repository", cascade="all, delete-orphan"
     )
     pattern_occurrences = relationship(
-        "PatternOccurrence", back_populates="repository", cascade="all, delete-orphan"
+        "PatternOccurrenceSQL", back_populates="repository", cascade="all, delete-orphan"
     )
     model_comparisons = relationship(
-        "ModelComparison", back_populates="repository", cascade="all, delete-orphan"
+        "ModelComparisonSQL", back_populates="repository", cascade="all, delete-orphan"
     )
 
 
-class Commit(Base):
+class CommitSQL(Base):
     __tablename__ = "commits"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -67,12 +73,12 @@ class Commit(Base):
     stats = Column(JSON)  # Keep the original stats field too
 
     # Relationships
-    repository = relationship("Repository", back_populates="commits")
+    repository = relationship("RepositorySQL", back_populates="commits")
     file_changes = relationship(
-        "FileChange", back_populates="commit", cascade="all, delete-orphan"
+        "FileChangeSQL", back_populates="commit", cascade="all, delete-orphan"
     )
     pattern_occurrences = relationship(
-        "PatternOccurrence", back_populates="commit", cascade="all, delete-orphan"
+        "PatternOccurrenceSQL", back_populates="commit", cascade="all, delete-orphan"
     )
 
     __table_args__ = (
@@ -81,7 +87,7 @@ class Commit(Base):
     )
 
 
-class FileChange(Base):
+class FileChangeSQL(Base):
     __tablename__ = "file_changes"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -94,10 +100,10 @@ class FileChange(Base):
     content_snippet = Column(Text)
 
     # Relationships
-    commit = relationship("Commit", back_populates="file_changes")
+    commit = relationship("CommitSQL", back_populates="file_changes")
 
 
-class Technology(Base):
+class TechnologySQL(Base):
     __tablename__ = "technologies"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -111,7 +117,7 @@ class Technology(Base):
     tech_metadata = Column(JSON)
 
     # Relationships
-    repository = relationship("Repository", back_populates="technologies")
+    repository = relationship("RepositorySQL", back_populates="technologies")
 
     __table_args__ = (
         UniqueConstraint("repository_id", "name", "category", name="uq_repo_tech"),
@@ -119,7 +125,7 @@ class Technology(Base):
     )
 
 
-class Pattern(Base):
+class PatternSQL(Base):
     __tablename__ = "patterns"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -134,11 +140,11 @@ class Pattern(Base):
 
     # Relationships
     occurrences = relationship(
-        "PatternOccurrence", back_populates="pattern", cascade="all, delete-orphan"
+        "PatternOccurrenceSQL", back_populates="pattern", cascade="all, delete-orphan"
     )
 
 
-class PatternOccurrence(Base):
+class PatternOccurrenceSQL(Base):
     __tablename__ = "pattern_occurrences"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -160,9 +166,9 @@ class PatternOccurrence(Base):
     token_usage = Column(JSON)  # Token usage for API models
 
     # Relationships
-    repository = relationship("Repository", back_populates="pattern_occurrences")
-    pattern = relationship("Pattern", back_populates="occurrences")
-    commit = relationship("Commit", back_populates="pattern_occurrences")
+    repository = relationship("RepositorySQL", back_populates="pattern_occurrences")
+    pattern = relationship("PatternSQL", back_populates="occurrences")
+    commit = relationship("CommitSQL", back_populates="pattern_occurrences")
 
     __table_args__ = (
         Index("idx_pattern_occurrence_repo", "repository_id"),
@@ -172,7 +178,7 @@ class PatternOccurrence(Base):
     )
 
 
-class AnalysisSession(Base):
+class AnalysisSessionSQL(Base):
     __tablename__ = "analysis_sessions"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -186,9 +192,9 @@ class AnalysisSession(Base):
     error_message = Column(Text)
 
     # Relationships
-    repository = relationship("Repository", back_populates="analysis_sessions")
+    repository = relationship("RepositorySQL", back_populates="analysis_sessions")
     ai_analysis_results = relationship(
-        "AIAnalysisResult",
+        "AIAnalysisResultSQL",
         back_populates="analysis_session",
         cascade="all, delete-orphan",
     )
@@ -197,7 +203,7 @@ class AnalysisSession(Base):
 # NEW MODELS FOR MULTI-MODEL SUPPORT
 
 
-class AIModel(Base):
+class AIModelSQL(Base):
     __tablename__ = "ai_models"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -219,7 +225,7 @@ class AIModel(Base):
 
     # Relationships
     analysis_results = relationship(
-        "AIAnalysisResult", back_populates="model", cascade="all, delete-orphan"
+        "AIAnalysisResultSQL", back_populates="model", cascade="all, delete-orphan"
     )
 
     __table_args__ = (
@@ -228,7 +234,7 @@ class AIModel(Base):
     )
 
 
-class AIAnalysisResult(Base):
+class AIAnalysisResultSQL(Base):
     __tablename__ = "ai_analysis_results"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -259,9 +265,9 @@ class AIAnalysisResult(Base):
 
     # Relationships
     analysis_session = relationship(
-        "AnalysisSession", back_populates="ai_analysis_results"
+        "AnalysisSessionSQL", back_populates="ai_analysis_results"
     )
-    model = relationship("AIModel", back_populates="analysis_results")
+    model = relationship("AIModelSQL", back_populates="analysis_results")
 
     __table_args__ = (
         Index("idx_ai_result_session", "analysis_session_id"),
@@ -270,7 +276,7 @@ class AIAnalysisResult(Base):
     )
 
 
-class ModelComparison(Base):
+class ModelComparisonSQL(Base):
     __tablename__ = "model_comparisons"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -298,7 +304,7 @@ class ModelComparison(Base):
     configuration = Column(JSON)  # Analysis configuration used
 
     # Relationships
-    repository = relationship("Repository", back_populates="model_comparisons")
+    repository = relationship("RepositorySQL", back_populates="model_comparisons")
 
     __table_args__ = (
         Index("idx_model_comparison_repo", "repository_id"),
@@ -307,7 +313,7 @@ class ModelComparison(Base):
     )
 
 
-class ModelBenchmark(Base):
+class ModelBenchmarkSQL(Base):
     __tablename__ = "model_benchmarks"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -336,7 +342,7 @@ class ModelBenchmark(Base):
     notes = Column(Text)
 
     # Relationships
-    model = relationship("AIModel")
+    model = relationship("AIModelSQL")
 
     __table_args__ = (
         Index("idx_benchmark_model", "model_id"),
@@ -345,4 +351,359 @@ class ModelBenchmark(Base):
         UniqueConstraint(
             "model_id", "benchmark_name", "benchmark_version", name="uq_model_benchmark"
         ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# MongoDB/ODMantic models (moved from repository2.py)
+# ---------------------------------------------------------------------------
+
+
+class Repository(Model):
+    """Repository model for MongoDB"""
+
+    url: str = Field(unique=True, index=True)
+    name: str
+    default_branch: str = "main"
+    status: str = "pending"
+    total_commits: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_analyzed: Optional[datetime] = None
+    error_message: Optional[str] = None
+
+    class Config:
+        collection = "repositories"
+
+
+class Commit(Model):
+    """Commit model for MongoDB"""
+
+    repository_id: ObjectId = Field(index=True)
+    hash: str = Field(index=True)
+    author_name: Optional[str] = None
+    author_email: Optional[str] = None
+    committed_date: Optional[datetime] = None
+    message: Optional[str] = None
+    files_changed_count: int = 0
+    additions: int = 0
+    deletions: int = 0
+    stats: Optional[Dict[str, Any]] = None
+
+    class Config:
+        collection = "commits"
+
+    @validator("repository_id", pre=True)
+    def validate_repository_id(cls, v):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+class FileChange(Model):
+    """File change model for MongoDB"""
+
+    commit_id: ObjectId = Field(index=True)
+    file_path: str
+    change_type: Optional[str] = None
+    language: Optional[str] = None
+    additions: int = 0
+    deletions: int = 0
+    content_snippet: Optional[str] = None
+
+    class Config:
+        collection = "file_changes"
+
+    @validator("commit_id", pre=True)
+    def validate_commit_id(cls, v):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+class Technology(Model):
+    """Technology model for MongoDB"""
+
+    repository_id: ObjectId = Field(index=True)
+    name: str
+    category: Optional[str] = None
+    version: Optional[str] = None
+    usage_count: int = 1
+    first_seen: datetime = Field(default_factory=datetime.utcnow)
+    last_seen: datetime = Field(default_factory=datetime.utcnow)
+    tech_metadata: Optional[Dict[str, Any]] = None
+
+    class Config:
+        collection = "technologies"
+
+    @validator("repository_id", pre=True)
+    def validate_repository_id(cls, v):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+class Pattern(Model):
+    """Pattern model for MongoDB"""
+
+    name: str = Field(unique=True, index=True)
+    category: Optional[str] = None
+    description: Optional[str] = None
+    complexity_level: Optional[str] = None
+    is_antipattern: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        collection = "patterns"
+
+
+class PatternOccurrence(Model):
+    """Pattern occurrence model for MongoDB"""
+
+    repository_id: ObjectId = Field(index=True)
+    pattern_id: ObjectId = Field(index=True)
+    commit_id: Optional[ObjectId] = Field(default=None, index=True)
+    file_path: Optional[str] = None
+    code_snippet: Optional[str] = None
+    line_number: Optional[int] = None
+    confidence_score: float = 1.0
+    detected_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+    ai_model_used: Optional[str] = Field(default=None, index=True)
+    model_confidence: Optional[float] = None
+    processing_time_ms: Optional[int] = None
+    token_usage: Optional[Dict[str, Any]] = None
+
+    class Config:
+        collection = "pattern_occurrences"
+
+    @validator("repository_id", "pattern_id", pre=True)
+    def validate_object_ids(cls, v):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+    @validator("commit_id", pre=True)
+    def validate_commit_id(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+class AnalysisSession(Model):
+    """Analysis session model for MongoDB"""
+
+    repository_id: ObjectId = Field(index=True)
+    status: str = "running"
+    started_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: Optional[datetime] = None
+    commits_analyzed: int = 0
+    patterns_found: int = 0
+    configuration: Optional[Dict[str, Any]] = None
+    error_message: Optional[str] = None
+
+    class Config:
+        collection = "analysis_sessions"
+
+    @validator("repository_id", pre=True)
+    def validate_repository_id(cls, v):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+class AIModel(Model):
+    """AI model configuration for MongoDB"""
+
+    name: str = Field(unique=True, index=True)
+    display_name: str
+    provider: str = Field(index=True)
+    model_type: str = "code_analysis"
+    context_window: Optional[int] = None
+    cost_per_1k_tokens: float = 0.0
+    strengths: List[str] = []
+    is_available: bool = Field(default=True, index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_used: Optional[datetime] = None
+    usage_count: int = 0
+
+    class Config:
+        collection = "ai_models"
+
+
+class AIAnalysisResult(Model):
+    """AI analysis result model for MongoDB"""
+
+    analysis_session_id: ObjectId = Field(index=True)
+    model_id: ObjectId = Field(index=True)
+
+    code_snippet: str
+    language: Optional[str] = None
+
+    detected_patterns: List[str] = []
+    complexity_score: Optional[float] = None
+    skill_level: Optional[str] = None
+    suggestions: List[str] = []
+    confidence_score: Optional[float] = None
+
+    processing_time: Optional[float] = None
+    token_usage: Optional[Dict[str, Any]] = None
+    cost_estimate: float = 0.0
+
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    error_message: Optional[str] = None
+
+    class Config:
+        collection = "ai_analysis_results"
+
+    @validator("analysis_session_id", "model_id", pre=True)
+    def validate_object_ids(cls, v):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+class ModelComparison(Model):
+    """Model comparison results for MongoDB"""
+
+    repository_id: ObjectId = Field(index=True)
+    models_compared: List[str] = Field(index=True)
+    analysis_type: str = "comparison"
+    consensus_patterns: List[str] = []
+    disputed_patterns: Optional[Dict[str, Any]] = None
+    agreement_score: Optional[float] = None
+    diversity_score: Optional[float] = None
+    consistency_score: Optional[float] = None
+    performance_metrics: Optional[Dict[str, Any]] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    configuration: Optional[Dict[str, Any]] = None
+
+    class Config:
+        collection = "model_comparisons"
+
+    @validator("repository_id", pre=True)
+    def validate_repository_id(cls, v):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+    @validator("updated_at", pre=True, always=True)
+    def set_updated_at(cls, v):
+        return datetime.utcnow()
+
+
+class ModelBenchmark(Model):
+    """Model benchmark results for MongoDB"""
+
+    model_id: ObjectId = Field(index=True)
+    benchmark_name: str = Field(index=True)
+    benchmark_version: str = "1.0"
+    test_dataset_size: Optional[int] = None
+    accuracy_score: Optional[float] = None
+    precision_score: Optional[float] = None
+    recall_score: Optional[float] = None
+    f1_score: Optional[float] = None
+    avg_processing_time: Optional[float] = None
+    avg_cost_per_analysis: Optional[float] = None
+    pattern_detection_rate: Optional[Dict[str, Any]] = None
+    false_positive_rate: Optional[float] = None
+    false_negative_rate: Optional[float] = None
+    benchmark_date: datetime = Field(default_factory=datetime.utcnow, index=True)
+    notes: Optional[str] = None
+
+    class Config:
+        collection = "model_benchmarks"
+
+    @validator("model_id", pre=True)
+    def validate_model_id(cls, v):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+# Utility functions for common MongoDB queries
+
+
+async def get_repository_by_url(engine, url: str) -> Optional[Repository]:
+    """Get repository by URL"""
+    return await engine.find_one(Repository, Repository.url == url)
+
+
+async def get_commits_by_repository(
+    engine, repository_id: ObjectId, limit: int = 100
+) -> List[Commit]:
+    """Get commits for a repository"""
+    return await engine.find(Commit, Commit.repository_id == repository_id, limit=limit)
+
+
+async def get_pattern_occurrences_by_repository(
+    engine, repository_id: ObjectId, limit: int = 100
+) -> List[PatternOccurrence]:
+    """Get pattern occurrences for a repository"""
+    return await engine.find(
+        PatternOccurrence, PatternOccurrence.repository_id == repository_id, limit=limit
+    )
+
+
+async def get_technologies_by_repository(
+    engine, repository_id: ObjectId
+) -> List[Technology]:
+    """Get technologies used in a repository"""
+    return await engine.find(Technology, Technology.repository_id == repository_id)
+
+
+async def get_analysis_sessions_by_repository(
+    engine, repository_id: ObjectId, limit: int = 10
+) -> List[AnalysisSession]:
+    """Get analysis sessions for a repository"""
+    return await engine.find(
+        AnalysisSession, AnalysisSession.repository_id == repository_id, limit=limit
+    )
+
+
+async def get_available_ai_models(engine) -> List[AIModel]:
+    """Get all available AI models"""
+    return await engine.find(AIModel, AIModel.is_available == True)
+
+
+async def get_model_comparisons_by_repository(
+    engine, repository_id: ObjectId, limit: int = 10
+) -> List[ModelComparison]:
+    """Get model comparisons for a repository"""
+    return await engine.find(
+        ModelComparison, ModelComparison.repository_id == repository_id, limit=limit
+    )
+
+
+async def create_custom_indexes(engine):
+    """Create custom compound indexes for better performance"""
+
+    await engine.get_collection(Commit).create_index(
+        [("repository_id", 1), ("committed_date", -1)]
+    )
+
+    await engine.get_collection(PatternOccurrence).create_index(
+        [("repository_id", 1), ("pattern_id", 1), ("detected_at", -1)]
+    )
+
+    await engine.get_collection(Technology).create_index(
+        [("repository_id", 1), ("category", 1), ("name", 1)]
+    )
+
+    await engine.get_collection(AIAnalysisResult).create_index(
+        [("analysis_session_id", 1), ("model_id", 1), ("created_at", -1)]
+    )
+
+    await engine.get_collection(Commit).create_index(
+        [("repository_id", 1), ("hash", 1)], unique=True
+    )
+
+    await engine.get_collection(Technology).create_index(
+        [("repository_id", 1), ("name", 1), ("category", 1)], unique=True
+    )
+
+    await engine.get_collection(ModelBenchmark).create_index(
+        [("model_id", 1), ("benchmark_name", 1), ("benchmark_version", 1)], unique=True
     )

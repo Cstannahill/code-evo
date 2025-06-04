@@ -10,7 +10,7 @@ from app.services.analysis_service import AnalysisService
 from app.services.repository_service import RepositoryService
 from app.services.pattern_service import PatternService
 from app.services.ai_analysis_service import AIAnalysisService
-from app.models.repository2 import (
+from app.models.repository import (
     Repository,
     AnalysisSession,
     Technology,

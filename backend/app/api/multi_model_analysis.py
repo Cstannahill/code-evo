@@ -15,10 +15,10 @@ from app.services.multi_model_ai_service import (
     AnalysisResult,
 )
 from app.models.repository import (
-    Repository,
-    AIModel as AIModelDB,
-    AIAnalysisResult,
-    ModelComparison,
+    RepositorySQL as Repository,
+    AIModelSQL as AIModelDB,
+    AIAnalysisResultSQL as AIAnalysisResult,
+    ModelComparisonSQL as ModelComparison,
 )
 
 logger = logging.getLogger(__name__)
