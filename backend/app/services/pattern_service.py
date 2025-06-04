@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from bson import ObjectId
 from collections import Counter, defaultdict
 
-from app.core.database2_enhanced import get_enhanced_database_manager
+from app.core.database import get_enhanced_database_manager
 from app.models.repository2 import (
     Pattern,
     PatternOccurrence,

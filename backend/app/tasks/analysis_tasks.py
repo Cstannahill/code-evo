@@ -5,7 +5,7 @@ import logging
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-from app.core.database2_enhanced import get_enhanced_database_manager
+from app.core.database import get_enhanced_database_manager
 from app.services.analysis_service import AnalysisService
 from app.services.repository_service import RepositoryService
 from app.services.pattern_service import PatternService

@@ -15,7 +15,7 @@ from bson import ObjectId
 from collections import defaultdict
 import json
 
-from app.core.database2_enhanced import get_enhanced_database_manager
+from app.core.database import get_enhanced_database_manager
 from app.models.repository2 import (
     AnalysisSession,
     AIModel,

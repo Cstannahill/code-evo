@@ -20,10 +20,12 @@ from app.models.repository import (
     ModelComparison,
     ModelBenchmark,
 )
-from app.core.database import create_tables, engine, get_db_info  # Legacy SQLAlchemy
-from app.core.database2_enhanced import (
+from app.core.database import (
+    create_tables,
+    engine,
+    get_db_info,
     get_enhanced_database_manager,
-)  # Enhanced MongoDB
+)  # Unified database module
 from app.core.middleware import (
     EnhancedCORSMiddleware,
     ConnectionLoggingMiddleware,

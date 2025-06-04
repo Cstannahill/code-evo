@@ -12,7 +12,7 @@ from langchain.prompts import PromptTemplate
 from langchain.output_parsers import PydanticOutputParser, OutputFixingParser
 from pydantic import BaseModel, Field
 
-from app.core.database2_enhanced import get_enhanced_database_manager, get_collection
+from app.core.database import get_enhanced_database_manager, get_collection
 
 logger = logging.getLogger(__name__)
 
