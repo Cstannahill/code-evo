@@ -13,7 +13,7 @@ from pathlib import Path
 backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
 
-from app.core.database2_enhanced import (
+from app.core.database import (
     initialize_enhanced_database,
     export_health_report,
 )
@@ -125,7 +125,7 @@ async def run_migration():
         print("=" * 50)
         print("\n📋 Next Steps:")
         print(
-            "1. Update your application imports to use 'database2_enhanced' instead of 'database2'"
+            "1. Update your application imports to use 'database' instead of 'database2_enhanced' or 'database2'"
         )
         print("2. Test your application with the enhanced MongoDB system")
         print("3. Monitor the health dashboard for performance metrics")
