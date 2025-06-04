@@ -150,17 +150,17 @@ def create_tables():
 
         # Import all models to ensure they're registered with Base
         from app.models.repository import (
-            Repository,
-            Commit,
-            FileChange,
-            Technology,
-            Pattern,
-            PatternOccurrence,
-            AnalysisSession,
-            AIModel,
-            AIAnalysisResult,
-            ModelComparison,
-            ModelBenchmark,
+            RepositorySQL,
+            CommitSQL,
+            FileChangeSQL,
+            TechnologySQL,
+            PatternSQL,
+            PatternOccurrenceSQL,
+            AnalysisSessionSQL,
+            AIModelSQL,
+            AIAnalysisResultSQL,
+            ModelComparisonSQL,
+            ModelBenchmarkSQL,
         )
 
         # Now create all tables

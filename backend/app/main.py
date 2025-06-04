@@ -8,17 +8,17 @@ import asyncio
 from datetime import datetime
 import traceback
 from app.models.repository import (
-    Repository,
-    Commit,
-    FileChange,
-    Technology,
-    Pattern,
-    PatternOccurrence,
-    AnalysisSession,
-    AIModel,
-    AIAnalysisResult,
-    ModelComparison,
-    ModelBenchmark,
+    RepositorySQL,
+    CommitSQL,
+    FileChangeSQL,
+    TechnologySQL,
+    PatternSQL,
+    PatternOccurrenceSQL,
+    AnalysisSessionSQL,
+    AIModelSQL,
+    AIAnalysisResultSQL,
+    ModelComparisonSQL,
+    ModelBenchmarkSQL,
 )
 from app.core.database import (
     create_tables,

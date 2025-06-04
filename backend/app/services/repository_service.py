@@ -15,7 +15,7 @@ from bson import ObjectId
 from odmantic.exceptions import DuplicateKeyError
 
 from app.core.database import get_enhanced_database_manager
-from app.models.repository2 import (
+from app.models.repository import (
     Repository,
     Commit,
     FileChange,
