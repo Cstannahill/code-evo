@@ -450,11 +450,8 @@ if __name__ == "__main__":
         print(
             "   from app.api.multi_model_analysis import router as multi_model_router"
         )
-        print("   from app.api.multi_model_test import router as test_router")
         print("   app.include_router(multi_model_router)")
-        print("   app.include_router(test_router)")
         print("\n2. Start server: uvicorn app.main:app --reload")
-        print("3. Test: curl http://localhost:8000/api/multi-model-test/status")
         print("\n🧠 READY FOR MULTI-MODEL AI ANALYSIS!")
     else:
         logger.error("❌ Setup failed - check logs above")

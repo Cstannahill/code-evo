@@ -1,29 +1,42 @@
-# app/api/analysis.py - Updated with working AI integration
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
-from typing import List, Dict
+from fastapi import APIRouter, HTTPException
+from typing import Dict, Any, List
 import logging
-import asyncio
 
-from app.core.database import get_db
-from app.models.repository import Repository, Pattern, PatternOccurrence
-from app.services.ai_service import AIService  # Now working!
+from app.services.ai_service import AIService
+from app.services.pattern_service import PatternService
+from app.services.ai_analysis_service import AIAnalysisService
+from app.services.repository_service import RepositoryService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/analysis", tags=["Analysis"])
 
-# Initialize AI service
 ai_service = AIService()
+pattern_service = PatternService()
+ai_analysis_service = AIAnalysisService()
+repository_service = RepositoryService()
 
 
 @router.get("/status")
 async def get_ai_status():
-    logger.info(f"Status Hit")
-    """Get AI service status - NEW ENDPOINT"""
+    """Get AI service status with MongoDB integration"""
+    logger.info("AI status requested")
     status = ai_service.get_status()
+
+    try:
+        pattern_health = await pattern_service.get_service_health()
+        ai_analysis_health = await ai_analysis_service.get_service_health()
+    except Exception as e:
+        logger.warning(f"Failed to get MongoDB service health: {e}")
+        pattern_health = {"status": "unknown"}
+        ai_analysis_health = {"status": "unknown"}
+
     return {
         "ai_service": status,
+        "mongodb_services": {
+            "pattern_service": pattern_health,
+            "ai_analysis_service": ai_analysis_health,
+        },
         "recommendations": {
             "ollama_missing": (
                 "Run 'ollama serve' and 'ollama pull codellama:7b'"
@@ -36,241 +49,216 @@ async def get_ai_status():
 
 
 @router.post("/code")
-async def analyze_code_snippet(request: Dict[str, str], db: Session = Depends(get_db)):
-    """Analyze a code snippet for patterns - NOW WITH REAL AI!"""
+async def analyze_code_snippet(request: Dict[str, str]):
+    """Analyze a code snippet for patterns and store the result"""
     try:
         code = request.get("code", "")
         language = request.get("language", "javascript")
-
         if not code:
             raise HTTPException(status_code=400, detail="Code is required")
-        print(f"Status Hit")
+
         logger.info(f"🤖 Analyzing {len(code)} chars of {language} code")
-
-        # Use AI service for pattern analysis
         pattern_result = await ai_service.analyze_code_pattern(code, language)
-
-        # Use AI service for quality analysis
         quality_result = await ai_service.analyze_code_quality(code, language)
 
-        # Find similar patterns
-        similar_patterns = await ai_service.find_similar_patterns(code, limit=3)
+        try:
+            analysis_result = await ai_analysis_service.record_analysis_result(
+                model_id="codellama:7b",
+                code_snippet=code,
+                language=language,
+                analysis_type="pattern_detection",
+                result_data={
+                    "pattern_analysis": pattern_result,
+                    "quality_analysis": quality_result,
+                },
+                confidence_score=pattern_result.get("confidence", 0.8),
+                metadata={"snippet_length": len(code)},
+            )
+            analysis_id = str(analysis_result.id)
+            logger.info(f"✅ Stored analysis result with ID: {analysis_id}")
+        except Exception as e:
+            logger.warning(f"Failed to store analysis result: {e}")
+            analysis_id = None
 
-        response = {
-            "code": code,
-            "language": language,
-            "pattern_analysis": pattern_result,
-            "quality_analysis": quality_result,
-            "similar_patterns": similar_patterns,
-            "ai_powered": ai_service.ollama_available,  # Let frontend know if AI is working
-            "analysis_timestamp": "2024-01-01T00:00:00Z",
+        return {
+            "patterns": pattern_result,
+            "quality": quality_result,
+            "analysis_id": analysis_id,
+            "timestamp": pattern_result.get("timestamp"),
         }
-
-        logger.info(
-            f"✅ Analysis complete: {len(pattern_result.get('combined_patterns', []))} patterns found"
-        )
-        return response
-
     except Exception as e:
-        logger.error(f"Error analyzing code snippet: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Code analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
 @router.get("/patterns")
-async def get_all_patterns(db: Session = Depends(get_db)):
+async def get_all_patterns():
     """Get all detected patterns across repositories"""
     try:
-        patterns = (
-            db.query(PatternOccurrence)
-            .join(Pattern)
-            .order_by(PatternOccurrence.detected_at.desc())
-            .limit(100)
-            .all()
-        )
-
-        return [
-            {
-                "pattern_name": p.pattern.name,
-                "file_path": p.file_path,
-                "code_snippet": p.code_snippet,
-                "confidence_score": p.confidence_score,
-                "detected_at": p.detected_at.isoformat(),
-            }
-            for p in patterns
-        ]
-
+        global_stats = await pattern_service.get_global_pattern_stats()
+        patterns = []
+        for pattern_name, stats in global_stats.items():
+            if pattern_name == "timestamp":
+                continue
+            patterns.append(
+                {
+                    "name": pattern_name,
+                    "total_occurrences": stats.get("total_occurrences", 0),
+                    "repositories_count": stats.get("repositories_count", 0),
+                    "average_confidence": stats.get("avg_confidence", 0.0),
+                    "first_detected": stats.get("first_detected"),
+                    "last_detected": stats.get("last_detected"),
+                    "category": stats.get("category", "unknown"),
+                }
+            )
+        patterns.sort(key=lambda x: x["total_occurrences"], reverse=True)
+        return {
+            "patterns": patterns,
+            "total_patterns": len(patterns),
+            "total_occurrences": sum(p["total_occurrences"] for p in patterns),
+            "timestamp": global_stats.get("timestamp"),
+        }
     except Exception as e:
-        logger.error(f"Error getting patterns: {e}")
-        return []
+        logger.error(f"Failed to get patterns: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get patterns")
 
 
-@router.get("/analysis/patterns/{pattern_name}")
-async def get_pattern_details(pattern_name: str, db: Session = Depends(get_db)):
-    """Get details for a specific pattern"""
+@router.get("/patterns/{pattern_name}")
+async def get_pattern_details(pattern_name: str):
+    """Get detailed information about a specific pattern"""
     try:
-        pattern = db.query(Pattern).filter(Pattern.name == pattern_name).first()
-        if not pattern:
+        global_stats = await pattern_service.get_global_pattern_stats()
+        pattern_stats = global_stats.get(pattern_name)
+        if not pattern_stats:
             raise HTTPException(status_code=404, detail="Pattern not found")
 
-        occurrences = (
-            db.query(PatternOccurrence)
-            .filter(PatternOccurrence.pattern_id == pattern.id)
-            .order_by(PatternOccurrence.detected_at.desc())
-            .limit(50)
-            .all()
+        repos_with_pattern = await pattern_service.get_repositories_using_pattern(
+            pattern_name
         )
 
         return {
-            "pattern": {
-                "name": pattern.name,
-                "category": pattern.category,
-                "description": pattern.description,
-                "complexity_level": pattern.complexity_level,
-                "is_antipattern": pattern.is_antipattern,
-            },
-            "occurrences": [
-                {
-                    "file_path": occ.file_path,
-                    "code_snippet": occ.code_snippet,
-                    "confidence_score": occ.confidence_score,
-                    "detected_at": occ.detected_at.isoformat(),
-                    "repository_id": str(occ.repository_id),
-                }
-                for occ in occurrences
-            ],
-            "statistics": {
-                "total_occurrences": len(occurrences),
-                "repositories_using": len(
-                    set(occ.repository_id for occ in occurrences)
-                ),
-            },
+            "name": pattern_name,
+            "statistics": pattern_stats,
+            "repositories": repos_with_pattern,
+            "usage_timeline": pattern_stats.get("timeline", []),
         }
-
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting pattern details: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to get pattern details for {pattern_name}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get pattern details")
 
 
-@router.get("/insights/{repo_id}")
-async def get_repository_insights(repo_id: str, db: Session = Depends(get_db)):
-    """Get AI-generated insights for a repository - NOW WITH REAL AI!"""
+@router.get("/insights/{repository_id}")
+async def get_repository_insights(repository_id: str):
+    """Get AI-generated insights for a repository"""
     try:
-        repo = db.query(Repository).filter(Repository.id == repo_id).first()
-        if not repo:
-            raise HTTPException(status_code=404, detail="Repository not found")
-
-        # Get pattern statistics
-        patterns = (
-            db.query(Pattern)
-            .join(PatternOccurrence)
-            .filter(PatternOccurrence.repository_id == repo_id)
-            .distinct()
-            .all()
+        repo_patterns = await pattern_service.get_repository_patterns(
+            repository_id, include_occurrences=False
         )
-
-        pattern_stats = {}
-        for pattern in patterns:
-            occurrences = (
-                db.query(PatternOccurrence)
-                .filter(
-                    PatternOccurrence.pattern_id == pattern.id,
-                    PatternOccurrence.repository_id == repo_id,
-                )
-                .all()
+        if not repo_patterns or repo_patterns.get("error"):
+            raise HTTPException(
+                status_code=404,
+                detail="Repository not found or no patterns detected",
             )
 
-            pattern_stats[pattern.name] = {
-                "category": pattern.category,
-                "occurrences": len(occurrences),
-                "complexity_level": pattern.complexity_level,
-                "is_antipattern": pattern.is_antipattern,
-            }
-
-        # Generate AI insights if available
-        ai_insights = []
-        if ai_service.ollama_available:
+        ai_results = await ai_analysis_service.get_repository_insights(repository_id)
+        status = ai_service.get_status()
+        new_insights = []
+        if status.get("ollama_available", False):
             try:
-                # Analyze repository evolution
-                analysis_data = {
-                    "patterns": pattern_stats,
-                    "technologies": [tech.name for tech in repo.technologies],
-                    "commits": repo.total_commits,
+                insight_data = {
+                    "patterns": repo_patterns,
+                    "repository_id": repository_id,
                 }
-
-                ai_insights = await ai_service.generate_insights(analysis_data)
-                logger.info(f"🤖 Generated {len(ai_insights)} AI insights")
-
+                new_insights = await ai_service.generate_insights(insight_data)
             except Exception as e:
-                logger.error(f"AI insight generation failed: {e}")
-                ai_insights = [
-                    {
-                        "type": "error",
-                        "title": "AI Analysis Error",
-                        "description": str(e),
-                    }
-                ]
-
-        # Combine basic and AI insights
-        insights = [
-            {
-                "type": "info",
-                "title": "Repository Overview",
-                "description": f"Analyzed {repo.total_commits} commits with {len(patterns)} patterns detected.",
-                "data": {
-                    "repository_id": repo_id,
-                    "patterns": pattern_stats,
-                    "total_commits": repo.total_commits,
-                    "technologies": [tech.name for tech in repo.technologies],
-                },
-            }
-        ] + ai_insights
+                logger.warning(f"Failed to generate new insights: {e}")
 
         return {
-            "repository_id": repo_id,
-            "pattern_timeline": {"timeline": [], "summary": {}},
-            "pattern_statistics": pattern_stats,
-            "insights": insights,
-            "ai_powered": ai_service.ollama_available,
-            "summary": {
-                "total_patterns": len(patterns),
-                "antipatterns_detected": sum(1 for p in patterns if p.is_antipattern),
-                "complexity_distribution": _get_complexity_distribution(patterns),
-            },
+            "repository_id": repository_id,
+            "patterns_summary": repo_patterns,
+            "ai_insights": ai_results,
+            "new_insights": new_insights,
+            "ai_powered": status.get("ollama_available", False),
+            "timestamp": None,
         }
-
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting repository insights: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to get insights for repository {repository_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get repository insights")
+
+
+@router.get("/ai-models")
+async def get_available_ai_models():
+    """Get available AI models and their statistics"""
+    try:
+        models = await ai_analysis_service.get_available_models()
+        model_stats = []
+        for model in models:
+            stats = await ai_analysis_service.get_model_usage_statistics(model.model_id)
+            model_stats.append(
+                {
+                    "model_id": model.model_id,
+                    "name": model.name,
+                    "provider": model.provider,
+                    "version": model.version,
+                    "is_available": model.is_available,
+                    "capabilities": model.capabilities,
+                    "usage_statistics": stats,
+                }
+            )
+        return {
+            "models": model_stats,
+            "total_models": len(model_stats),
+            "available_models": len([m for m in model_stats if m["is_available"]]),
+        }
+    except Exception as e:
+        logger.error(f"Failed to get AI models: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get AI models")
+
+
+@router.post("/models/{model_id}/benchmark")
+async def benchmark_model(model_id: str, test_data: Dict[str, Any]):
+    """Benchmark an AI model with test data"""
+    try:
+        code_snippets = test_data.get("code_snippets", [])
+        if not code_snippets:
+            raise HTTPException(
+                status_code=400,
+                detail="Code snippets are required for benchmarking",
+            )
+        benchmark_result = await ai_analysis_service.run_model_benchmark(
+            model_id=model_id, test_cases=code_snippets
+        )
+        return {
+            "model_id": model_id,
+            "benchmark_result": benchmark_result,
+            "test_cases_count": len(code_snippets),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to benchmark model {model_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to benchmark model: {str(e)}")
 
 
 @router.post("/evolution")
-async def analyze_code_evolution(request: Dict, db: Session = Depends(get_db)):
-    """Analyze evolution between two code versions - NEW ENDPOINT"""
+async def analyze_code_evolution(request: Dict[str, Any]):
+    """Analyze evolution between two code versions"""
     try:
         old_code = request.get("old_code", "")
         new_code = request.get("new_code", "")
         context = request.get("context", "")
-
         if not old_code or not new_code:
-            raise HTTPException(
-                status_code=400, detail="Both old_code and new_code are required"
-            )
-
-        # Use AI service for evolution analysis
-        evolution_result = await ai_service.analyze_evolution(
-            old_code, new_code, context
-        )
-
+            raise HTTPException(status_code=400, detail="Both old_code and new_code are required")
+        evolution_result = await ai_service.analyze_evolution(old_code, new_code, context)
         return {
             "evolution_analysis": evolution_result,
             "ai_powered": ai_service.ollama_available,
             "timestamp": "2024-01-01T00:00:00Z",
         }
-
     except HTTPException:
         raise
     except Exception as e:
@@ -279,42 +267,23 @@ async def analyze_code_evolution(request: Dict, db: Session = Depends(get_db)):
 
 
 @router.get("/compare/{repo_id1}/{repo_id2}")
-async def compare_repositories(
-    repo_id1: str, repo_id2: str, db: Session = Depends(get_db)
-):
-    """Compare two repositories - ENHANCED WITH AI"""
+async def compare_repositories(repo_id1: str, repo_id2: str):
+    """Compare two repositories"""
     try:
-        repo1 = db.query(Repository).filter(Repository.id == repo_id1).first()
-        repo2 = db.query(Repository).filter(Repository.id == repo_id2).first()
-
+        repo1 = await repository_service.get_repository(repo_id1)
+        repo2 = await repository_service.get_repository(repo_id2)
         if not repo1 or not repo2:
-            raise HTTPException(
-                status_code=404, detail="One or both repositories not found"
-            )
+            raise HTTPException(status_code=404, detail="One or both repositories not found")
 
-        # Get patterns for both repositories
-        patterns1 = set(
-            p.pattern.name
-            for p in db.query(PatternOccurrence)
-            .filter(PatternOccurrence.repository_id == repo_id1)
-            .all()
-        )
+        patterns1_data = await pattern_service.get_repository_patterns(repo_id1, include_occurrences=False)
+        patterns2_data = await pattern_service.get_repository_patterns(repo_id2, include_occurrences=False)
+        patterns1 = set(p["pattern"]["name"] for p in patterns1_data.get("patterns", []))
+        patterns2 = set(p["pattern"]["name"] for p in patterns2_data.get("patterns", []))
 
-        patterns2 = set(
-            p.pattern.name
-            for p in db.query(PatternOccurrence)
-            .filter(PatternOccurrence.repository_id == repo_id2)
-            .all()
-        )
+        tech1 = set(t.get("name") for t in repo1.tech_stack) if hasattr(repo1, "tech_stack") else set()
+        tech2 = set(t.get("name") for t in repo2.tech_stack) if hasattr(repo2, "tech_stack") else set()
 
-        # Get technologies for both repositories
-        tech1 = set(tech.name for tech in repo1.technologies)
-        tech2 = set(tech.name for tech in repo2.technologies)
-
-        # Calculate similarity
-        similarity_score = _calculate_similarity_score(
-            patterns1, patterns2, tech1, tech2
-        )
+        similarity_score = _calculate_similarity_score(patterns1, patterns2, tech1, tech2)
 
         comparison = {
             "repository_1": {
@@ -342,9 +311,7 @@ async def compare_repositories(
             },
             "ai_powered": ai_service.ollama_available,
         }
-
         return comparison
-
     except HTTPException:
         raise
     except Exception as e:
@@ -352,36 +319,26 @@ async def compare_repositories(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def _get_complexity_distribution(patterns: List[Pattern]) -> Dict[str, int]:
-    """Get distribution of pattern complexity levels"""
+def _get_complexity_distribution(patterns: List[Dict[str, Any]]) -> Dict[str, int]:
     distribution = {"simple": 0, "intermediate": 0, "advanced": 0}
-
-    for pattern in patterns:
-        level = pattern.complexity_level or "intermediate"
+    for p in patterns:
+        level = (
+            p.get("complexity_level")
+            or p.get("pattern", {}).get("complexity_level")
+            or "intermediate"
+        )
         if level in distribution:
             distribution[level] += 1
-
     return distribution
 
 
-def _calculate_similarity_score(
-    patterns1: set, patterns2: set, tech1: set, tech2: set
-) -> float:
-    """Calculate similarity score between two repositories"""
+def _calculate_similarity_score(patterns1: set, patterns2: set, tech1: set, tech2: set) -> float:
     if not patterns1 and not patterns2 and not tech1 and not tech2:
         return 1.0
-
-    # Jaccard similarity for patterns
     pattern_union = patterns1.union(patterns2)
     pattern_intersection = patterns1.intersection(patterns2)
-    pattern_similarity = (
-        len(pattern_intersection) / len(pattern_union) if pattern_union else 0
-    )
-
-    # Jaccard similarity for technologies
+    pattern_similarity = len(pattern_intersection) / len(pattern_union) if pattern_union else 0
     tech_union = tech1.union(tech2)
     tech_intersection = tech1.intersection(tech2)
     tech_similarity = len(tech_intersection) / len(tech_union) if tech_union else 0
-
-    # Weighted average (patterns matter more)
     return (pattern_similarity * 0.7) + (tech_similarity * 0.3)

@@ -30,11 +30,8 @@ from app.core.middleware import (
     RequestValidationMiddleware,
 )
 from app.api import auth, repositories, analysis
-from app.api import repositories_mongodb  # New MongoDB-based API
-from app.api import analysis_mongodb  # New MongoDB-based Analysis API
 from app.core.config import settings
 from app.api.multi_model_analysis import router as multi_model_router
-from app.api.multi_model_test import router as test_router
 
 # Configure logging with more detail
 logging.basicConfig(
@@ -231,18 +228,9 @@ async def connection_test(request: Request):
 
 # Include routers
 app.include_router(auth.router)
-app.include_router(
-    repositories.router
-)  # Keep old SQLAlchemy API for backward compatibility
-app.include_router(repositories_mongodb.router, prefix="/api/v2")  # New MongoDB API
-app.include_router(
-    analysis.router
-)  # Keep old SQLAlchemy API for backward compatibility
-app.include_router(
-    analysis_mongodb.router, prefix="/api/v2"
-)  # New MongoDB Analysis API
+app.include_router(repositories.router)
+app.include_router(analysis.router)
 app.include_router(multi_model_router)
-app.include_router(test_router)
 
 
 # Root endpoint
