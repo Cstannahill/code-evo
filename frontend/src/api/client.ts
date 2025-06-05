@@ -146,6 +146,13 @@ export class ApiClient {
     );
     return response.json();
   }
+
+  async getRepositoryPatterns(id: string, includeOccurrences = true) {
+    const response = await fetch(
+      `${this.baseUrl}/api/repositories/${id}/patterns?include_occurrences=${includeOccurrences}`
+    );
+    return response.json();
+  }
 }
 
 // Export singleton instance
