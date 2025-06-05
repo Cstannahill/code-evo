@@ -369,6 +369,7 @@ class MongoDBManager:
             raise ConnectionError("MongoDB client not available")
         return self.client
 
+<<<<<<< HEAD
     @property
     def cache(self):
         """Get cache service instance"""
@@ -376,6 +377,8 @@ class MongoDBManager:
 
         return get_cache()
 
+=======
+>>>>>>> a1d19c7f56b54abd7bf7560156fcb17ab40fd16c
 
 # Global MongoDB manager instance
 mongodb_manager: Optional[MongoDBManager] = None

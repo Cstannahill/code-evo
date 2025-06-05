@@ -9,9 +9,17 @@ class Settings(BaseSettings):
     DATABASE_PATH: str = "code_evolution.db"
 
     # Redis (optional)
+<<<<<<< HEAD
     REDIS_URL: str = "redis://localhost:6379"  # ChromaDB (optional)
     CHROMA_HOST: str = "localhost"
     CHROMA_PORT: int = 8001
+=======
+    REDIS_URL: str = "redis://localhost:6379"
+
+    # ChromaDB (optional)
+    CHROMA_HOST: str = "localhost"
+    CHROMA_PORT: int = 8000
+>>>>>>> a1d19c7f56b54abd7bf7560156fcb17ab40fd16c
     CHROMA_PERSIST_DIR: str = "./chroma_db"
     # Ollama (optional)
     OLLAMA_BASE_URL: str = "http://localhost:11434"

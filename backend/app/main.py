@@ -65,6 +65,7 @@ async def lifespan(app: FastAPI):
         db_info = get_db_info()
         logger.info(f"📊 Database initialized: {db_info}")
 
+<<<<<<< HEAD
         # Initialize enhanced MongoDB system
         from app.core.database import initialize_enhanced_database
 
@@ -73,6 +74,8 @@ async def lifespan(app: FastAPI):
             f"🍃 MongoDB initialized: {mongo_result.get('mongodb_connected', False)}"
         )
 
+=======
+>>>>>>> a1d19c7f56b54abd7bf7560156fcb17ab40fd16c
         # Test all external connections
         from app.services.ai_service import AIService
 
@@ -89,6 +92,7 @@ async def lifespan(app: FastAPI):
     finally:
         logger.info("🔄 Shutting down Code Evolution Tracker Backend...")
 
+<<<<<<< HEAD
         # Close enhanced database connections
         from app.core.database import close_enhanced_connections
 
@@ -98,6 +102,8 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"⚠️ Error closing database connections: {e}")
 
+=======
+>>>>>>> a1d19c7f56b54abd7bf7560156fcb17ab40fd16c
         # Cancel all background tasks
         if background_tasks:
             logger.info(f"⏹️  Cancelling {len(background_tasks)} background tasks...")

@@ -22,6 +22,7 @@ from app.models.repository import (
 
 logger = logging.getLogger(__name__)
 
+<<<<<<< HEAD
 # Services will be lazily initialized
 repository_service = None
 pattern_service = None
@@ -40,6 +41,12 @@ def get_services():
         ai_analysis_service = AIAnalysisService()
 
     return repository_service, pattern_service, ai_analysis_service
+=======
+# Initialize MongoDB services
+repository_service = RepositoryService()
+pattern_service = PatternService()
+ai_analysis_service = AIAnalysisService()
+>>>>>>> a1d19c7f56b54abd7bf7560156fcb17ab40fd16c
 
 
 async def analyze_repository_background(
