@@ -1,0 +1,212 @@
+/* Enhanced Color Palette - Ctan.dev Brand Identity */
+:root {
+  /* Primary brand colors from icon */
+  --ctan-gold: #FFB700;
+  --ctan-amber: #FFA500;
+  --ctan-orange: #FF8C00;
+  --ctan-warm-yellow: #FFD700;
+  
+  /* Dark theme foundations */
+  --ctan-dark-bg: #0A0A0B;
+  --ctan-dark-card: #161618;
+  --ctan-dark-border: #262629;
+  --ctan-dark-hover: #1F1F23;
+  
+  /* Text hierarchy */
+  --ctan-text-primary: #FAFAFA;
+  --ctan-text-secondary: #A1A1AA;
+  --ctan-text-muted: #71717A;
+}
+
+/* Enhanced Title Gradient */
+.brand-title {
+  background: linear-gradient(135deg, var(--ctan-amber) 0%, var(--ctan-gold) 25%, var(--ctan-warm-yellow) 50%, var(--ctan-gold) 75%, var(--ctan-orange) 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-shift 4s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Enhanced Button Styling */
+.ctan-button {
+  position: relative;
+  background: linear-gradient(145deg, var(--ctan-dark-card), var(--ctan-dark-hover));
+  border: 1px solid var(--ctan-dark-border);
+  color: var(--ctan-text-primary);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.ctan-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(145deg, transparent, rgba(255, 183, 0, 0.05));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.ctan-button:hover::before {
+  opacity: 1;
+}
+
+.ctan-button:hover {
+  border-color: rgba(255, 183, 0, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 183, 0, 0.1);
+}
+
+.ctan-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(255, 183, 0, 0.1);
+}
+
+/* Repository Button Styling */
+.repo-button {
+  background: linear-gradient(145deg, #1a1a1d, #141416);
+  border: 1px solid rgba(255, 183, 0, 0.1);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.repo-button:hover {
+  background: linear-gradient(145deg, #1f1f23, #18181b);
+  border-color: rgba(255, 183, 0, 0.3);
+  box-shadow: 0 0 20px rgba(255, 183, 0, 0.1);
+}
+
+.repo-button.active {
+  background: linear-gradient(145deg, var(--ctan-orange), var(--ctan-gold));
+  border-color: var(--ctan-gold);
+  color: var(--ctan-dark-bg);
+}
+
+/* Model Select Enhancement */
+.model-select-trigger {
+  background: linear-gradient(145deg, var(--ctan-dark-card), var(--ctan-dark-hover));
+  border: 1px solid var(--ctan-dark-border);
+  transition: all 0.3s ease;
+}
+
+.model-select-trigger:hover {
+  border-color: rgba(255, 183, 0, 0.3);
+  box-shadow: 0 0 20px rgba(255, 183, 0, 0.1);
+}
+
+/* Tab Enhancement */
+.ctan-tab {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.ctan-tab::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--ctan-orange), var(--ctan-gold));
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+
+.ctan-tab[data-state="active"]::after {
+  transform: scaleX(1);
+}
+
+/* Card Glow Effect */
+.ctan-card {
+  background: var(--ctan-dark-card);
+  border: 1px solid var(--ctan-dark-border);
+  position: relative;
+  overflow: hidden;
+}
+
+.ctan-card::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, var(--ctan-orange), var(--ctan-gold), var(--ctan-orange));
+  border-radius: inherit;
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 0.3s ease;
+}
+
+.ctan-card:hover::before {
+  opacity: 0.1;
+}
+
+/* Icon Glow Animation */
+@keyframes icon-glow {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 183, 0, 0.5)); }
+  50% { filter: drop-shadow(0 0 20px rgba(255, 183, 0, 0.8)); }
+}
+
+.ctan-icon {
+  animation: icon-glow 3s ease-in-out infinite;
+}
+
+/* Loading States */
+.ctan-loading {
+  position: relative;
+  overflow: hidden;
+}
+
+.ctan-loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 183, 0, 0.1), transparent);
+  animation: loading-sweep 1.5s ease-in-out infinite;
+}
+
+@keyframes loading-sweep {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Favicon Implementation */
+.favicon-link {
+  --favicon-size: 32px;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .brand-title {
+    font-size: 2.5rem;
+  }
+  
+  .ctan-button {
+    padding: 0.5rem 1rem;
+  }
+}
+
+/* Dark Mode Enhancements */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: var(--ctan-dark-bg);
+    --foreground: var(--ctan-text-primary);
+    --card: var(--ctan-dark-card);
+    --border: var(--ctan-dark-border);
+    --primary: var(--ctan-gold);
+    --primary-foreground: var(--ctan-dark-bg);
+  }
+}
