@@ -102,7 +102,9 @@ async def get_repository_analysis(repo_id: str):
     """Get complete repository analysis data"""
     try:
         analysis = await repository_service.get_repository_analysis(repo_id)
-        pattern_stats_data = await pattern_service.get_repository_patterns(repo_id, include_occurrences=False)
+        patterns_data = await pattern_service.get_repository_patterns(
+            repo_id, include_occurrences=True
+        )
         pattern_timeline = await pattern_service.get_pattern_timeline(repo_id)
 
         status = analysis_service.get_status()
@@ -111,7 +113,7 @@ async def get_repository_analysis(repo_id: str):
         if ai_ok:
             try:
                 insight_data = {
-                    "patterns": pattern_stats_data,
+                    "patterns": patterns_data,
                     "technologies": [t.get("name") for t in analysis.get("technologies", [])],
                     "commits": analysis.get("commits_summary", {}).get("total_commits", 0),
                 }
@@ -119,15 +121,33 @@ async def get_repository_analysis(repo_id: str):
             except Exception as e:
                 logger.warning(f"Failed to generate AI insights: {e}")
 
-        pattern_stats = {p["pattern"]["name"]: p for p in pattern_stats_data.get("patterns", [])}
+        pattern_stats: Dict[str, Dict[str, Any]] = {}
+        occurrences: List[Dict[str, Any]] = []
+        for item in patterns_data.get("patterns", []):
+            p = item.get("pattern", {})
+            name = p.get("name")
+            if not name:
+                continue
+            pattern_stats[name] = {
+                "name": name,
+                "category": p.get("category"),
+                "occurrences": item.get("total_occurrences", 0),
+                "complexity_level": p.get("complexity_level", "intermediate"),
+                "is_antipattern": p.get("is_antipattern", False),
+                "description": p.get("description"),
+            }
+            occurrences.extend(item.get("occurrences", []))
+
+        analysis_sessions = analysis.get("analysis_sessions", [])
+        latest_session = analysis_sessions[0] if analysis_sessions else None
 
         return {
             "repository_id": repo_id,
             "repository": analysis.get("repository", {}),
             "status": analysis.get("repository", {}).get("status", "unknown"),
-            "analysis_sessions": analysis.get("analysis_sessions", []),
+            "analysis_session": latest_session,
             "technologies": _organize_technologies_by_category(analysis.get("technologies", [])),
-            "patterns": analysis.get("patterns", []),
+            "patterns": occurrences,
             "pattern_timeline": {
                 "timeline": pattern_timeline,
                 "summary": {"total_months": len(pattern_timeline), "patterns_tracked": list(pattern_stats.keys())},
@@ -139,13 +159,27 @@ async def get_repository_analysis(repo_id: str):
                 "total_patterns": len(pattern_stats),
                 "total_commits": analysis.get("commits_summary", {}).get("total_commits", 0),
                 "total_technologies": len(analysis.get("technologies", [])),
-                "complexity_distribution": _get_complexity_distribution(pattern_stats_data.get("patterns", [])),
+                "complexity_distribution": _get_complexity_distribution(patterns_data.get("patterns", [])),
+                "antipatterns_detected": patterns_data.get("summary", {}).get("antipatterns_count", 0),
             },
             "timestamp": datetime.utcnow().isoformat(),
         }
     except Exception as e:
         logger.error(f"Failed to get repository analysis for {repo_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to get repository analysis")
+
+
+@router.get("/{repo_id}/patterns", response_model=Dict[str, Any])
+async def get_repository_patterns(repo_id: str, include_occurrences: bool = True):
+    """Get pattern statistics and occurrences for a repository"""
+    try:
+        data = await pattern_service.get_repository_patterns(
+            repo_id, include_occurrences=include_occurrences
+        )
+        return data
+    except Exception as e:
+        logger.error(f"Failed to get patterns for repository {repo_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get repository patterns")
 
 
 @router.get("/{repo_id}/timeline", response_model=Dict[str, Any])

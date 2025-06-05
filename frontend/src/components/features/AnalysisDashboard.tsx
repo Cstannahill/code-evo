@@ -26,6 +26,7 @@ import { ComplexityEvolutionChart } from "../charts/ComplexityEvolutionChart";
 import { LearningProgressionChart } from "../charts/LearningProgressionChart";
 import { TechStackComposition } from "../charts/TechStackComposition";
 import { TechnologyRelationshipGraph } from "../charts/TechnologyRelationshipGraph";
+import { useRepositoryPatterns } from "../../hooks/useRepositoryPatterns";
 import { InsightsDashboard } from "./InsightsDashboard";
 import { PatternDeepDive } from "./PatternDeepDive";
 import { CodeQualityDashboard } from "./CodeQualityDashboard";
@@ -44,6 +45,12 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
     isLoading,
     error,
   } = useRepositoryAnalysis(repositoryId);
+  const { data: patternDetails } = useRepositoryPatterns(repositoryId);
+
+  const allOccurrences = useMemo(() => {
+    if (!patternDetails?.patterns) return [];
+    return (patternDetails.patterns as any[]).flatMap((p: any) => p.occurrences || []);
+  }, [patternDetails]);
   // Validate analysis data structure
   console.log("Analysis data:", analysis);
   if (analysis && !analysis.pattern_statistics) {
@@ -218,7 +225,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
               <DashboardCard title="Pattern Deep Dive" icon={Brain}>
                 <PatternDeepDive
                   patterns={analysis.pattern_statistics}
-                  occurrences={analysis.patterns}
+                  occurrences={allOccurrences}
                 />
               </DashboardCard>
             </TabsContent>
