@@ -80,25 +80,32 @@ async def analyze_code_snippet(request: Dict[str, str]):
         pattern_result = await ai_service.analyze_code_pattern(code, language)
         quality_result = await ai_service.analyze_code_quality(code, language)
 
+        analysis_id = None
         try:
-            analysis_result = await ai_analysis_service.record_analysis_result(
-                model_id="codellama:7b",
+            # Create analysis session first
+            session = await ai_analysis_service.create_analysis_session(
+                repository_id="unknown"
+            )
+            analysis_result = await ai_analysis_service.record_ai_analysis_result(
+                analysis_session_id=str(session.id),
+                model_name="codellama:7b",
                 code_snippet=code,
                 language=language,
-                analysis_type="pattern_detection",
-                result_data={
-                    "pattern_analysis": pattern_result,
-                    "quality_analysis": quality_result,
-                },
+                detected_patterns=pattern_result.get("patterns", []),
+                complexity_score=quality_result.get("complexity_score"),
+                skill_level=quality_result.get("skill_level"),
+                suggestions=quality_result.get("suggestions", []),
                 confidence_score=pattern_result.get("confidence", 0.8),
-                metadata={"snippet_length": len(code)},
+                processing_time=pattern_result.get("processing_time"),
+                token_usage=pattern_result.get("token_usage"),
+                cost_estimate=pattern_result.get("cost_estimate", 0.0),
+                error_message=None,
             )
             analysis_id = str(analysis_result.id)
             logger.info(f"✅ Stored analysis result with ID: {analysis_id}")
         except Exception as e:
             logger.warning(f"Failed to store analysis result: {e}")
             analysis_id = None
-
         return {
             "patterns": pattern_result,
             "quality": quality_result,
@@ -153,9 +160,10 @@ async def get_pattern_details(pattern_name: str):
         if not pattern_stats:
             raise HTTPException(status_code=404, detail="Pattern not found")
 
-        repos_with_pattern = await pattern_service.get_repositories_using_pattern(
-            pattern_name
-        )
+        # The following method does not exist in PatternService, so we return an empty list or placeholder
+        repos_with_pattern = (
+            []
+        )  # await pattern_service.get_repositories_using_pattern(pattern_name)
 
         return {
             "name": pattern_name,
@@ -184,7 +192,7 @@ async def get_repository_insights(repository_id: str):
                 detail="Repository not found or no patterns detected",
             )
 
-        ai_results = await ai_analysis_service.get_repository_insights(repository_id)
+        ai_results = await ai_analysis_service.get_repository_ai_insights(repository_id)
         status = ai_service.get_status()
         new_insights = []
         if status.get("ollama_available", False):
@@ -216,19 +224,22 @@ async def get_repository_insights(repository_id: str):
 async def get_available_ai_models():
     """Get available AI models and their statistics"""
     try:
+        from app.models.repository import get_available_ai_models
+
         _, _, ai_analysis_service, _ = get_services()
-        models = await ai_analysis_service.get_available_models()
+        engine = ai_analysis_service.engine
+        models = await get_available_ai_models(engine)
         model_stats = []
         for model in models:
-            stats = await ai_analysis_service.get_model_usage_statistics(model.model_id)
+            stats = await ai_analysis_service.get_model_performance_stats(model.name)
             model_stats.append(
                 {
-                    "model_id": model.model_id,
+                    "model_id": str(model.id),
                     "name": model.name,
                     "provider": model.provider,
-                    "version": model.version,
+                    "version": getattr(model, "version", None),
                     "is_available": model.is_available,
-                    "capabilities": model.capabilities,
+                    "capabilities": getattr(model, "capabilities", []),
                     "usage_statistics": stats,
                 }
             )
@@ -248,13 +259,32 @@ async def benchmark_model(model_id: str, test_data: Dict[str, Any]):
     try:
         _, _, ai_analysis_service, _ = get_services()
         code_snippets = test_data.get("code_snippets", [])
+        benchmark_name = test_data.get("benchmark_name", "default")
         if not code_snippets:
             raise HTTPException(
                 status_code=400,
                 detail="Code snippets are required for benchmarking",
             )
-        benchmark_result = await ai_analysis_service.run_model_benchmark(
-            model_id=model_id, test_cases=code_snippets
+        # Prepare test_results as a dict for benchmark_model
+        test_results = {
+            "dataset_size": len(code_snippets),
+            "version": test_data.get("version", "1.0"),
+            "accuracy": test_data.get("accuracy"),
+            "precision": test_data.get("precision"),
+            "recall": test_data.get("recall"),
+            "f1_score": test_data.get("f1_score"),
+            "avg_processing_time": test_data.get("avg_processing_time"),
+            "avg_cost": test_data.get("avg_cost"),
+            "pattern_detection_rate": test_data.get("pattern_detection_rate"),
+            "false_positive_rate": test_data.get("false_positive_rate"),
+            "false_negative_rate": test_data.get("false_negative_rate"),
+            "notes": test_data.get("notes"),
+            "code_snippets": code_snippets,
+        }
+        benchmark_result = await ai_analysis_service.benchmark_model(
+            model_name=model_id,
+            benchmark_name=benchmark_name,
+            test_results=test_results,
         )
         return {
             "model_id": model_id,

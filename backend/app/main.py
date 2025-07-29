@@ -65,7 +65,6 @@ async def lifespan(app: FastAPI):
         db_info = get_db_info()
         logger.info(f"📊 Database initialized: {db_info}")
 
-<<<<<<< HEAD
         # Initialize enhanced MongoDB system
         from app.core.database import initialize_enhanced_database
 
@@ -74,8 +73,6 @@ async def lifespan(app: FastAPI):
             f"🍃 MongoDB initialized: {mongo_result.get('mongodb_connected', False)}"
         )
 
-=======
->>>>>>> a1d19c7f56b54abd7bf7560156fcb17ab40fd16c
         # Test all external connections
         from app.services.ai_service import AIService
 
@@ -92,7 +89,6 @@ async def lifespan(app: FastAPI):
     finally:
         logger.info("🔄 Shutting down Code Evolution Tracker Backend...")
 
-<<<<<<< HEAD
         # Close enhanced database connections
         from app.core.database import close_enhanced_connections
 
@@ -102,8 +98,6 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"⚠️ Error closing database connections: {e}")
 
-=======
->>>>>>> a1d19c7f56b54abd7bf7560156fcb17ab40fd16c
         # Cancel all background tasks
         if background_tasks:
             logger.info(f"⏹️  Cancelling {len(background_tasks)} background tasks...")
@@ -161,7 +155,7 @@ async def global_exception_handler(request: Request, exc: Exception):
             "path": str(request.url),
             "method": request.method,
             # Include error details in development
-            **({"error": str(exc)} if settings.DEBUG else {}),
+            **({"error": str(exc)} if getattr(settings, 'DEBUG', False) else {}),
         },
     )
 
@@ -205,7 +199,8 @@ async def health_check():
             "background_tasks": len(background_tasks),  # Track active tasks
             "services": {
                 "database_legacy": {
-                    "connected": db_info.get("table_count", 0) > 0,
+                    "connected": isinstance(db_info.get("table_count", 0), int)
+                    and int(db_info.get("table_count", 0)) > 0,
                     "type": db_info.get("database_type", "Unknown"),
                     "tables": db_info.get("table_count", 0),
                 },

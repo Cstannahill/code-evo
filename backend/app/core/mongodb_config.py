@@ -245,7 +245,7 @@ class MongoDBManager:
             "error": None,
         }
 
-        if not self.client or not self.database:
+        if self.client is None or self.database is None:
             health_data["error"] = "Client or database not initialized"
             return health_data
 
@@ -369,7 +369,6 @@ class MongoDBManager:
             raise ConnectionError("MongoDB client not available")
         return self.client
 
-<<<<<<< HEAD
     @property
     def cache(self):
         """Get cache service instance"""
@@ -377,8 +376,6 @@ class MongoDBManager:
 
         return get_cache()
 
-=======
->>>>>>> a1d19c7f56b54abd7bf7560156fcb17ab40fd16c
 
 # Global MongoDB manager instance
 mongodb_manager: Optional[MongoDBManager] = None

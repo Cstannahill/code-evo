@@ -6,12 +6,15 @@ import re
 
 app = FastAPI(title="Rebuilt Backend")
 
+
 class CodeAnalysisRequest(BaseModel):
     code: str
     language: str = "python"
 
+
 class CompareRequest(CodeAnalysisRequest):
     models: List[str]
+
 
 # Simple heuristics for pattern detection
 PATTERN_MAP = {
@@ -49,7 +52,9 @@ def detect_technologies(code: str) -> List[str]:
 
 
 def simple_complexity(code: str) -> float:
-    indicators = [code.count(tok) for tok in ["if", "for", "while", "class", "def", "function"]]
+    indicators = [
+        code.count(tok) for tok in ["if", "for", "while", "class", "def", "function"]
+    ]
     length_factor = len(code.splitlines()) / 10
     return min(10.0, sum(indicators) + length_factor)
 
@@ -91,9 +96,11 @@ def build_analysis(code: str, language: str) -> Dict[str, Any]:
         "analysis_timestamp": datetime.utcnow().isoformat(),
     }
 
+
 @app.post("/analyze/code")
 async def analyze_code(req: CodeAnalysisRequest):
     return build_analysis(req.code, req.language)
+
 
 @app.post("/analyze/compare")
 async def compare_models(req: CompareRequest):
@@ -109,6 +116,7 @@ async def compare_models(req: CompareRequest):
         "results": results,
         "timestamp": datetime.utcnow().isoformat(),
     }
+
 
 @app.get("/health")
 async def health():
