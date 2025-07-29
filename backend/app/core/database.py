@@ -82,28 +82,6 @@ except Exception as e:
     logger.warning(f"⚠️  ChromaDB not available: {e}")
     chroma_client = None
 
-# Ensure ChromaDB schema includes required columns
-try:
-    collection_name = os.getenv("CHROMA_COLLECTION_NAME", "code_patterns")
-    collection = chroma_client.get_or_create_collection(
-        name=collection_name,
-        metadata={"description": "Collection for code patterns"},
-    )
-
-    # Validate schema
-    required_columns = ["topic"]
-    existing_columns = collection.get_schema().keys()
-    missing_columns = [col for col in required_columns if col not in existing_columns]
-
-    if missing_columns:
-        for column in missing_columns:
-            collection.add_column(column, "TEXT")
-        logger.info(
-            f"✅ Added missing columns to ChromaDB collection: {', '.join(missing_columns)}"
-        )
-except Exception as e:
-    logger.error(f"❌ Error ensuring ChromaDB schema: {e}")
-
 # Fallback in-memory cache
 _memory_cache = {}
 
@@ -489,10 +467,14 @@ async def test_mongodb_connection() -> bool:
             health_result = (
                 await monitor.comprehensive_health_check() if monitor else None
             )
-            return health_result and health_result.overall_status.value in [
-                "healthy",
-                "warning",
-            ]
+            return bool(
+                health_result
+                and health_result.overall_status.value
+                in [
+                    "healthy",
+                    "warning",
+                ]
+            )
         return False
     except Exception as e:
         logger.error(f"❌ MongoDB connection test failed: {e}")

@@ -245,7 +245,7 @@ class MongoDBManager:
             "error": None,
         }
 
-        if not self.client or not self.database:
+        if self.client is None or self.database is None:
             health_data["error"] = "Client or database not initialized"
             return health_data
 

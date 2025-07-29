@@ -155,7 +155,7 @@ async def global_exception_handler(request: Request, exc: Exception):
             "path": str(request.url),
             "method": request.method,
             # Include error details in development
-            **({"error": str(exc)} if settings.DEBUG else {}),
+            **({"error": str(exc)} if getattr(settings, 'DEBUG', False) else {}),
         },
     )
 
@@ -199,7 +199,8 @@ async def health_check():
             "background_tasks": len(background_tasks),  # Track active tasks
             "services": {
                 "database_legacy": {
-                    "connected": db_info.get("table_count", 0) > 0,
+                    "connected": isinstance(db_info.get("table_count", 0), int)
+                    and int(db_info.get("table_count", 0)) > 0,
                     "type": db_info.get("database_type", "Unknown"),
                     "tables": db_info.get("table_count", 0),
                 },
