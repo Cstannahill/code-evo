@@ -3,14 +3,25 @@
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "../api/client";
-import type { RepositoryAnalysis } from "../types/api";
+import type { RepositoryAnalysis, EnhancedRepositoryAnalysisResponse } from "../types/api";
 
 export const useRepositoryAnalysis = (
-  repoId: string | null
-): UseQueryResult<RepositoryAnalysis, Error> => {
-  return useQuery<RepositoryAnalysis, Error>({
-    queryKey: ["repositoryAnalysis", repoId],
-    queryFn: () => apiClient.getRepositoryAnalysis(repoId!),
+  repoId: string | null,
+  useEnhanced: boolean = false
+): UseQueryResult<RepositoryAnalysis | EnhancedRepositoryAnalysisResponse, Error> => {
+  return useQuery<RepositoryAnalysis | EnhancedRepositoryAnalysisResponse, Error>({
+    queryKey: ["repositoryAnalysis", repoId, useEnhanced],
+    queryFn: async () => {
+      if (useEnhanced) {
+        try {
+          return await apiClient.getEnhancedRepositoryAnalysis(repoId!);
+        } catch (error) {
+          console.warn("Enhanced analysis not available, falling back to standard:", error);
+          return await apiClient.getRepositoryAnalysis(repoId!);
+        }
+      }
+      return apiClient.getRepositoryAnalysis(repoId!);
+    },
     enabled: !!repoId,
     refetchInterval: (query) => {
       // Poll while analyzing

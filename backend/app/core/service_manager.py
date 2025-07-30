@@ -48,6 +48,37 @@ def get_git_service():
     from app.services.git_service import GitService
     return get_service_instance(GitService, "GitService")
 
+def get_cache_service():
+    """Get singleton CacheService instance"""
+    from app.services.cache_service import get_cache_service
+    from app.core.database import redis_client
+    return get_cache_service(redis_client)
+
+def get_security_analyzer():
+    """Get singleton SecurityAnalyzer instance"""
+    from app.services.security_analyzer import SecurityAnalyzer
+    return get_service_instance(SecurityAnalyzer, "SecurityAnalyzer")
+
+def get_architectural_analyzer():
+    """Get singleton ArchitecturalAnalyzer instance"""
+    from app.services.architectural_analyzer import ArchitecturalAnalyzer
+    return get_service_instance(ArchitecturalAnalyzer, "ArchitecturalAnalyzer")
+
+def get_performance_analyzer():
+    """Get singleton PerformanceAnalyzer instance"""
+    from app.services.performance_analyzer import PerformanceAnalyzer
+    return get_service_instance(PerformanceAnalyzer, "PerformanceAnalyzer")
+
+def get_incremental_analyzer():
+    """Get singleton IncrementalAnalyzer instance"""
+    from app.services.incremental_analyzer import IncrementalAnalyzer
+    return get_service_instance(IncrementalAnalyzer, "IncrementalAnalyzer")
+
+def get_ai_ensemble(ai_service):
+    """Get singleton AIEnsemble instance"""
+    from app.services.ai_ensemble import get_ai_ensemble
+    return get_ai_ensemble(ai_service)
+
 def clear_service_instances():
     """Clear all service instances (for testing or restart)"""
     global _service_instances

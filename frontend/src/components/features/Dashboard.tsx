@@ -178,7 +178,7 @@ export const Dashboard: React.FC = () => {
                 disabled={
                   createRepo.isPending || !repoUrl.trim() || !selectedModelId
                 }
-                className="border border-gray-400/60"
+                className="border border-border/60"
               >
                 {createRepo.isPending ? (
                   <>
@@ -196,7 +196,7 @@ export const Dashboard: React.FC = () => {
 
             {/* Show validation message */}
             {!selectedModelId && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
+              <p className="text-xs text-yellow-600 dark:text-yellow-400 mb-2">
                 ⚠️ Please select an AI model above to enable analysis
               </p>
             )}
@@ -243,7 +243,7 @@ export const Dashboard: React.FC = () => {
                       size...
                     </p>
                     <div className="mt-8 inline-flex items-center gap-2 text-sm text-muted-foreground">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                       {selectedModel && (
                         <span>
                           Using {selectedModel.display_name} for analysis

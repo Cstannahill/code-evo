@@ -130,6 +130,53 @@ export class ApiClient {
     const response = await fetch(
       `${this.baseUrl}/api/repositories/${id}/analysis`
     );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch repository analysis: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  // Get enhanced analysis results with all new analysis types
+  async getEnhancedRepositoryAnalysis(id: string) {
+    const response = await fetch(
+      `${this.baseUrl}/api/repositories/${id}/analysis/enhanced`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch enhanced analysis: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  // Get security analysis results
+  async getSecurityAnalysis(id: string) {
+    const response = await fetch(
+      `${this.baseUrl}/api/repositories/${id}/security`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch security analysis: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  // Get performance analysis results
+  async getPerformanceAnalysis(id: string) {
+    const response = await fetch(
+      `${this.baseUrl}/api/repositories/${id}/performance`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch performance analysis: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  // Get architectural analysis results
+  async getArchitecturalAnalysis(id: string) {
+    const response = await fetch(
+      `${this.baseUrl}/api/repositories/${id}/architecture`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch architectural analysis: ${response.statusText}`);
+    }
     return response.json();
   }
 

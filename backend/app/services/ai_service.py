@@ -13,6 +13,8 @@ from langchain.output_parsers import PydanticOutputParser, OutputFixingParser
 from pydantic import BaseModel, Field
 
 from app.core.database import get_enhanced_database_manager, get_collection
+from app.core.service_manager import get_security_analyzer, get_architectural_analyzer, get_performance_analyzer
+from app.services.cache_service import cache_analysis_result
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +54,10 @@ class AIService:
         self.embeddings: OllamaEmbeddings = None
         self.collection = None
         self.ollama_available: bool = False
+        self.security_analyzer = get_security_analyzer()
+        self.architectural_analyzer = get_architectural_analyzer()
+        self.performance_analyzer = get_performance_analyzer()
+        self.ensemble = None  # Initialize after services are ready
         self._initialize_services()
 
     def _initialize_services(self) -> None:
@@ -78,6 +84,11 @@ class AIService:
             if self.collection:
                 logger.info("ChromaDB collection initialized")
 
+            # Initialize AI ensemble after services are ready
+            from app.core.service_manager import get_ai_ensemble
+            self.ensemble = get_ai_ensemble(self)
+            logger.info("AI Ensemble initialized")
+
         except Exception as e:
             logger.error(f"Error initializing AI services: {e}")
             self.ollama_available = False
@@ -94,6 +105,7 @@ class AIService:
             "timestamp": datetime.utcnow().isoformat(),
         }
 
+    @cache_analysis_result("pattern", ttl_seconds=3600)  # 1 hour cache
     async def analyze_code_pattern(self, code: str, language: str) -> Dict[str, Any]:
         """
         Analyze code for patterns with enhanced AI understanding
@@ -216,6 +228,7 @@ class AIService:
                 logger.warning(f"Fallback parsing failed: {e3}")
                 return None
 
+    @cache_analysis_result("quality", ttl_seconds=3600)  # 1 hour cache
     async def analyze_code_quality(self, code: str, language: str) -> Dict[str, Any]:
         """Analyze code quality with detailed insights"""
         if self.ollama_available:
@@ -780,3 +793,226 @@ class AIService:
             "improvements": improvements,
             "ai_powered": False,
         }
+
+    @cache_analysis_result("security", ttl_seconds=1800)  # 30 minute cache (security is time-sensitive)
+    async def analyze_security(self, code: str, file_path: str = "unknown", language: str = None) -> Dict[str, Any]:
+        """
+        Analyze code for security vulnerabilities using comprehensive security patterns
+        
+        Args:
+            code: Source code to analyze
+            file_path: Path to the file being analyzed
+            language: Programming language (auto-detected if None)
+            
+        Returns:
+            Dict containing security analysis results
+        """
+        try:
+            # Run security analysis
+            vulnerabilities = self.security_analyzer.analyze_code(code, file_path, language)
+            
+            # Generate comprehensive report
+            security_report = self.security_analyzer.generate_security_report(vulnerabilities)
+            
+            # Add metadata
+            security_report["analysis_metadata"] = {
+                "analyzer_version": "1.0.0",
+                "patterns_checked": len(self.security_analyzer.patterns),
+                "file_path": file_path,
+                "language": language or self.security_analyzer._detect_language(file_path),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            logger.info(f"Security analysis completed: {len(vulnerabilities)} vulnerabilities found")
+            return security_report
+            
+        except Exception as e:
+            logger.error(f"Security analysis failed: {e}")
+            return {
+                "overall_score": 50,
+                "risk_level": "unknown",
+                "total_vulnerabilities": 0,
+                "error": str(e),
+                "recommendations": ["Security analysis failed - manual review recommended"],
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+    async def analyze_architecture(self, repository_path: str, file_list: List[str] = None) -> Dict[str, Any]:
+        """
+        Analyze repository architecture using comprehensive pattern detection
+        
+        Args:
+            repository_path: Path to repository root
+            file_list: Optional list of files to analyze
+            
+        Returns:
+            Dict containing architectural analysis results
+        """
+        try:
+            # Run architectural analysis
+            analysis = self.architectural_analyzer.analyze_architecture(repository_path, file_list)
+            
+            # Generate comprehensive report
+            architecture_report = self.architectural_analyzer.generate_architecture_report(analysis)
+            
+            # Add metadata
+            architecture_report["analysis_metadata"] = {
+                "analyzer_version": "1.0.0",
+                "repository_path": repository_path,
+                "files_analyzed": len(file_list) if file_list else 0,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            logger.info(f"Architecture analysis completed: {analysis.primary_style.value} style detected")
+            return architecture_report
+            
+        except Exception as e:
+            logger.error(f"Architecture analysis failed: {e}")
+            return {
+                "architectural_style": {
+                    "primary": "unknown",
+                    "confidence": 0.0,
+                    "description": "Architecture analysis failed"
+                },
+                "design_patterns": [],
+                "quality_metrics": {
+                    "overall_score": 50,
+                    "modularity": 0.5,
+                    "coupling": 0.5,
+                    "cohesion": 0.5,
+                    "complexity": 0.5,
+                    "grade": "F"
+                },
+                "error": str(e),
+                "recommendations": ["Architecture analysis failed - manual review recommended"],
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+    @cache_analysis_result("performance", ttl_seconds=1800)  # 30 minute cache
+    async def analyze_performance(self, code: str, file_path: str = "unknown", language: str = None) -> Dict[str, Any]:
+        """
+        Analyze code for performance issues and bottlenecks
+        
+        Args:
+            code: Source code to analyze
+            file_path: Path to the file being analyzed
+            language: Programming language (auto-detected if None)
+            
+        Returns:
+            Dict containing performance analysis results
+        """
+        try:
+            # Run performance analysis
+            issues = await self.performance_analyzer.analyze_performance(code, file_path, language)
+            
+            # Generate comprehensive report
+            performance_report = self.performance_analyzer.generate_performance_report(issues)
+            
+            # Add metadata
+            performance_report["analysis_metadata"] = {
+                "analyzer_version": "1.0.0",
+                "patterns_checked": len(self.performance_analyzer.patterns),
+                "file_path": file_path,
+                "language": language or self.performance_analyzer._detect_language(file_path),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            logger.info(f"Performance analysis completed: {len(issues)} issues found")
+            return performance_report
+            
+        except Exception as e:
+            logger.error(f"Performance analysis failed: {e}")
+            return {
+                "overall_score": 50,
+                "performance_grade": "unknown",
+                "total_issues": 0,
+                "error": str(e),
+                "optimizations": ["Performance analysis failed - manual review recommended"],
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+    async def analyze_with_ensemble(
+        self,
+        analysis_type: str,
+        code: str,
+        language: str,
+        file_path: str = "unknown",
+        use_ensemble: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Perform analysis using AI ensemble for improved quality
+        
+        Args:
+            analysis_type: Type of analysis ('pattern', 'quality', 'security', 'performance')
+            code: Source code to analyze
+            language: Programming language
+            file_path: File path for context
+            use_ensemble: Whether to use ensemble (fallback to single model if False)
+            
+        Returns:
+            Analysis results with ensemble metadata
+        """
+        try:
+            if use_ensemble and self.ensemble and len(self.ensemble.models) > 1:
+                # Use ensemble analysis
+                from app.services.ai_ensemble import ConsensusMethod
+                
+                ensemble_result = await self.ensemble.analyze_with_ensemble(
+                    analysis_type=analysis_type,
+                    code=code,
+                    language=language,
+                    file_path=file_path,
+                    consensus_method=ConsensusMethod.CONFIDENCE_BASED
+                )
+                
+                # Enhance result with ensemble metadata
+                result = ensemble_result.consensus_result.copy()
+                result["ensemble_metadata"] = {
+                    "models_used": ensemble_result.models_used,
+                    "consensus_confidence": ensemble_result.consensus_confidence,
+                    "consensus_method": ensemble_result.consensus_method.value,
+                    "total_execution_time": ensemble_result.total_execution_time,
+                    "individual_confidences": [
+                        r.confidence for r in ensemble_result.individual_results if r.success
+                    ]
+                }
+                
+                logger.info(f"Ensemble analysis completed with {len(ensemble_result.models_used)} models")
+                return result
+                
+            else:
+                # Fallback to single model analysis
+                if analysis_type == "pattern":
+                    return await self.analyze_code_pattern(code, language)
+                elif analysis_type == "quality":
+                    return await self.analyze_code_quality(code, language)
+                elif analysis_type == "security":
+                    return await self.analyze_security(code, file_path, language)
+                elif analysis_type == "performance":
+                    return await self.analyze_performance(code, file_path, language)
+                else:
+                    raise ValueError(f"Unknown analysis type: {analysis_type}")
+                    
+        except Exception as e:
+            logger.error(f"Ensemble analysis failed: {e}")
+            # Final fallback to basic single model
+            if analysis_type == "pattern":
+                return await self.analyze_code_pattern(code, language)
+            elif analysis_type == "quality":
+                return await self.analyze_code_quality(code, language)
+            elif analysis_type == "security":
+                return await self.analyze_security(code, file_path, language)
+            elif analysis_type == "performance":
+                return await self.analyze_performance(code, file_path, language)
+            else:
+                return {"error": f"Analysis failed: {e}", "timestamp": datetime.utcnow().isoformat()}
+
+    def get_ensemble_status(self) -> Dict[str, Any]:
+        """Get AI ensemble status"""
+        if self.ensemble:
+            return self.ensemble.get_ensemble_status()
+        else:
+            return {
+                "ensemble_available": False,
+                "reason": "Ensemble not initialized"
+            }

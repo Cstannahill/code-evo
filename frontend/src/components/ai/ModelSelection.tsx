@@ -162,11 +162,10 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
         whileHover={{ scale: canSelect ? 1.02 : 1 }}
         whileTap={{ scale: canSelect ? 0.98 : 1 }}
         className={`
-          relative p-4 rounded-lg border-2 cursor-pointer transition-all
-          ${
-            isSelected
-              ? `${getProviderColor(model.provider)} border-opacity-100`
-              : "border-gray-700 bg-gray-800 hover:border-gray-600"
+          relative p-4 rounded-lg border-2 cursor-pointer bg-card transition-all
+          ${isSelected
+            ? `${getProviderColor(model.provider)} border-opacity-100`
+            : "border-gray-700 bg-gray-800 hover:border-gray-600"
           }
           ${!canSelect && !isSelected ? "opacity-50 cursor-not-allowed" : ""}
         `}
@@ -211,11 +210,10 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
             </span>
           </div>
           <div className="text-xs">
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-              model.is_free 
-                ? "bg-green-500/20 text-green-300" 
-                : "bg-blue-500/20 text-blue-300"
-            }`}>
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${model.is_free
+              ? "bg-green-500/20 text-green-300"
+              : "bg-blue-500/20 text-blue-300"
+              }`}>
               {getCostTierLabel(model.cost_tier, model.is_free)}
             </span>
           </div>

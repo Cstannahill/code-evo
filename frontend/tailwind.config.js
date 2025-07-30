@@ -1,16 +1,14 @@
-module.exports = {
+import tailwindcss from "@tailwindcss/vite";
+
+/**
+ * Tailwind v4 config: colors are now managed via CSS variables in index.css using @theme and :root.
+ * Use the new plugin for Vite integration.
+ */
+export default {
+  plugins: [tailwindcss()],
   theme: {
     extend: {
-      colors: {
-        "ctan-gold": "#FFB700",
-        "ctan-amber": "#FFA500",
-        "ctan-orange": "#FF8C00",
-        "ctan-warm-yellow": "#FFD700",
-        "ctan-dark-bg": "#0A0A0B",
-        "ctan-dark-card": "#161618",
-        "ctan-dark-border": "#262629",
-        "ctan-dark-hover": "#1F1F23",
-      },
+      // Animations and other extensions can remain here if needed
       animation: {
         "gradient-shift": "gradient-shift 4s ease infinite",
         "icon-glow": "icon-glow 3s ease-in-out infinite",

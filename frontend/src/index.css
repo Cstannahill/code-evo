@@ -53,105 +53,55 @@
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
     --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    @import "tailwindcss";
 
-    /* Brand colors remain same for dark theme */
-    --ctan-gold: #ffb700;
-    --ctan-amber: #ffa500;
-    --ctan-orange: #ff8c00;
-    --ctan-warm-yellow: #ffd700;
-
-    /* Dark theme specific colors */
-    --ctan-bg: #0a0a0b;
-    --ctan-card: #161618;
-    --ctan-border: #262629;
-    --ctan-hover: #1f1f23;
-    --ctan-text-primary: #fffbe7;
-    --ctan-text-secondary: #ffe082;
-    --ctan-text-muted: #bdbdbd;
-    --ctan-text-accent: #ffb700;
-    --ctan-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-    /* Stylish and accessible text for dark mode */
-    .dark .main-bg,
-    .dark body,
-    .dark .text-primary,
-    .dark .text-secondary,
-    .dark .text-muted-foreground {
-      color: var(--ctan-text-primary);
-      text-shadow: var(--ctan-text-shadow);
+    @layer base {
+      :root {
+        /* Light theme using OKLCH/HSL for all custom colors */
+        --ctan-gold: oklch(0.85 0.16 85);
+        --ctan-amber: hsl(45 100% 50%);
+        --ctan-orange: hsl(32 100% 50%);
+        --ctan-warm-yellow: hsl(50 100% 60%);
+        --ctan-bg: hsl(0 0% 100%);
+        --ctan-card: hsl(0 0% 98%);
+        --ctan-border: hsl(240 6% 90%);
+        --ctan-hover: hsl(240 6% 96%);
+        --ctan-text-primary: oklch(0.18 0.01 265);
+        --ctan-text-secondary: oklch(0.55 0.02 265);
+        --ctan-text-muted: oklch(0.65 0.01 265);
+        --ctan-text-accent: oklch(0.85 0.16 85);
+        --ctan-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+      }
+      .dark {
+        --ctan-gold: oklch(0.75 0.16 85);
+        --ctan-amber: hsl(45 100% 40%);
+        --ctan-orange: hsl(32 100% 40%);
+        --ctan-warm-yellow: hsl(50 100% 50%);
+        --ctan-bg: hsl(240 6% 10%);
+        --ctan-card: hsl(240 6% 14%);
+        --ctan-border: hsl(240 6% 20%);
+        --ctan-hover: hsl(240 6% 18%);
+        --ctan-text-primary: oklch(0.98 0.01 265);
+        --ctan-text-secondary: oklch(0.85 0.02 85);
+        --ctan-text-muted: oklch(0.7 0.01 265);
+        --ctan-text-accent: oklch(0.85 0.16 85);
+        --ctan-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+      }
     }
-    .dark .text-secondary {
-      color: var(--ctan-text-secondary);
+
+    @theme {
+      --color-ctan-gold: var(--ctan-gold);
+      --color-ctan-amber: var(--ctan-amber);
+      --color-ctan-orange: var(--ctan-orange);
+      --color-ctan-warm-yellow: var(--ctan-warm-yellow);
+      --color-ctan-bg: var(--ctan-bg);
+      --color-ctan-card: var(--ctan-card);
+      --color-ctan-border: var(--ctan-border);
+      --color-ctan-hover: var(--ctan-hover);
+      --color-ctan-text-primary: var(--ctan-text-primary);
+      --color-ctan-text-secondary: var(--ctan-text-secondary);
+      --color-ctan-text-muted: var(--ctan-text-muted);
+      --color-ctan-text-accent: var(--ctan-text-accent);
     }
-    .dark .text-muted-foreground {
-      color: var(--ctan-text-muted);
-    }
-    .dark .text-accent {
-      color: var(--ctan-text-accent);
-    }
-  }
-}
-/* Professional Dashboard Styling */
-@layer utilities {
-  /* Gradient text */
-  .gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500;
-  }
-
-  /* Card hover effects */
-  .dashboard-card {
-    @apply transition-all duration-300 hover:shadow-lg;
-  }
-
-  /* Metric animations */
-  .metric-value {
-    @apply transition-all duration-500 ease-out;
-  }
-
-  /* Tab animations */
-  .tab-content {
-    @apply transition-all duration-200 ease-in-out;
-  }
-
-  /* Professional scrollbar */
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-track {
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply rounded-full;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  }
-
-  /* Loading animations */
-  @keyframes pulse-slow {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.5;
-    }
-  }
-
-  .animate-pulse-slow {
-    animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 }

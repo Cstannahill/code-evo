@@ -9,6 +9,7 @@ from app.services.ai_service import AIService
 from app.services.repository_service import RepositoryService
 from app.services.pattern_service import PatternService
 from app.services.ai_analysis_service import AIAnalysisService
+from app.services.cache_service import cache_analysis_result
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,8 @@ class AnalysisService:
             get_ai_service, 
             get_repository_service,
             get_pattern_service,
-            get_ai_analysis_service
+            get_ai_analysis_service,
+            get_incremental_analyzer
         )
         
         self.git = get_git_service()
@@ -39,6 +41,7 @@ class AnalysisService:
         self.repository_service = get_repository_service()
         self.pattern_service = get_pattern_service()
         self.ai_analysis_service = get_ai_analysis_service()
+        self.incremental_analyzer = get_incremental_analyzer()
 
         # mirror AI availability and clients
         status = self.ai.get_status()
@@ -77,6 +80,7 @@ class AnalysisService:
             logger.error(f"Error generating insights: {e}")
             return []
 
+    @cache_analysis_result("repository", ttl_seconds=7200, tags=["analysis"])  # 2 hour cache
     async def analyze_repository(
         self,
         repo_url: str,
@@ -144,15 +148,28 @@ class AnalysisService:
                 self.ai.analyze_code_quality(c["code"], c["language"])
                 for c in analysis_candidates
             ]
+            security_tasks = [
+                self.ai.analyze_security(c["code"], c.get("file_path", "unknown"), c["language"])
+                for c in analysis_candidates
+            ]
+            performance_tasks = [
+                self.ai.analyze_performance(c["code"], c.get("file_path", "unknown"), c["language"])
+                for c in analysis_candidates
+            ]
 
             logger.info(
-                f"⚡ Processing {len(pattern_tasks)} pattern analyses and {len(quality_tasks)} quality analyses..."
+                f"⚡ Processing {len(pattern_tasks)} pattern, {len(quality_tasks)} quality, {len(security_tasks)} security, and {len(performance_tasks)} performance analyses..."
             )
-            pattern_results, quality_results = await asyncio.gather(
-                asyncio.gather(*pattern_tasks), asyncio.gather(*quality_tasks)
+            pattern_results, quality_results, security_results, performance_results = await asyncio.gather(
+                asyncio.gather(*pattern_tasks), 
+                asyncio.gather(*quality_tasks),
+                asyncio.gather(*security_tasks),
+                asyncio.gather(*performance_tasks)
             )
             report["pattern_analyses"] = pattern_results
             report["quality_analyses"] = quality_results
+            report["security_analyses"] = security_results
+            report["performance_analyses"] = performance_results
             logger.info(f"✅ Completed AI analysis")
 
             # Evolution: compare first and last snippet if available
@@ -167,6 +184,24 @@ class AnalysisService:
                 evolution.append(evo)
                 logger.info(f"📊 Evolution analysis completed")
             report["evolution_analyses"] = evolution
+
+            # Architectural analysis
+            logger.info(f"🏗️ Analyzing repository architecture...")
+            try:
+                architecture_analysis = await self.ai.analyze_architecture(
+                    repo.working_dir, 
+                    [c.get("file_path") for c in analysis_candidates if c.get("file_path")]
+                )
+                report["architecture_analysis"] = architecture_analysis
+                logger.info(f"✅ Architecture analysis completed")
+            except Exception as e:
+                logger.warning(f"⚠️ Architecture analysis failed: {e}")
+                report["architecture_analysis"] = {
+                    "error": str(e),
+                    "architectural_style": {"primary": "unknown", "confidence": 0.0},
+                    "design_patterns": [],
+                    "quality_metrics": {"overall_score": 50, "grade": "F"}
+                }
 
             # Aggregate insights - FIX THE SET ISSUE HERE
             logger.info(f"💡 Generating insights...")
@@ -442,3 +477,197 @@ class AnalysisService:
         report["insights"] = await self.generate_insights(insights_input)
 
         return report
+
+    @cache_analysis_result("incremental", ttl_seconds=1800, tags=["analysis"])  # 30 minute cache
+    async def analyze_repository_incremental(
+        self,
+        repo_url: str,
+        branch: str = "main",
+        commit_limit: int = 100,
+        candidate_limit: Optional[int] = 20,
+        force_full: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Perform incremental analysis of repository, only analyzing changed files
+        
+        Args:
+            repo_url: Repository URL
+            branch: Git branch to analyze
+            commit_limit: Maximum commits to analyze
+            candidate_limit: Maximum candidates per analysis
+            force_full: Force full analysis even if incremental is possible
+            
+        Returns:
+            Analysis report dictionary
+        """
+        report: Dict[str, Any] = {}
+        
+        try:
+            logger.info(f"🔄 Starting incremental repository analysis for {repo_url}")
+            
+            # Clone and inspect
+            logger.info(f"📥 Cloning repository {repo_url}...")
+            repo = self.git.clone_repository(repo_url, branch)
+            
+            # Get current commit hash
+            current_commit = repo.head.commit.hexsha
+            logger.info(f"📝 Current commit: {current_commit[:8]}")
+            
+            # Check for incremental analysis possibility
+            if not force_full:
+                changes, should_full_reanalyze = self.incremental_analyzer.detect_changes(
+                    repo.working_dir, current_commit
+                )
+                
+                if not should_full_reanalyze and changes:
+                    logger.info(f"🚀 Performing incremental analysis of {len(changes)} changes")
+                    return await self._perform_incremental_analysis(
+                        repo, repo_url, branch, changes, current_commit
+                    )
+                elif not changes:
+                    logger.info("✅ No changes detected since last analysis")
+                    # Return cached results if available
+                    previous_snapshot = self.incremental_analyzer.snapshots_cache.get(repo.working_dir)
+                    if previous_snapshot and previous_snapshot.analysis_results:
+                        report = previous_snapshot.analysis_results.copy()
+                        report["incremental_analysis"] = {
+                            "no_changes": True,
+                            "cached_results": True,
+                            "timestamp": datetime.utcnow().isoformat()
+                        }
+                        return report
+                        
+            # Fall back to full analysis
+            logger.info("🔄 Falling back to full analysis")
+            full_report = await self.analyze_repository(
+                repo_url, branch, commit_limit, candidate_limit
+            )
+            
+            # Create snapshot for future incremental analysis
+            self.incremental_analyzer.create_snapshot(
+                repo.working_dir, current_commit, full_report
+            )
+            
+            return full_report
+            
+        except Exception as e:
+            logger.error(f"💥 Incremental analysis failed: {e}")
+            report["error"] = str(e)
+            return report
+        finally:
+            # Cleanup temp dirs
+            try:
+                logger.info(f"🧹 Cleaning up temporary files...")
+                self.git.cleanup()
+            except Exception as cleanup_err:
+                logger.warning(f"⚠️ Cleanup error: {cleanup_err}")
+                
+    async def _perform_incremental_analysis(
+        self,
+        repo,
+        repo_url: str,
+        branch: str,
+        changes: List,
+        current_commit: str
+    ) -> Dict[str, Any]:
+        """
+        Perform the actual incremental analysis
+        
+        Args:
+            repo: Git repository object
+            repo_url: Repository URL
+            branch: Git branch
+            changes: List of detected changes
+            current_commit: Current commit hash
+            
+        Returns:
+            Analysis report
+        """
+        try:
+            # Get previous analysis results
+            previous_snapshot = self.incremental_analyzer.snapshots_cache.get(repo.working_dir)
+            if not previous_snapshot:
+                logger.warning("No previous snapshot found, falling back to full analysis")
+                return await self.analyze_repository(repo_url, branch)
+                
+            # Get basic repository info (may have changed)
+            report = {}
+            report["repo_info"] = self.git.get_repository_info(repo)
+            report["technologies"] = self.git.extract_technologies(repo)
+            
+            # Get incremental candidates for changed files only
+            incremental_candidates = self.incremental_analyzer.get_incremental_candidates(
+                changes, repo.working_dir
+            )
+            
+            if not incremental_candidates:
+                logger.info("No incremental candidates found")
+                # Return previous results with update timestamp
+                report = previous_snapshot.analysis_results.copy()
+                report["incremental_analysis"] = {
+                    "changes_detected": len(changes),
+                    "no_analyzable_changes": True,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                return report
+                
+            logger.info(f"🤖 Running incremental AI analysis on {len(incremental_candidates)} changed files...")
+            
+            # Run AI analyses on changed files only
+            pattern_tasks = [
+                self.ai.analyze_code_pattern(c["code"], c["language"])
+                for c in incremental_candidates
+            ]
+            quality_tasks = [
+                self.ai.analyze_code_quality(c["code"], c["language"])
+                for c in incremental_candidates
+            ]
+            security_tasks = [
+                self.ai.analyze_security(c["code"], c.get("file_path", "unknown"), c["language"])
+                for c in incremental_candidates
+            ]
+            performance_tasks = [
+                self.ai.analyze_performance(c["code"], c.get("file_path", "unknown"), c["language"])
+                for c in incremental_candidates
+            ]
+            
+            pattern_results, quality_results, security_results, performance_results = await asyncio.gather(
+                asyncio.gather(*pattern_tasks),
+                asyncio.gather(*quality_tasks),
+                asyncio.gather(*security_tasks),
+                asyncio.gather(*performance_tasks)
+            )
+            
+            # Package incremental results
+            incremental_results = {
+                "pattern_analyses": pattern_results,
+                "quality_analyses": quality_results,
+                "security_analyses": security_results,
+                "performance_analyses": performance_results,
+                "pattern_candidates": incremental_candidates
+            }
+            
+            # Merge with previous results
+            merged_report = self.incremental_analyzer.merge_analysis_results(
+                previous_snapshot.analysis_results,
+                incremental_results,
+                changes
+            )
+            
+            # Update with current repository info
+            merged_report.update(report)
+            
+            # Create new snapshot
+            self.incremental_analyzer.create_snapshot(
+                repo.working_dir, current_commit, merged_report
+            )
+            
+            # Persist incremental results to MongoDB
+            await self._persist_analysis_results(repo_url, branch, merged_report)
+            
+            logger.info(f"✅ Incremental analysis completed for {len(changes)} changes")
+            return merged_report
+            
+        except Exception as e:
+            logger.error(f"Error in incremental analysis: {e}")
+            raise

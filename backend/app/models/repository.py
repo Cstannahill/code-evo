@@ -26,6 +26,19 @@ from typing import List, Optional, Dict, Any
 from pydantic import validator, root_validator
 from bson import ObjectId
 
+# Import enhanced analysis models
+from app.models.enhanced_analysis import (
+    SecurityAnalysisResult,
+    PerformanceAnalysisResult,
+    ArchitecturalAnalysisResult,
+    PatternAnalysisResult,
+    QualityAnalysisResult,
+    EvolutionAnalysisResult,
+    EnsembleMetadata,
+    IncrementalAnalysisMetadata,
+    AnalysisDashboard
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -760,3 +773,369 @@ async def create_custom_indexes(engine):
     await engine.get_collection(ModelBenchmark).create_index(
         [("model_id", 1), ("benchmark_name", 1), ("benchmark_version", 1)], unique=True
     )
+
+
+# Enhanced Analysis Models for MongoDB
+
+class SecurityAnalysis(Model):
+    """Security analysis results for MongoDB"""
+    
+    repository_id: ObjectId = Field(index=True)
+    analysis_session_id: Optional[ObjectId] = Field(default=None, index=True)
+    file_path: Optional[str] = None
+    language: Optional[str] = None
+    
+    # Security results
+    overall_score: int = Field(ge=0, le=100)
+    risk_level: str = Field(index=True)  # critical, high, medium, low, info
+    total_vulnerabilities: int = Field(ge=0)
+    vulnerabilities_by_severity: Dict[str, int] = Field(default_factory=dict)
+    vulnerabilities: List[Dict[str, Any]] = Field(default_factory=list)
+    recommendations: List[str] = Field(default_factory=list)
+    owasp_coverage: Dict[str, int] = Field(default_factory=dict)
+    
+    # Metadata
+    analyzer_version: str = "1.0.0"
+    analysis_metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    
+    model_config = {"collection": "security_analyses"}
+
+    @validator("repository_id", "analysis_session_id", pre=True)
+    def validate_object_ids(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+class PerformanceAnalysis(Model):
+    """Performance analysis results for MongoDB"""
+    
+    repository_id: ObjectId = Field(index=True)
+    analysis_session_id: Optional[ObjectId] = Field(default=None, index=True)
+    file_path: Optional[str] = None
+    language: Optional[str] = None
+    
+    # Performance results
+    overall_score: int = Field(ge=0, le=100)
+    performance_grade: str = Field(index=True)  # A+, A, B, C, D
+    total_issues: int = Field(ge=0)
+    issues_by_severity: Dict[str, int] = Field(default_factory=dict)
+    issues: List[Dict[str, Any]] = Field(default_factory=list)
+    metrics: Dict[str, Any] = Field(default_factory=dict)
+    optimizations: List[str] = Field(default_factory=list)
+    bottlenecks: List[str] = Field(default_factory=list)
+    
+    # Metadata
+    analyzer_version: str = "1.0.0"
+    analysis_metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    
+    model_config = {"collection": "performance_analyses"}
+
+    @validator("repository_id", "analysis_session_id", pre=True)
+    def validate_object_ids(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+class ArchitecturalAnalysis(Model):
+    """Architectural analysis results for MongoDB"""
+    
+    repository_id: ObjectId = Field(index=True)
+    analysis_session_id: Optional[ObjectId] = Field(default=None, index=True)
+    
+    # Architecture results
+    architectural_style: Dict[str, Any] = Field(default_factory=dict)
+    design_patterns: List[Dict[str, Any]] = Field(default_factory=list)
+    quality_metrics: Dict[str, Any] = Field(default_factory=dict)
+    component_analysis: Dict[str, Any] = Field(default_factory=dict)
+    dependency_analysis: Dict[str, Any] = Field(default_factory=dict)
+    recommendations: List[str] = Field(default_factory=list)
+    architecture_smells: List[str] = Field(default_factory=list)
+    
+    # Metadata
+    analyzer_version: str = "1.0.0"
+    files_analyzed: int = Field(default=0, ge=0)
+    analysis_metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    
+    model_config = {"collection": "architectural_analyses"}
+
+    @validator("repository_id", "analysis_session_id", pre=True)
+    def validate_object_ids(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+class EnhancedPatternAnalysis(Model):
+    """Enhanced pattern analysis results for MongoDB"""
+    
+    repository_id: ObjectId = Field(index=True)
+    analysis_session_id: Optional[ObjectId] = Field(default=None, index=True)
+    file_path: Optional[str] = None
+    language: Optional[str] = None
+    
+    # Pattern results
+    detected_patterns: List[str] = Field(default_factory=list)
+    ai_patterns: List[str] = Field(default_factory=list)
+    combined_patterns: List[str] = Field(default_factory=list)
+    complexity_score: float = Field(ge=1.0, le=10.0)
+    skill_level: str = Field(index=True)  # beginner, intermediate, advanced
+    suggestions: List[str] = Field(default_factory=list)
+    pattern_confidence: Dict[str, float] = Field(default_factory=dict)
+    
+    # Metadata
+    ai_powered: bool = False
+    model_used: Optional[str] = None
+    analysis_metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    
+    model_config = {"collection": "enhanced_pattern_analyses"}
+
+    @validator("repository_id", "analysis_session_id", pre=True)
+    def validate_object_ids(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+class EnhancedQualityAnalysis(Model):
+    """Enhanced quality analysis results for MongoDB"""
+    
+    repository_id: ObjectId = Field(index=True)
+    analysis_session_id: Optional[ObjectId] = Field(default=None, index=True)
+    file_path: Optional[str] = None
+    language: Optional[str] = None
+    
+    # Quality results
+    quality_score: float = Field(ge=0.0, le=100.0)
+    readability: str = Field(index=True)
+    issues: List[str] = Field(default_factory=list)
+    improvements: List[str] = Field(default_factory=list)
+    metrics: Dict[str, Any] = Field(default_factory=dict)
+    
+    # Metadata
+    ai_powered: bool = False
+    model_used: Optional[str] = None
+    analysis_metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    
+    model_config = {"collection": "enhanced_quality_analyses"}
+
+    @validator("repository_id", "analysis_session_id", pre=True)
+    def validate_object_ids(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+class EnsembleAnalysisResult(Model):
+    """AI ensemble analysis results for MongoDB"""
+    
+    repository_id: ObjectId = Field(index=True)
+    analysis_session_id: Optional[ObjectId] = Field(default=None, index=True)
+    analysis_type: str = Field(index=True)  # pattern, quality, security, performance
+    
+    # Ensemble results
+    consensus_result: Dict[str, Any] = Field(default_factory=dict)
+    individual_results: List[Dict[str, Any]] = Field(default_factory=list)
+    consensus_confidence: float = Field(ge=0.0, le=1.0)
+    consensus_method: str = Field(index=True)
+    models_used: List[str] = Field(default_factory=list)
+    total_execution_time: float = Field(ge=0.0)
+    
+    # Metadata
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    
+    model_config = {"collection": "ensemble_analysis_results"}
+
+    @validator("repository_id", "analysis_session_id", pre=True)
+    def validate_object_ids(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+class IncrementalAnalysisSnapshot(Model):
+    """Snapshot for incremental analysis in MongoDB"""
+    
+    repository_id: ObjectId = Field(index=True)
+    commit_hash: str = Field(index=True)
+    
+    # Snapshot data
+    file_hashes: Dict[str, str] = Field(default_factory=dict)
+    analysis_results: Dict[str, Any] = Field(default_factory=dict)
+    total_files: int = Field(ge=0)
+    total_lines: int = Field(ge=0)
+    
+    # Metadata
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    
+    model_config = {"collection": "incremental_snapshots"}
+
+    @validator("repository_id", pre=True)
+    def validate_repository_id(cls, v):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+class AnalysisDashboardData(Model):
+    """Dashboard data for repositories in MongoDB"""
+    
+    repository_id: ObjectId = Field(unique=True, index=True)
+    repo_name: str
+    repo_url: str
+    branch: str
+    last_analyzed: datetime = Field(index=True)
+    
+    # High-level metrics
+    total_files_analyzed: int = Field(ge=0)
+    total_lines_of_code: int = Field(ge=0)
+    primary_languages: List[str] = Field(default_factory=list)
+    
+    # Scores
+    overall_quality_score: int = Field(ge=0, le=100)
+    overall_security_score: int = Field(ge=0, le=100)
+    overall_performance_score: int = Field(ge=0, le=100)
+    
+    # Summaries
+    security_summary: Dict[str, Any] = Field(default_factory=dict)
+    performance_summary: Dict[str, Any] = Field(default_factory=dict)
+    architecture_summary: Dict[str, Any] = Field(default_factory=dict)
+    
+    # Trends
+    quality_trend: Optional[str] = None
+    security_trend: Optional[str] = None
+    performance_trend: Optional[str] = None
+    
+    # Recommendations
+    top_recommendations: List[str] = Field(default_factory=list)
+    
+    # Analysis metadata
+    analysis_type: str = "comprehensive"
+    models_used: List[str] = Field(default_factory=list)
+    analysis_duration: float = Field(ge=0.0)
+    
+    # Timestamps
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    
+    model_config = {"collection": "analysis_dashboards"}
+
+    @validator("repository_id", pre=True)
+    def validate_repository_id(cls, v):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+    @validator("updated_at", pre=True, always=True)
+    def set_updated_at(cls, v):
+        return datetime.utcnow()
+
+
+# Enhanced query functions
+
+async def get_enhanced_analysis_by_repository(
+    engine, repository_id: ObjectId
+) -> Dict[str, Any]:
+    """Get all enhanced analysis results for a repository"""
+    try:
+        # Get all analysis types
+        security_analyses = await engine.find(
+            SecurityAnalysis, SecurityAnalysis.repository_id == repository_id
+        )
+        performance_analyses = await engine.find(
+            PerformanceAnalysis, PerformanceAnalysis.repository_id == repository_id
+        )
+        architectural_analyses = await engine.find(
+            ArchitecturalAnalysis, ArchitecturalAnalysis.repository_id == repository_id
+        )
+        pattern_analyses = await engine.find(
+            EnhancedPatternAnalysis, EnhancedPatternAnalysis.repository_id == repository_id
+        )
+        quality_analyses = await engine.find(
+            EnhancedQualityAnalysis, EnhancedQualityAnalysis.repository_id == repository_id
+        )
+        ensemble_results = await engine.find(
+            EnsembleAnalysisResult, EnsembleAnalysisResult.repository_id == repository_id
+        )
+        
+        # Get dashboard data
+        dashboard = await engine.find_one(
+            AnalysisDashboardData, AnalysisDashboardData.repository_id == repository_id
+        )
+        
+        return {
+            "security_analyses": [analysis.dict() for analysis in security_analyses],
+            "performance_analyses": [analysis.dict() for analysis in performance_analyses],
+            "architectural_analyses": [analysis.dict() for analysis in architectural_analyses],
+            "pattern_analyses": [analysis.dict() for analysis in pattern_analyses],
+            "quality_analyses": [analysis.dict() for analysis in quality_analyses],
+            "ensemble_results": [result.dict() for result in ensemble_results],
+            "dashboard": dashboard.dict() if dashboard else None
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get enhanced analyses: {e}")
+        return {}
+
+
+async def create_enhanced_indexes(engine):
+    """Create indexes for enhanced analysis models"""
+    try:
+        # Security analysis indexes
+        await engine.get_collection(SecurityAnalysis).create_index(
+            [("repository_id", 1), ("risk_level", 1), ("created_at", -1)]
+        )
+        
+        # Performance analysis indexes
+        await engine.get_collection(PerformanceAnalysis).create_index(
+            [("repository_id", 1), ("performance_grade", 1), ("created_at", -1)]
+        )
+        
+        # Architectural analysis indexes
+        await engine.get_collection(ArchitecturalAnalysis).create_index(
+            [("repository_id", 1), ("created_at", -1)]
+        )
+        
+        # Enhanced pattern analysis indexes
+        await engine.get_collection(EnhancedPatternAnalysis).create_index(
+            [("repository_id", 1), ("skill_level", 1), ("created_at", -1)]
+        )
+        
+        # Enhanced quality analysis indexes
+        await engine.get_collection(EnhancedQualityAnalysis).create_index(
+            [("repository_id", 1), ("readability", 1), ("created_at", -1)]
+        )
+        
+        # Ensemble analysis indexes
+        await engine.get_collection(EnsembleAnalysisResult).create_index(
+            [("repository_id", 1), ("analysis_type", 1), ("created_at", -1)]
+        )
+        
+        # Dashboard indexes
+        await engine.get_collection(AnalysisDashboardData).create_index(
+            [("updated_at", -1)]
+        )
+        
+        logger.info("✅ Enhanced analysis indexes created successfully")
+        
+    except Exception as e:
+        logger.error(f"Failed to create enhanced indexes: {e}")
+        raise

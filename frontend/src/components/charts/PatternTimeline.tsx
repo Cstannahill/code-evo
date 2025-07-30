@@ -44,41 +44,56 @@ export const PatternTimeline: React.FC<PatternTimelineProps> = ({
   data,
   height = 400,
 }) => {
-  // Normalize data to ensure it's an array
+  // Normalize data to ensure it's an array with better debugging
   const normalizedData = React.useMemo(() => {
-    if (!data) return [];
-    
+    if (!data) {
+      console.log("PatternTimeline: No data provided");
+      return [];
+    }
+
     // If data has a timeline property, use that
     if (data.timeline && Array.isArray(data.timeline)) {
+      console.log("PatternTimeline: Using data.timeline", data.timeline);
       return data.timeline;
     }
-    
+
     // If data is already an array, use it directly
     if (Array.isArray(data)) {
+      console.log("PatternTimeline: Using data as array", data);
       return data;
     }
-    
-    // Otherwise return empty array
+
+    // Handle pattern_timeline nested structure
+    if (data.pattern_timeline?.timeline && Array.isArray(data.pattern_timeline.timeline)) {
+      console.log("PatternTimeline: Using data.pattern_timeline.timeline", data.pattern_timeline.timeline);
+      return data.pattern_timeline.timeline;
+    }
+
+    console.warn("PatternTimeline: Unknown data structure", data);
     return [];
   }, [data]);
 
-  // Extract all unique pattern names
+  // Extract all unique pattern names with better error handling
   const patternNames = React.useMemo(() => {
     const names = new Set<string>();
-    normalizedData.forEach((item) => {
+    normalizedData.forEach((item: { date: string; patterns: Record<string, number> }) => {
       if (item && item.patterns && typeof item.patterns === 'object') {
         Object.keys(item.patterns).forEach((pattern) => names.add(pattern));
       }
     });
-    return Array.from(names);
+    const patternArray = Array.from(names);
+    console.log("PatternTimeline: Extracted pattern names", patternArray);
+    return patternArray;
   }, [normalizedData]);
 
   // Transform data for recharts - flatten the nested patterns object
   const chartData = React.useMemo(() => {
-    return normalizedData.map((item) => ({
+    const transformed = normalizedData.map((item: { date: string; patterns: Record<string, number> }) => ({
       date: item.date,
       ...item.patterns, // Spread patterns directly into the data object
     }));
+    console.log("PatternTimeline: Chart data transformed", transformed);
+    return transformed;
   }, [normalizedData]);
 
   const colors = [

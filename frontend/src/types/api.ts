@@ -115,6 +115,169 @@ export interface RepositoryAnalysisResponse {
   };
 }
 
+// Enhanced analysis response with new backend data
+export interface EnhancedRepositoryAnalysisResponse extends RepositoryAnalysisResponse {
+  // New analysis types from enhanced backend
+  pattern_analyses?: PatternAnalysisResult[];
+  quality_analyses?: QualityAnalysisResult[];
+  security_analyses?: SecurityAnalysisResult[];
+  performance_analyses?: PerformanceAnalysisResult[];
+  architecture_analysis?: ArchitecturalAnalysisResult;
+  evolution_analyses?: EvolutionAnalysisResult[];
+  
+  // Ensemble and incremental metadata
+  ensemble_metadata?: EnsembleMetadata;
+  incremental_analysis?: IncrementalAnalysisMetadata;
+  
+  // Additional metadata
+  analysis_duration?: number;
+  total_candidates?: number;
+  started_at?: string;
+  completed_at?: string;
+  error?: string;
+  warnings?: string[];
+}
+
+// New analysis result interfaces matching backend models
+export interface SecurityAnalysisResult {
+  overall_score: number;
+  risk_level: "critical" | "high" | "medium" | "low" | "info";
+  total_vulnerabilities: number;
+  vulnerabilities_by_severity: Record<string, number>;
+  vulnerabilities: SecurityVulnerability[];
+  recommendations: string[];
+  owasp_coverage: Record<string, number>;
+  analysis_metadata: Record<string, any>;
+  timestamp: string;
+}
+
+export interface SecurityVulnerability {
+  vulnerability_type: string;
+  description: string;
+  severity: "critical" | "high" | "medium" | "low" | "info";
+  line_number?: number;
+  code_snippet?: string;
+  cve_references: string[];
+  owasp_category?: string;
+  remediation?: string;
+  confidence: number;
+}
+
+export interface PerformanceAnalysisResult {
+  overall_score: number;
+  performance_grade: "A+" | "A" | "B" | "C" | "D";
+  total_issues: number;
+  issues_by_severity: Record<string, number>;
+  issues: PerformanceIssue[];
+  metrics: PerformanceMetrics;
+  optimizations: string[];
+  bottlenecks: string[];
+  analysis_metadata: Record<string, any>;
+  timestamp: string;
+}
+
+export interface PerformanceIssue {
+  issue_type: string;
+  description: string;
+  severity: string;
+  line_number?: number;
+  code_snippet?: string;
+  performance_impact: string;
+  optimization_suggestion?: string;
+  complexity_estimate?: string;
+}
+
+export interface PerformanceMetrics {
+  cyclomatic_complexity?: number;
+  cognitive_complexity?: number;
+  algorithmic_complexity?: string;
+  memory_efficiency_score?: number;
+  cpu_efficiency_score?: number;
+  io_efficiency_score?: number;
+}
+
+export interface ArchitecturalAnalysisResult {
+  architectural_style: Record<string, any>;
+  design_patterns: DesignPattern[];
+  quality_metrics: ArchitecturalQualityMetrics;
+  component_analysis: Record<string, any>;
+  dependency_analysis: Record<string, any>;
+  recommendations: string[];
+  architecture_smells: string[];
+  analysis_metadata: Record<string, any>;
+  timestamp: string;
+}
+
+export interface DesignPattern {
+  name: string;
+  description: string;
+  confidence: number;
+  locations: string[];
+  implementation_quality?: string;
+}
+
+export interface ArchitecturalQualityMetrics {
+  overall_score: number;
+  modularity: number;
+  coupling: number;
+  cohesion: number;
+  complexity: number;
+  maintainability: number;
+  testability: number;
+  grade: string;
+}
+
+export interface PatternAnalysisResult {
+  detected_patterns: string[];
+  ai_patterns: string[];
+  combined_patterns: string[];
+  complexity_score: number;
+  skill_level: string;
+  suggestions: string[];
+  pattern_confidence: Record<string, number>;
+  ai_powered: boolean;
+  timestamp: string;
+}
+
+export interface QualityAnalysisResult {
+  quality_score: number;
+  readability: string;
+  issues: string[];
+  improvements: string[];
+  metrics: Record<string, any>;
+  ai_powered: boolean;
+  timestamp: string;
+}
+
+export interface EvolutionAnalysisResult {
+  complexity_change: string;
+  new_patterns: string[];
+  improvements: string[];
+  learning_insights: string;
+  skill_progression?: string;
+  technical_debt_change?: string;
+  ai_powered: boolean;
+  timestamp: string;
+}
+
+export interface EnsembleMetadata {
+  models_used: string[];
+  consensus_confidence: number;
+  consensus_method: string;
+  total_execution_time: number;
+  individual_confidences: number[];
+  model_agreement?: number;
+}
+
+export interface IncrementalAnalysisMetadata {
+  changes_analyzed: number;
+  change_types: string[];
+  no_changes: boolean;
+  cached_results: boolean;
+  full_reanalysis_triggered: boolean;
+  timestamp: string;
+}
+
 // This is the main interface that components will use
 export type RepositoryAnalysis = RepositoryAnalysisResponse;
 

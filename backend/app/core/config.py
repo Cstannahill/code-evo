@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     CHROMA_PERSIST_DIR: str = "./chroma_db"
     # Ollama (optional)
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "codellama:13b"
+    OLLAMA_MODEL: str = "codellama:7b"
     OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
 
     # OpenAI (optional)

@@ -20,21 +20,36 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
   height = 400,
 }) => {
   const heatmapData = useMemo(() => {
+    console.log("PatternHeatmap: Processing data", data);
+    
     if (!data?.pattern_statistics || !data?.pattern_timeline) {
+      console.log("PatternHeatmap: Missing pattern_statistics or pattern_timeline", {
+        hasPatternStats: !!data?.pattern_statistics,
+        hasPatternTimeline: !!data?.pattern_timeline
+      });
       return { cells: [], patterns: [], months: [] };
     }
 
     const patterns = Object.keys(data.pattern_statistics).slice(0, 8); // Limit for display
+    console.log("PatternHeatmap: Patterns to display", patterns);
     
-    // Normalize timeline data
+    // Normalize timeline data with better debugging
     let timeline = [];
     if (data.pattern_timeline?.timeline && Array.isArray(data.pattern_timeline.timeline)) {
       timeline = data.pattern_timeline.timeline;
+      console.log("PatternHeatmap: Using pattern_timeline.timeline", timeline);
     } else if (Array.isArray(data.pattern_timeline)) {
       timeline = data.pattern_timeline;
+      console.log("PatternHeatmap: Using pattern_timeline as array", timeline);
+    } else {
+      console.warn("PatternHeatmap: Unknown timeline structure", data.pattern_timeline);
     }
 
     if (patterns.length === 0 || timeline.length === 0) {
+      console.log("PatternHeatmap: No patterns or timeline data", {
+        patternsLength: patterns.length,
+        timelineLength: timeline.length
+      });
       return { cells: [], patterns: [], months: [] };
     }
 
@@ -81,12 +96,12 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
     return (
       <div
         style={{ width, height }}
-        className="flex items-center justify-center bg-gray-800 rounded-lg border border-gray-700"
+        className="flex items-center justify-center bg-card rounded-lg border"
       >
-        <div className="text-center text-gray-400">
+        <div className="text-center text-muted-foreground">
           <div className="text-4xl mb-2">📊</div>
           <div className="text-sm">No heatmap data available</div>
-          <div className="text-xs text-gray-500 mt-1">
+          <div className="text-xs text-muted-foreground/70 mt-1">
             Pattern timeline data needed for heatmap
           </div>
         </div>
@@ -103,7 +118,7 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5 }}
-      className="bg-gray-800 rounded-lg border border-gray-700 p-4 overflow-auto"
+      className="bg-card rounded-lg border p-4 overflow-auto"
       style={{ width, height }}
     >
       <div className="relative">
@@ -112,7 +127,7 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
           {patterns.map((pattern) => (
             <div
               key={pattern}
-              className="text-xs text-gray-300 font-medium truncate"
+              className="text-xs text-foreground/80 font-medium truncate"
               style={{
                 height: cellHeight,
                 width: 100,
@@ -131,7 +146,7 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
           {months.map((month: any) => (
             <div
               key={month}
-              className="text-xs text-gray-300 font-medium inline-block text-center"
+              className="text-xs text-foreground/80 font-medium inline-block text-center"
               style={{
                 width: cellWidth,
                 transform: "rotate(-45deg)",
@@ -156,7 +171,7 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: i * 0.01 }}
-                className="absolute border border-gray-600 cursor-pointer hover:border-gray-400 transition-colors"
+                className="absolute border border-border cursor-pointer hover:border-border/60 transition-colors"
                 style={{
                   left: monthIndex * cellWidth,
                   top: patternIndex * cellHeight,
@@ -171,14 +186,14 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
         </div>
 
         {/* Legend */}
-        <div className="absolute bottom-0 right-0 flex items-center gap-2 text-xs text-gray-400">
+        <div className="absolute bottom-0 right-0 flex items-center gap-2 text-xs text-muted-foreground">
           <span>Less</span>
           <div className="flex gap-1">
             {["#1F2937", "#1E3A8A", "#3B82F6", "#8B5CF6", "#EC4899"].map(
               (color, i) => (
                 <div
                   key={i}
-                  className="w-3 h-3 border border-gray-600"
+                  className="w-3 h-3 border border-border"
                   style={{ backgroundColor: color }}
                 />
               )

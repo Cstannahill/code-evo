@@ -27,7 +27,7 @@ export interface Insight {
   data?: unknown;
 }
 
-// Analysis data structures
+// Analysis data structures - updated to match enhanced backend
 interface AnalysisSummary {
   total_patterns: number;
   antipatterns_detected: number;
@@ -37,11 +37,20 @@ interface AnalysisSession {
   commits_analyzed: number;
 }
 
+interface PatternInfo {
+  complexity_level?: string;
+  [key: string]: any;
+}
+
 export interface Analysis {
   summary: AnalysisSummary;
   analysis_session: AnalysisSession;
-  technologies: Record<string, string[]>;
-  pattern_statistics: Record<string, number>;
+  technologies: Record<string, any[]> | Record<string, string[]>;
+  pattern_statistics: Record<string, number | PatternInfo>;
+  // Support for enhanced analysis data
+  security_analysis?: any;
+  performance_analysis?: any;
+  architectural_analysis?: any;
 }
 
 // Component props
@@ -136,8 +145,10 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({
     }
   };
 
-  const firstPatternKey =
-    Object.keys(analysis.pattern_statistics)[0]?.replace("_", " ") || "";
+  const firstPatternKey = React.useMemo(() => {
+    const patternKeys = Object.keys(analysis.pattern_statistics || {});
+    return patternKeys[0]?.replace("_", " ") || "patterns";
+  }, [analysis.pattern_statistics]);
 
   return (
     <div className="space-y-6">
@@ -158,7 +169,7 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({
               distinct coding patterns across{" "}
               {analysis.analysis_session.commits_analyzed} commits. The codebase
               shows{" "}
-              {Object.values(analysis.technologies).flat().length > 5
+              {Object.values(analysis.technologies || {}).flat().length > 5
                 ? "high"
                 : "moderate"}{" "}
               technological diversity with a focus on {firstPatternKey}{" "}
@@ -338,6 +349,17 @@ export interface PathStep {
 
 export const generateLearningPath = (analysis: Analysis): PathStep[] => {
   const paths: PathStep[] = [];
+  
+  // Add security-focused path if security analysis is available
+  if (analysis.security_analysis) {
+    paths.push({
+      title: "Security Best Practices",
+      description: "Implement security patterns and address vulnerabilities",
+      difficulty: "Intermediate",
+      estimatedTime: "3-4 weeks",
+    });
+  }
+  
   if (analysis.summary.antipatterns_detected > 0) {
     paths.push({
       title: "Refactoring Anti-patterns",
@@ -347,7 +369,8 @@ export const generateLearningPath = (analysis: Analysis): PathStep[] => {
       estimatedTime: "2-3 weeks",
     });
   }
-  const techCount = Object.values(analysis.technologies).flat().length;
+  
+  const techCount = Object.values(analysis.technologies || {}).flat().length;
   if (techCount < 5) {
     paths.push({
       title: "Explore Modern Frameworks",
@@ -357,11 +380,23 @@ export const generateLearningPath = (analysis: Analysis): PathStep[] => {
       estimatedTime: "4-6 weeks",
     });
   }
+  
+  // Add performance path if performance analysis is available
+  if (analysis.performance_analysis) {
+    paths.push({
+      title: "Performance Optimization",
+      description: "Optimize code performance and efficiency",
+      difficulty: "Advanced",
+      estimatedTime: "4-5 weeks",
+    });
+  }
+  
   paths.push({
     title: "Advanced Pattern Implementation",
     description: "Master advanced design patterns for scalable architecture",
     difficulty: "Advanced",
     estimatedTime: "6-8 weeks",
   });
+  
   return paths;
 };

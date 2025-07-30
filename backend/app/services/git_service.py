@@ -67,6 +67,39 @@ class GitService:
             ".sql": "SQL",
             ".sh": "Shell",
             ".bash": "Bash",
+            ".zsh": "Zsh",
+            ".fish": "Fish",
+            # Modern languages
+            ".dart": "Dart",
+            ".elm": "Elm",
+            ".ex": "Elixir",
+            ".exs": "Elixir",
+            ".erl": "Erlang",
+            ".f90": "Fortran",
+            ".f95": "Fortran",
+            ".jl": "Julia",
+            ".nim": "Nim",
+            ".cr": "Crystal",
+            ".zig": "Zig",
+            ".v": "V",
+            ".sol": "Solidity",
+            ".move": "Move",
+            ".clj": "Clojure",
+            ".cljs": "ClojureScript",
+            ".hs": "Haskell",
+            ".ml": "OCaml",
+            ".fs": "F#",
+            ".lua": "Lua",
+            ".pl": "Perl",
+            ".m": "Objective-C",
+            ".mm": "Objective-C++",
+            # Assembly and low-level
+            ".asm": "Assembly",
+            ".s": "Assembly",
+            # Functional languages
+            ".purs": "PureScript",
+            ".reason": "Reason",
+            ".re": "Reason",
             # Documentation
             ".md": "Markdown",
             ".rst": "reStructuredText",
@@ -266,11 +299,33 @@ class GitService:
                 if lang != "Other":
                     tech["languages"][lang] = tech["languages"].get(lang, 0) + 1
                 name = Path(item.path).name.lower()
-                # parse known files
+                # parse known package files
                 if name == "package.json":
                     self._parse_package_json(item.data_stream.read().decode(), tech)
-                if name == "requirements.txt":
+                elif name == "requirements.txt":
                     self._parse_requirements_txt(item.data_stream.read().decode(), tech)
+                elif name == "cargo.toml":
+                    self._parse_cargo_toml(item.data_stream.read().decode(), tech)
+                elif name == "go.mod":
+                    self._parse_go_mod(item.data_stream.read().decode(), tech)
+                elif name == "gemfile":
+                    self._parse_gemfile(item.data_stream.read().decode(), tech)
+                elif name == "composer.json":
+                    self._parse_composer_json(item.data_stream.read().decode(), tech)
+                elif name == "pom.xml":
+                    self._parse_pom_xml(item.data_stream.read().decode(), tech)
+                elif name in ("build.gradle", "build.gradle.kts"):
+                    self._parse_gradle(item.data_stream.read().decode(), tech)
+                elif name == "pubspec.yaml":
+                    self._parse_pubspec_yaml(item.data_stream.read().decode(), tech)
+                elif name == "project.clj":
+                    self._parse_project_clj(item.data_stream.read().decode(), tech)
+                elif name == "mix.exs":
+                    self._parse_mix_exs(item.data_stream.read().decode(), tech)
+                elif name == "deno.json" or name == "deno.jsonc":
+                    self._parse_deno_json(item.data_stream.read().decode(), tech)
+                elif name == "pyproject.toml":
+                    self._parse_pyproject_toml(item.data_stream.read().decode(), tech)
         except Exception as e:
             logger.error(f"Error extracting technologies: {e}")
         tech["frameworks"] = list(tech["frameworks"])
@@ -284,24 +339,430 @@ class GitService:
         try:
             data = json.loads(content)
             deps = {**data.get("dependencies", {}), **data.get("devDependencies", {})}
-            if "react" in deps:
-                tech["frameworks"].add("React")
-            if "express" in deps:
-                tech["frameworks"].add("Express.js")
-            if "next" in deps:
-                tech["frameworks"].add("Next.js")
-            if "webpack" in deps:
-                tech["tools"].add("Webpack")
+            
+            # Frameworks
+            framework_map = {
+                "react": "React",
+                "vue": "Vue.js",
+                "angular": "Angular",
+                "@angular/core": "Angular",
+                "express": "Express.js",
+                "koa": "Koa",
+                "fastify": "Fastify",
+                "next": "Next.js",
+                "nuxt": "Nuxt.js",
+                "gatsby": "Gatsby",
+                "svelte": "Svelte",
+                "solid-js": "SolidJS",
+                "qwik": "Qwik",
+                "remix": "Remix",
+                "nestjs": "NestJS",
+                "@nestjs/core": "NestJS"
+            }
+            
+            # Libraries
+            library_map = {
+                "lodash": "Lodash",
+                "axios": "Axios",
+                "moment": "Moment.js",
+                "dayjs": "Day.js",
+                "rxjs": "RxJS",
+                "redux": "Redux",
+                "mobx": "MobX",
+                "zustand": "Zustand",
+                "d3": "D3.js",
+                "three": "Three.js",
+                "socket.io": "Socket.IO"
+            }
+            
+            # Tools
+            tool_map = {
+                "webpack": "Webpack",
+                "vite": "Vite",
+                "rollup": "Rollup",
+                "parcel": "Parcel",
+                "eslint": "ESLint",
+                "prettier": "Prettier",
+                "typescript": "TypeScript",
+                "babel": "Babel",
+                "@babel/core": "Babel",
+                "jest": "Jest",
+                "vitest": "Vitest",
+                "cypress": "Cypress",
+                "playwright": "Playwright",
+                "storybook": "Storybook"
+            }
+            
+            # Parse dependencies
+            for dep in deps:
+                if dep in framework_map:
+                    tech["frameworks"].add(framework_map[dep])
+                elif dep in library_map:
+                    tech["libraries"].add(library_map[dep])
+                elif dep in tool_map:
+                    tech["tools"].add(tool_map[dep])
+                    
         except Exception as e:
             logger.warning(f"Error parsing package.json: {e}")
 
     def _parse_requirements_txt(self, content: str, tech: Dict) -> None:
+        framework_map = {
+            "django": "Django",
+            "flask": "Flask", 
+            "fastapi": "FastAPI",
+            "tornado": "Tornado",
+            "pyramid": "Pyramid",
+            "bottle": "Bottle",
+            "aiohttp": "aiohttp",
+            "starlette": "Starlette",
+            "sanic": "Sanic"
+        }
+        
+        library_map = {
+            "numpy": "NumPy",
+            "pandas": "Pandas", 
+            "scipy": "SciPy",
+            "matplotlib": "Matplotlib",
+            "seaborn": "Seaborn",
+            "plotly": "Plotly",
+            "scikit-learn": "scikit-learn",
+            "tensorflow": "TensorFlow",
+            "torch": "PyTorch",
+            "keras": "Keras",
+            "opencv-python": "OpenCV",
+            "pillow": "Pillow",
+            "requests": "Requests",
+            "beautifulsoup4": "BeautifulSoup",
+            "scrapy": "Scrapy",
+            "sqlalchemy": "SQLAlchemy",
+            "psycopg2": "psycopg2",
+            "pymongo": "PyMongo",
+            "redis": "Redis-py",
+            "celery": "Celery"
+        }
+        
+        tool_map = {
+            "pytest": "pytest",
+            "black": "Black",
+            "flake8": "flake8",
+            "mypy": "mypy",
+            "pylint": "Pylint",
+            "jupyterlab": "JupyterLab",
+            "notebook": "Jupyter Notebook"
+        }
+        
         for line in content.split("\n"):
-            pkg = line.strip().split("==")[0].lower()
-            if pkg in ("django", "flask", "fastapi"):
-                tech["frameworks"].add(pkg.capitalize())
-            if pkg in ("numpy", "pandas"):
-                tech["libraries"].add(pkg)
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            pkg = line.split("==")[0].split(">=")[0].split("~=")[0].strip().lower()
+            
+            if pkg in framework_map:
+                tech["frameworks"].add(framework_map[pkg])
+            elif pkg in library_map:
+                tech["libraries"].add(library_map[pkg])
+            elif pkg in tool_map:
+                tech["tools"].add(tool_map[pkg])
+
+    def _parse_cargo_toml(self, content: str, tech: Dict) -> None:
+        """Parse Rust Cargo.toml for dependencies"""
+        try:
+            import toml
+            data = toml.loads(content)
+            deps = data.get("dependencies", {})
+            
+            framework_map = {
+                "actix-web": "Actix Web",
+                "warp": "Warp",
+                "rocket": "Rocket",
+                "axum": "Axum",
+                "tide": "Tide",
+                "tokio": "Tokio",
+                "async-std": "async-std"
+            }
+            
+            library_map = {
+                "serde": "Serde",
+                "reqwest": "Reqwest", 
+                "clap": "Clap",
+                "diesel": "Diesel",
+                "sqlx": "SQLx",
+                "chrono": "Chrono",
+                "uuid": "UUID",
+                "log": "log",
+                "env_logger": "env_logger"
+            }
+            
+            for dep in deps:
+                if dep in framework_map:
+                    tech["frameworks"].add(framework_map[dep])
+                elif dep in library_map:
+                    tech["libraries"].add(library_map[dep])
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing Cargo.toml: {e}")
+
+    def _parse_go_mod(self, content: str, tech: Dict) -> None:
+        """Parse Go go.mod for modules"""
+        try:
+            framework_map = {
+                "github.com/gin-gonic/gin": "Gin",
+                "github.com/gorilla/mux": "Gorilla Mux",
+                "github.com/labstack/echo": "Echo",
+                "github.com/gofiber/fiber": "Fiber",
+                "github.com/beego/beego": "Beego"
+            }
+            
+            library_map = {
+                "github.com/golang/protobuf": "Protocol Buffers",
+                "go.mongodb.org/mongo-driver": "MongoDB Driver",
+                "github.com/go-redis/redis": "Redis Client",
+                "gorm.io/gorm": "GORM",
+                "github.com/stretchr/testify": "Testify"
+            }
+            
+            for line in content.split("\n"):
+                line = line.strip()
+                if line.startswith("require"):
+                    continue
+                if "//" in line:
+                    line = line.split("//")[0].strip()
+                
+                for mod in framework_map:
+                    if mod in line:
+                        tech["frameworks"].add(framework_map[mod])
+                for mod in library_map:
+                    if mod in line:
+                        tech["libraries"].add(library_map[mod])
+                        
+        except Exception as e:
+            logger.warning(f"Error parsing go.mod: {e}")
+
+    def _parse_gemfile(self, content: str, tech: Dict) -> None:
+        """Parse Ruby Gemfile for gems"""
+        try:
+            framework_map = {
+                "rails": "Ruby on Rails",
+                "sinatra": "Sinatra",
+                "hanami": "Hanami",
+                "roda": "Roda",
+                "grape": "Grape"
+            }
+            
+            library_map = {
+                "devise": "Devise",
+                "rspec": "RSpec",
+                "factory_bot": "Factory Bot",
+                "sidekiq": "Sidekiq",
+                "redis": "Redis",
+                "pg": "PostgreSQL"
+            }
+            
+            for line in content.split("\n"):
+                line = line.strip()
+                if line.startswith("gem"):
+                    gem_name = line.split("'")[1] if "'" in line else line.split('"')[1]
+                    if gem_name in framework_map:
+                        tech["frameworks"].add(framework_map[gem_name])
+                    elif gem_name in library_map:
+                        tech["libraries"].add(library_map[gem_name])
+                        
+        except Exception as e:
+            logger.warning(f"Error parsing Gemfile: {e}")
+
+    def _parse_composer_json(self, content: str, tech: Dict) -> None:
+        """Parse PHP composer.json for packages"""
+        try:
+            import json
+            data = json.loads(content)
+            deps = {**data.get("require", {}), **data.get("require-dev", {})}
+            
+            framework_map = {
+                "laravel/framework": "Laravel",
+                "symfony/symfony": "Symfony",
+                "cakephp/cakephp": "CakePHP",
+                "codeigniter4/framework": "CodeIgniter",
+                "slim/slim": "Slim"
+            }
+            
+            library_map = {
+                "doctrine/orm": "Doctrine ORM",
+                "monolog/monolog": "Monolog",
+                "guzzlehttp/guzzle": "Guzzle",
+                "phpunit/phpunit": "PHPUnit",
+                "predis/predis": "Predis"
+            }
+            
+            for dep in deps:
+                if dep in framework_map:
+                    tech["frameworks"].add(framework_map[dep])
+                elif dep in library_map:
+                    tech["libraries"].add(library_map[dep])
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing composer.json: {e}")
+
+    def _parse_pom_xml(self, content: str, tech: Dict) -> None:
+        """Parse Java pom.xml for dependencies"""
+        try:
+            framework_map = {
+                "spring-boot": "Spring Boot",
+                "spring-framework": "Spring Framework", 
+                "quarkus": "Quarkus",
+                "micronaut": "Micronaut",
+                "dropwizard": "Dropwizard"
+            }
+            
+            library_map = {
+                "junit": "JUnit",
+                "mockito": "Mockito",
+                "jackson": "Jackson",
+                "gson": "Gson",
+                "hibernate": "Hibernate"
+            }
+            
+            for framework in framework_map:
+                if framework in content.lower():
+                    tech["frameworks"].add(framework_map[framework])
+            for library in library_map:
+                if library in content.lower():
+                    tech["libraries"].add(library_map[library])
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing pom.xml: {e}")
+
+    def _parse_gradle(self, content: str, tech: Dict) -> None:
+        """Parse Gradle build files for dependencies"""
+        try:
+            framework_map = {
+                "spring-boot": "Spring Boot",
+                "ktor": "Ktor",
+                "android": "Android"
+            }
+            
+            for framework in framework_map:
+                if framework in content.lower():
+                    tech["frameworks"].add(framework_map[framework])
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing Gradle file: {e}")
+
+    def _parse_pubspec_yaml(self, content: str, tech: Dict) -> None:
+        """Parse Dart pubspec.yaml for packages"""
+        try:
+            import yaml
+            data = yaml.safe_load(content)
+            deps = {**data.get("dependencies", {}), **data.get("dev_dependencies", {})}
+            
+            framework_map = {
+                "flutter": "Flutter",
+                "angular": "AngularDart",
+                "shelf": "Shelf"
+            }
+            
+            library_map = {
+                "http": "HTTP",
+                "dio": "Dio",
+                "provider": "Provider",
+                "bloc": "BLoC",
+                "riverpod": "Riverpod"
+            }
+            
+            for dep in deps:
+                if dep in framework_map:
+                    tech["frameworks"].add(framework_map[dep])
+                elif dep in library_map:
+                    tech["libraries"].add(library_map[dep])
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing pubspec.yaml: {e}")
+
+    def _parse_project_clj(self, content: str, tech: Dict) -> None:
+        """Parse Clojure project.clj for dependencies"""
+        try:
+            framework_map = {
+                "ring": "Ring",
+                "compojure": "Compojure",
+                "luminus": "Luminus"
+            }
+            
+            for framework in framework_map:
+                if framework in content:
+                    tech["frameworks"].add(framework_map[framework])
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing project.clj: {e}")
+
+    def _parse_mix_exs(self, content: str, tech: Dict) -> None:
+        """Parse Elixir mix.exs for dependencies"""
+        try:
+            framework_map = {
+                "phoenix": "Phoenix",
+                "plug": "Plug",
+                "absinthe": "Absinthe"
+            }
+            
+            library_map = {
+                "ecto": "Ecto",
+                "genserver": "GenServer",
+                "httpoison": "HTTPoison"
+            }
+            
+            for framework in framework_map:
+                if framework in content:
+                    tech["frameworks"].add(framework_map[framework])
+            for library in library_map:
+                if library in content:
+                    tech["libraries"].add(library_map[library])
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing mix.exs: {e}")
+
+    def _parse_deno_json(self, content: str, tech: Dict) -> None:
+        """Parse Deno configuration for imports"""
+        try:
+            import json
+            data = json.loads(content)
+            
+            tech["tools"].add("Deno")
+            
+            imports = data.get("imports", {})
+            for imp in imports:
+                if "oak" in imp:
+                    tech["frameworks"].add("Oak")
+                elif "fresh" in imp:
+                    tech["frameworks"].add("Fresh")
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing deno.json: {e}")
+
+    def _parse_pyproject_toml(self, content: str, tech: Dict) -> None:
+        """Parse Python pyproject.toml for modern Python projects"""
+        try:
+            import toml
+            data = toml.loads(content)
+            
+            # Check build system
+            build_system = data.get("build-system", {})
+            if "poetry" in build_system.get("build-backend", ""):
+                tech["tools"].add("Poetry")
+            elif "setuptools" in build_system.get("build-backend", ""):
+                tech["tools"].add("Setuptools")
+            elif "flit" in build_system.get("build-backend", ""):
+                tech["tools"].add("Flit")
+            elif "hatch" in build_system.get("build-backend", ""):
+                tech["tools"].add("Hatch")
+                
+            # Check dependencies in poetry format
+            poetry_deps = data.get("tool", {}).get("poetry", {}).get("dependencies", {})
+            for dep in poetry_deps:
+                if dep == "django":
+                    tech["frameworks"].add("Django")
+                elif dep == "fastapi":
+                    tech["frameworks"].add("FastAPI")
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing pyproject.toml: {e}")
 
     def get_pattern_candidates(self, commits: List[Dict]) -> List[Dict]:
         """Extract code snippets for pattern analysis"""

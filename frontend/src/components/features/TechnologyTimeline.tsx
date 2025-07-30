@@ -65,9 +65,9 @@ const TechnologyTimeline: React.FC<TechnologyTimelineProps> = ({
 
   if (loading) {
     return (
-      <div className="bg-gray-800 rounded-lg shadow-xl p-12 text-center">
+      <div className="bg-card rounded-lg shadow-xl p-12 text-center">
         <Loader className="h-12 w-12 text-blue-500 mx-auto mb-4 animate-spin" />
-        <p className="text-gray-300">Loading timeline data...</p>
+        <p className="text-muted-foreground">Loading timeline data...</p>
       </div>
     );
   }
@@ -92,12 +92,12 @@ const TechnologyTimeline: React.FC<TechnologyTimelineProps> = ({
 
   if (timelineData.length === 0) {
     return (
-      <div className="bg-gray-800 rounded-lg shadow-xl p-12 text-center">
-        <Calendar className="h-16 w-16 text-gray-500 mx-auto mb-4" />
+      <div className="bg-card rounded-lg shadow-xl p-12 text-center">
+        <Calendar className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
         <h3 className="text-lg font-medium text-white mb-2">
           No Timeline Data Available
         </h3>
-        <p className="text-gray-400">
+        <p className="text-muted-foreground">
           There is no historical data to display for this repository yet.
         </p>
       </div>
@@ -167,20 +167,20 @@ const TechnologyTimeline: React.FC<TechnologyTimelineProps> = ({
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-gray-700 p-3 rounded shadow-lg border border-gray-600">
-          <p className="text-sm font-semibold text-gray-100">{label}</p>
+        <div className="bg-popover p-3 rounded shadow-lg border">
+          <p className="text-sm font-semibold">{label}</p>
           {payload.map((pld: any, index: number) => (
             <div key={index} style={{ color: pld.color }} className="text-xs">
               {pld.name}: {pld.value}
             </div>
           ))}
           {payload[0].payload.languages && (
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Languages: {payload[0].payload.languages}
             </p>
           )}
           {payload[0].payload.technologies && (
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-muted-foreground">
               Technologies: {payload[0].payload.technologies}
             </p>
           )}
@@ -194,70 +194,70 @@ const TechnologyTimeline: React.FC<TechnologyTimelineProps> = ({
     <div className="space-y-8">
       {/* Overview Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gray-800 p-5 rounded-lg shadow-lg">
+        <div className="bg-card p-5 rounded-lg shadow-lg">
           <div className="flex items-center">
             <Calendar className="h-6 w-6 text-blue-400 mr-3" />
             <div>
-              <p className="text-2xl font-semibold text-white">
+              <p className="text-2xl font-semibold">
                 {timelineData.length}
               </p>
-              <p className="text-sm text-gray-400">Months Analyzed</p>
+              <p className="text-sm text-muted-foreground">Months Analyzed</p>
             </div>
           </div>
         </div>
-        <div className="bg-gray-800 p-5 rounded-lg shadow-lg">
+        <div className="bg-card p-5 rounded-lg shadow-lg">
           <div className="flex items-center">
             <GitCommit className="h-6 w-6 text-green-400 mr-3" />
             <div>
-              <p className="text-2xl font-semibold text-white">
+              <p className="text-2xl font-semibold">
                 {timelineData.reduce((sum, e) => sum + e.commits, 0)}
               </p>
-              <p className="text-sm text-gray-400">Total Commits</p>
+              <p className="text-sm text-muted-foreground">Total Commits</p>
             </div>
           </div>
         </div>
-        <div className="bg-gray-800 p-5 rounded-lg shadow-lg">
+        <div className="bg-card p-5 rounded-lg shadow-lg">
           <div className="flex items-center">
             <FileText className="h-6 w-6 text-purple-400 mr-3" />
             <div>
-              <p className="text-2xl font-semibold text-white">
+              <p className="text-2xl font-semibold">
                 {allLanguages.length}
               </p>
-              <p className="text-sm text-gray-400">Unique Languages</p>
+              <p className="text-sm text-muted-foreground">Unique Languages</p>
             </div>
           </div>
         </div>
-        <div className="bg-gray-800 p-5 rounded-lg shadow-lg">
+        <div className="bg-card p-5 rounded-lg shadow-lg">
           <div className="flex items-center">
             <Users className="h-6 w-6 text-yellow-400 mr-3" />
             <div>
-              <p className="text-2xl font-semibold text-white">
+              <p className="text-2xl font-semibold">
                 {allTechnologies.length}
               </p>
-              <p className="text-sm text-gray-400">Unique Technologies</p>
+              <p className="text-sm text-muted-foreground">Unique Technologies</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Commit Activity Timeline */}
-      <div className="bg-gray-800 rounded-lg shadow-xl p-6">
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+      <div className="bg-card rounded-lg shadow-xl p-6">
+        <h3 className="text-lg font-semibold mb-4 flex items-center">
           <TrendingUp className="h-5 w-5 mr-2 text-blue-400" /> Commit Activity
           Over Time
         </h3>
         <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#4A5568" />
-            <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#A0AEC0" }} />
-            <YAxis yAxisId="left" tick={{ fontSize: 12, fill: "#A0AEC0" }} />
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            <XAxis dataKey="date" tick={{ fontSize: 12 }} className="text-xs" />
+            <YAxis yAxisId="left" tick={{ fontSize: 12 }} className="text-xs" />
             <YAxis
               yAxisId="right"
               orientation="right"
-              tick={{ fontSize: 12, fill: "#A0AEC0" }}
+              tick={{ fontSize: 12 }}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ fontSize: "12px", color: "#CBD5E0" }} />
+            <Legend className="text-xs" />
             <Bar
               yAxisId="left"
               dataKey="commits"
@@ -289,18 +289,18 @@ const TechnologyTimeline: React.FC<TechnologyTimelineProps> = ({
 
       {/* Language Adoption Timeline */}
       {allLanguages.length > 0 && (
-        <div className="bg-gray-800 rounded-lg shadow-xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+        <div className="bg-card rounded-lg shadow-xl p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
             <BarChart2 className="h-5 w-5 mr-2 text-green-400" /> Language
             Adoption Over Time
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={languageTimelineData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#4A5568" />
-              <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#A0AEC0" }} />
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis dataKey="date" tick={{ fontSize: 12 }} className="text-xs" />
               <YAxis tick={{ fontSize: 12, fill: "#A0AEC0" }} />
               <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ fontSize: "12px", color: "#CBD5E0" }} />
+              <Legend className="text-xs" />
               {allLanguages.map((lang, index) => (
                 <Line
                   key={lang}
@@ -318,13 +318,13 @@ const TechnologyTimeline: React.FC<TechnologyTimelineProps> = ({
 
       {/* Language Statistics Table */}
       {languageStats.length > 0 && (
-        <div className="bg-gray-800 rounded-lg shadow-xl p-6">
+        <div className="bg-card rounded-lg shadow-xl p-6">
           <h3 className="text-lg font-semibold text-white mb-4">
             Language Statistics
           </h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left text-gray-300">
-              <thead className="text-xs text-gray-400 uppercase bg-gray-700">
+            <table className="w-full text-sm text-left text-foreground">
+              <thead className="text-xs text-muted-foreground uppercase bg-muted">
                 <tr>
                   <th scope="col" className="px-4 py-2">
                     Language
@@ -344,9 +344,9 @@ const TechnologyTimeline: React.FC<TechnologyTimelineProps> = ({
                 {languageStats.map((stat) => (
                   <tr
                     key={stat.name}
-                    className="bg-gray-800 border-b border-gray-700 hover:bg-gray-700"
+                    className="bg-card border-b border-border hover:bg-muted/50"
                   >
-                    <td className="px-4 py-2 font-medium text-white whitespace-nowrap flex items-center">
+                    <td className="px-4 py-2 font-medium whitespace-nowrap flex items-center">
                       <span
                         style={{
                           backgroundColor:
@@ -376,12 +376,12 @@ const TechnologyTimeline: React.FC<TechnologyTimelineProps> = ({
       {/* Technology Adoption (Similar to Languages, if desired) */}
       {/* Placeholder for technology adoption chart and stats - can be implemented similarly to languages */}
       {allTechnologies.length > 0 && (
-        <div className="bg-gray-800 rounded-lg shadow-xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+        <div className="bg-card rounded-lg shadow-xl p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
             <BarChart2 className="h-5 w-5 mr-2 text-purple-400" /> Technology
             Adoption Over Time (Example)
           </h3>
-          <p className="text-gray-400 text-sm">
+          <p className="text-muted-foreground text-sm">
             Further implementation can show technology adoption similar to
             languages.
           </p>
