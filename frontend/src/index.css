@@ -1,7 +1,12 @@
+/* Custom background for main content in dark mode */
+.dark .main-bg {
+  background-color: #232329;
+}
 @import "tailwindcss";
 
 @layer base {
   :root {
+    /* Light theme colors */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -20,16 +25,81 @@
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --text-foreground: oklch(0.9 0 24.35);
-    /* --bg-background: oklch(0.2478 0 0); */
     --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
+
+    /* Brand colors for light theme */
+    --ctan-gold: #ffb700;
+    --ctan-amber: #ffa500;
+    --ctan-orange: #ff8c00;
+    --ctan-warm-yellow: #ffd700;
+
+    /* Light theme specific colors */
+    --ctan-bg: #ffffff;
+    --ctan-card: #fafafa;
+    --ctan-border: #e4e4e7;
+    --ctan-hover: #f4f4f5;
+    --ctan-text-primary: #18181b;
+    --ctan-text-secondary: #71717a;
+    --ctan-text-muted: #a1a1aa;
   }
 
   .dark {
-    /* --background: 222.2 84% 4.9%; */
+    /* Dark theme colors */
+    --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-    /* ... dark mode colors */
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+
+    /* Brand colors remain same for dark theme */
+    --ctan-gold: #ffb700;
+    --ctan-amber: #ffa500;
+    --ctan-orange: #ff8c00;
+    --ctan-warm-yellow: #ffd700;
+
+    /* Dark theme specific colors */
+    --ctan-bg: #0a0a0b;
+    --ctan-card: #161618;
+    --ctan-border: #262629;
+    --ctan-hover: #1f1f23;
+    --ctan-text-primary: #fffbe7;
+    --ctan-text-secondary: #ffe082;
+    --ctan-text-muted: #bdbdbd;
+    --ctan-text-accent: #ffb700;
+    --ctan-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    /* Stylish and accessible text for dark mode */
+    .dark .main-bg,
+    .dark body,
+    .dark .text-primary,
+    .dark .text-secondary,
+    .dark .text-muted-foreground {
+      color: var(--ctan-text-primary);
+      text-shadow: var(--ctan-text-shadow);
+    }
+    .dark .text-secondary {
+      color: var(--ctan-text-secondary);
+    }
+    .dark .text-muted-foreground {
+      color: var(--ctan-text-muted);
+    }
+    .dark .text-accent {
+      color: var(--ctan-text-accent);
+    }
   }
 }
 /* Professional Dashboard Styling */

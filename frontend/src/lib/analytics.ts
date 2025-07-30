@@ -7,7 +7,7 @@ export const trackModelSelection = (modelName: string) => {
   }
 };
 
-export const trackRepositoryAnalysis = (modelName: string, repoUrl: string) => {
+export const trackRepositoryAnalysis = (modelName: string, _repoUrl: string) => {
   if (typeof gtag !== "undefined") {
     gtag("event", "repository_analysis_started", {
       model_name: modelName,

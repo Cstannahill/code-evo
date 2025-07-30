@@ -8,9 +8,11 @@ from bson import ObjectId
 
 from app.core.database import get_enhanced_database_manager
 from app.services.analysis_service import AnalysisService
-from app.services.repository_service import RepositoryService
-from app.services.pattern_service import PatternService
-from app.services.ai_analysis_service import AIAnalysisService
+from app.core.service_manager import (
+    get_repository_service,
+    get_pattern_service, 
+    get_ai_analysis_service
+)
 from app.models.repository import (
     Repository,
     AnalysisSession,
@@ -27,10 +29,7 @@ from app.models.repository import (
 
 logger = logging.getLogger(__name__)
 
-# Initialize MongoDB services
-repository_service = RepositoryService()
-pattern_service = PatternService()
-ai_analysis_service = AIAnalysisService()
+# Services are managed by centralized service manager
 
 
 async def analyze_repository_background(
@@ -58,7 +57,7 @@ async def analyze_repository_background(
             analysis_service.set_preferred_model(model_id)
 
         # Find the repository using MongoDB service
-        engine = repository_service.engine
+        engine = get_repository_service().engine
         repo = await get_repository_by_url(engine, repo_url)
         if not repo:
             logger.error(f"❌ Repository not found: {repo_url}")
@@ -81,7 +80,7 @@ async def analyze_repository_background(
             },
         }
 
-        analysis_session = await ai_analysis_service.create_analysis_session(
+        analysis_session = await get_ai_analysis_service().create_analysis_session(
             repo_id_str, session_data.get("configuration", {})
         )
         logger.info(f"📊 Analysis session created: {analysis_session.id}")
@@ -98,19 +97,19 @@ async def analyze_repository_background(
 
         except asyncio.CancelledError:
             logger.info(f"⏹️  Analysis cancelled for {repo.name}")
-            await ai_analysis_service.update_analysis_session(
+            await get_ai_analysis_service().update_analysis_session(
                 str(analysis_session.id), status="cancelled"
             )
-            await repository_service.update_repository_status(repo_id_str, "pending")
+            await get_repository_service().update_repository_status(repo_id_str, "pending")
             return
         except Exception as e:
             logger.error(f"💥 Analysis failed: {e}")
             if analysis_session:
-                await ai_analysis_service.update_analysis_session(
+                await get_ai_analysis_service().update_analysis_session(
                     str(analysis_session.id), status="failed", error_message=str(e)
                 )
             if repo:
-                await repository_service.update_repository_status(repo_id_str, "failed")
+                await get_repository_service().update_repository_status(repo_id_str, "failed")
             return
 
         if "error" in result:
@@ -128,31 +127,31 @@ async def analyze_repository_background(
                 )
                 logger.error(f"   Recommendation: {result.get('recommendation', '')}")
 
-                await ai_analysis_service.update_analysis_session(
+                await get_ai_analysis_service().update_analysis_session(
                     str(analysis_session.id),
                     status="failed",
                     error_message=f"SECURITY: {error_msg}",
                 )
-                await repository_service.update_repository_status(repo_id_str, "failed")
+                await get_repository_service().update_repository_status(repo_id_str, "failed")
 
                 logger.error("🛑 Analysis terminated for security reasons")
             else:
                 logger.error(f"❌ Analysis failed: {error_msg}")
-                await ai_analysis_service.update_analysis_session(
+                await get_ai_analysis_service().update_analysis_session(
                     str(analysis_session.id), status="failed", error_message=error_msg
                 )
-                await repository_service.update_repository_status(repo_id_str, "failed")
+                await get_repository_service().update_repository_status(repo_id_str, "failed")
 
             return
 
         # Analysis completed successfully - data is already persisted by AnalysisService
         # Update repository status
-        await repository_service.update_repository_status(repo_id_str, "completed")
+        await get_repository_service().update_repository_status(repo_id_str, "completed")
 
         # Update analysis session
         patterns_found = len(result.get("pattern_analyses", []))
         commits_analyzed = len(result.get("commits", []))
-        await ai_analysis_service.update_analysis_session(
+        await get_ai_analysis_service().update_analysis_session(
             str(analysis_session.id),
             status="completed",
             commits_analyzed=commits_analyzed,
@@ -164,23 +163,23 @@ async def analyze_repository_background(
     except asyncio.CancelledError:
         logger.info(f"⏹️  Background task cancelled for {repo_url}")
         if analysis_session:
-            await ai_analysis_service.update_analysis_session(
+            await get_ai_analysis_service().update_analysis_session(
                 str(analysis_session.id), status="cancelled"
             )
         if repo:
             repo_id_str = str(repo.id)
-            await repository_service.update_repository_status(repo_id_str, "pending")
+            await get_repository_service().update_repository_status(repo_id_str, "pending")
         return
     except Exception as e:
         logger.error(f"💥 Background analysis failed: {e}")
 
         if analysis_session:
-            await ai_analysis_service.update_analysis_session(
+            await get_ai_analysis_service().update_analysis_session(
                 str(analysis_session.id), status="failed", error_message=str(e)
             )
         if repo:
             repo_id_str = str(repo.id)
-            await repository_service.update_repository_status(repo_id_str, "failed")
+            await get_repository_service().update_repository_status(repo_id_str, "failed")
 
 
 # Note: Analysis results are now automatically persisted by the AnalysisService
@@ -192,7 +191,7 @@ async def get_analysis_status(repository_id: str) -> Dict[str, Any]:
     """Get the current analysis status for a repository"""
     try:
         sessions = await get_analysis_sessions_by_repository(
-            ai_analysis_service.engine, ObjectId(repository_id)
+            get_ai_analysis_service().engine, ObjectId(repository_id)
         )
         if not sessions:
             return {"status": "not_started"}
@@ -215,14 +214,14 @@ async def cancel_analysis(repository_id: str) -> bool:
     """Cancel any running analysis for a repository"""
     try:
         sessions = await get_analysis_sessions_by_repository(
-            ai_analysis_service.engine, ObjectId(repository_id)
+            get_ai_analysis_service().engine, ObjectId(repository_id)
         )
         for session in sessions:
             if session.status == "running":
-                await ai_analysis_service.update_analysis_session(
+                await get_ai_analysis_service().update_analysis_session(
                     str(session.id), status="cancelled"
                 )
-                await repository_service.update_repository_status(
+                await get_repository_service().update_repository_status(
                     str(repository_id), "pending"
                 )
                 return True

@@ -20,24 +20,31 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
   height = 400,
 }) => {
   const heatmapData = useMemo(() => {
-    if (!data?.pattern_statistics || !data?.pattern_timeline?.timeline) {
+    if (!data?.pattern_statistics || !data?.pattern_timeline) {
       return { cells: [], patterns: [], months: [] };
     }
 
     const patterns = Object.keys(data.pattern_statistics).slice(0, 8); // Limit for display
-    const timeline = data.pattern_timeline.timeline;
+    
+    // Normalize timeline data
+    let timeline = [];
+    if (data.pattern_timeline?.timeline && Array.isArray(data.pattern_timeline.timeline)) {
+      timeline = data.pattern_timeline.timeline;
+    } else if (Array.isArray(data.pattern_timeline)) {
+      timeline = data.pattern_timeline;
+    }
 
     if (patterns.length === 0 || timeline.length === 0) {
       return { cells: [], patterns: [], months: [] };
     }
 
-    const months = timeline.map((t) => t.date);
+    const months = timeline.map((t: any) => t.date);
     const cells: HeatmapCell[] = [];
 
     // Find max value for color scaling
     let maxValue = 0;
     patterns.forEach((pattern) => {
-      timeline.forEach((timePoint) => {
+      timeline.forEach((timePoint: any) => {
         const value = timePoint.patterns[pattern] || 0;
         maxValue = Math.max(maxValue, value);
       });
@@ -45,7 +52,7 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
 
     // Create cells
     patterns.forEach((pattern) => {
-      timeline.forEach((timePoint) => {
+      timeline.forEach((timePoint: any) => {
         const value = timePoint.patterns[pattern] || 0;
         const intensity = maxValue > 0 ? value / maxValue : 0;
 
@@ -102,7 +109,7 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
       <div className="relative">
         {/* Pattern labels */}
         <div className="absolute left-0 top-12">
-          {patterns.map((pattern, i) => (
+          {patterns.map((pattern) => (
             <div
               key={pattern}
               className="text-xs text-gray-300 font-medium truncate"
@@ -121,7 +128,7 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
 
         {/* Month labels */}
         <div className="absolute top-0 left-24">
-          {months.map((month, i) => (
+          {months.map((month: any) => (
             <div
               key={month}
               className="text-xs text-gray-300 font-medium inline-block text-center"

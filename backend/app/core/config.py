@@ -9,17 +9,11 @@ class Settings(BaseSettings):
     DATABASE_PATH: str = "code_evolution.db"
 
     # Redis (optional)
-<<<<<<< HEAD
-    REDIS_URL: str = "redis://localhost:6379"  # ChromaDB (optional)
-    CHROMA_HOST: str = "localhost"
-    CHROMA_PORT: int = 8001
-=======
     REDIS_URL: str = "redis://localhost:6379"
 
     # ChromaDB (optional)
     CHROMA_HOST: str = "localhost"
     CHROMA_PORT: int = 8000
->>>>>>> a1d19c7f56b54abd7bf7560156fcb17ab40fd16c
     CHROMA_PERSIST_DIR: str = "./chroma_db"
     # Ollama (optional)
     OLLAMA_BASE_URL: str = "http://localhost:11434"
@@ -39,7 +33,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     VERSION: str = "1.0.0"
     # MongoDB
-    MONGODB_URL: str
+    MONGODB_URL: str = "mongodb://localhost:27017"
     # GitHub (optional)
     GITHUB_TOKEN: Optional[str] = None
     # Security settings for secret scanning

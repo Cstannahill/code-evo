@@ -751,7 +751,7 @@ class AIAnalysisService:
             result_count = await self.engine.count(AIAnalysisResult)
 
             return {
-                "status": "healthy" if db_health["status"] == "healthy" else "degraded",
+                "status": "healthy" if db_health.get("is_connected", False) and db_health.get("ping_success", False) else "degraded",
                 "database": db_health,
                 "metrics": {
                     "total_operations": self._operation_count,

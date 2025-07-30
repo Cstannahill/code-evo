@@ -1,22 +1,5 @@
 /* Enhanced Color Palette - Ctan.dev Brand Identity */
-:root {
-  /* Primary brand colors from icon */
-  --ctan-gold: #FFB700;
-  --ctan-amber: #FFA500;
-  --ctan-orange: #FF8C00;
-  --ctan-warm-yellow: #FFD700;
-  
-  /* Dark theme foundations */
-  --ctan-dark-bg: #0A0A0B;
-  --ctan-dark-card: #161618;
-  --ctan-dark-border: #262629;
-  --ctan-dark-hover: #1F1F23;
-  
-  /* Text hierarchy */
-  --ctan-text-primary: #FAFAFA;
-  --ctan-text-secondary: #A1A1AA;
-  --ctan-text-muted: #71717A;
-}
+/* Note: Core variables are now defined in index.css for proper theme switching */
 
 /* Enhanced Title Gradient */
 .brand-title {
@@ -37,8 +20,8 @@
 /* Enhanced Button Styling */
 .ctan-button {
   position: relative;
-  background: linear-gradient(145deg, var(--ctan-dark-card), var(--ctan-dark-hover));
-  border: 1px solid var(--ctan-dark-border);
+  background: linear-gradient(145deg, var(--ctan-card), var(--ctan-hover));
+  border: 1px solid var(--ctan-border);
   color: var(--ctan-text-primary);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
@@ -85,16 +68,11 @@
   box-shadow: 0 0 20px rgba(255, 183, 0, 0.1);
 }
 
-.repo-button.active {
-  background: linear-gradient(145deg, var(--ctan-orange), var(--ctan-gold));
-  border-color: var(--ctan-gold);
-  color: var(--ctan-dark-bg);
-}
 
 /* Model Select Enhancement */
 .model-select-trigger {
-  background: linear-gradient(145deg, var(--ctan-dark-card), var(--ctan-dark-hover));
-  border: 1px solid var(--ctan-dark-border);
+  background: linear-gradient(145deg, var(--ctan-card), var(--ctan-hover));
+  border: 1px solid var(--ctan-border);
   transition: all 0.3s ease;
 }
 
@@ -127,8 +105,8 @@
 
 /* Card Glow Effect */
 .ctan-card {
-  background: var(--ctan-dark-card);
-  border: 1px solid var(--ctan-dark-border);
+  background: var(--ctan-card);
+  border: 1px solid var(--ctan-border);
   position: relative;
   overflow: hidden;
 }
@@ -199,14 +177,9 @@
   }
 }
 
-/* Dark Mode Enhancements */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: var(--ctan-dark-bg);
-    --foreground: var(--ctan-text-primary);
-    --card: var(--ctan-dark-card);
-    --border: var(--ctan-dark-border);
-    --primary: var(--ctan-gold);
-    --primary-foreground: var(--ctan-dark-bg);
-  }
+/* Theme-aware component styling */
+.repo-button.active {
+  background: linear-gradient(145deg, var(--ctan-orange), var(--ctan-gold));
+  border-color: var(--ctan-gold);
+  color: var(--ctan-bg);
 }

@@ -59,7 +59,7 @@ export const TechnologyRelationshipGraph: React.FC<
       targetPosition: Position.Left,
       style: {
         background: "#8b5cf6", // purple-500
-        color: "white",
+        color: "var(--ctan-text-primary)",
         border: "2px solid #6d28d9", // purple-700
         fontSize: "14px",
         fontWeight: "bold",
@@ -69,6 +69,7 @@ export const TechnologyRelationshipGraph: React.FC<
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
+        textShadow: "var(--ctan-text-shadow)",
       },
     };
     newNodes.push(centralNode);
@@ -94,12 +95,13 @@ export const TechnologyRelationshipGraph: React.FC<
             targetPosition: Position.Top,
             style: {
               background: "#3b82f6", // blue-500
-              color: "white",
+              color: "var(--ctan-text-primary)",
               border: "2px solid #2563eb", // blue-700
               fontSize: "12px",
               fontWeight: "bold",
               borderRadius: "8px",
               padding: "10px 15px",
+              textShadow: "var(--ctan-text-shadow)",
             },
           };
           newNodes.push(categoryNode);
@@ -137,13 +139,14 @@ export const TechnologyRelationshipGraph: React.FC<
               targetPosition: Position.Top,
               style: {
                 background: "#4B5563", // bg-gray-600 (darker for dark theme)
-                color: "#F3F4F6", // text-gray-100
+                color: "var(--ctan-text-primary)",
                 border: "1px solid #6B7280", // border-gray-500
                 fontSize: "11px",
                 borderRadius: "4px",
                 padding: "8px 12px",
                 textAlign: "center",
                 minWidth: 80,
+                textShadow: "var(--ctan-text-shadow)",
               },
             };
             newNodes.push(techNode);
@@ -166,7 +169,7 @@ export const TechnologyRelationshipGraph: React.FC<
 
   if (!analysis || !analysis.technologies) {
     return (
-      <div className="text-center p-4 text-gray-400">
+      <div className="text-center p-4 text-muted-foreground">
         No technology relationship data available.
       </div>
     );

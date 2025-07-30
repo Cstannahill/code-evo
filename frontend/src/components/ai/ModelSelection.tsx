@@ -29,6 +29,8 @@ export interface ModelInfo {
   cost_per_1k_tokens: number;
   strengths: string[];
   available: boolean;
+  cost_tier?: string;
+  is_free?: boolean;
 }
 
 interface ModelSelectionProps {
@@ -115,6 +117,38 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
     return "border-gray-500 bg-gray-500/10";
   };
 
+  const getCostTierColor = (costTier?: string, isFree?: boolean) => {
+    if (isFree) return "text-green-400";
+    switch (costTier) {
+      case "ultra_low":
+        return "text-green-300";
+      case "low":
+        return "text-yellow-300";
+      case "medium":
+        return "text-orange-300";
+      case "high":
+        return "text-red-300";
+      default:
+        return "text-gray-300";
+    }
+  };
+
+  const getCostTierLabel = (costTier?: string, isFree?: boolean) => {
+    if (isFree) return "Free";
+    switch (costTier) {
+      case "ultra_low":
+        return "Ultra Low Cost";
+      case "low":
+        return "Low Cost";
+      case "medium":
+        return "Medium Cost";
+      case "high":
+        return "High Cost";
+      default:
+        return "Unknown Cost";
+    }
+  };
+
   const ModelCard: React.FC<{ modelName: string; model: ModelInfo }> = ({
     modelName,
     model,
@@ -161,18 +195,29 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
         </div>
 
         {/* Model specs */}
-        <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+        <div className="grid grid-cols-1 gap-2 mb-3 text-xs">
           <div className="flex items-center gap-1 text-gray-400">
             <Clock className="w-3 h-3" />
             {stats?.usage_stats?.avg_processing_time
               ? `${stats.usage_stats.avg_processing_time}s avg`
               : "No usage data"}
           </div>
-          <div className="flex items-center gap-1 text-gray-400">
-            <DollarSign className="w-3 h-3" />
-            {model.cost_per_1k_tokens === 0
-              ? "Free"
-              : `$${model.cost_per_1k_tokens}/1k tokens`}
+          <div className="flex items-center gap-1">
+            <DollarSign className="w-3 h-3 text-gray-400" />
+            <span className={getCostTierColor(model.cost_tier, model.is_free)}>
+              {model.cost_per_1k_tokens === 0
+                ? "Free"
+                : `$${model.cost_per_1k_tokens}/1k tokens`}
+            </span>
+          </div>
+          <div className="text-xs">
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+              model.is_free 
+                ? "bg-green-500/20 text-green-300" 
+                : "bg-blue-500/20 text-blue-300"
+            }`}>
+              {getCostTierLabel(model.cost_tier, model.is_free)}
+            </span>
           </div>
         </div>
 
@@ -324,7 +369,13 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
             • <strong>CodeLlama</strong> excels at code understanding
           </li>
           <li>
-            • <strong>GPT-4</strong> provides the most detailed analysis
+            • <strong>GPT-4.1 models</strong> offer 1M token context with major coding improvements
+          </li>
+          <li>
+            • <strong>O-series models</strong> are optimized for reasoning and math
+          </li>
+          <li>
+            • <strong>GPT-4o Mini</strong> provides excellent cost-efficiency
           </li>
           <li>
             • <strong>Claude</strong> focuses on code quality and best practices

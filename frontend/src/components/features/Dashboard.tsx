@@ -10,8 +10,6 @@ import {
 } from "../../hooks/useRepository"; // Assuming useCreateRepository's input type is defined here or in a related file
 import { AnalysisDashboard } from "./AnalysisDashboard";
 import { ModelSelectComponent } from "../ai/ModelSelectComponent";
-// Corrected type-only import for AIModel due to verbatimModuleSyntax
-import { defaultModels, type AIModel } from "../../types/ai";
 import type { RepositoryCreateRequest } from "../../types/api";
 import { useModelAvailability } from "../../hooks/useModelAvailability";
 
@@ -119,7 +117,7 @@ export const Dashboard: React.FC = () => {
             className="mb-6"
           >
             <div className="space-y-2 flex-col flex w-1/8">
-              <label className="text-sm font-medium text-foreground">
+              <label className="text-sm font-medium ">
                 Select AI Model{" "}
               </label>
               <ModelSelectComponent
@@ -131,7 +129,7 @@ export const Dashboard: React.FC = () => {
               />
               {/* Show selected model info */}
               {selectedModel && (
-                <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                <div className="text-xs bg-muted/50 p-2 rounded">
                   <span className="font-medium">
                     {selectedModel.display_name}
                   </span>

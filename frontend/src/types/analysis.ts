@@ -1,5 +1,6 @@
 // Re-export Technology and TechnologiesByCategory from api.ts to avoid duplication
 export type { Technology, TechnologiesByCategory } from "./api";
+import type { Technology } from "./api";
 
 // Define a base type for a technology with extended properties for analysis
 export interface TechnologyWithAnalysis extends Technology {

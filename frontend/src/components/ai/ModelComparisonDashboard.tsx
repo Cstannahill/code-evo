@@ -1,17 +1,11 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Brain,
   Clock,
-  DollarSign,
-  TrendingUp,
   AlertTriangle,
   CheckCircle2,
-  BarChart3,
   Zap,
   Target,
-  Award,
-  Eye,
   Download,
 } from "lucide-react";
 import {
@@ -505,7 +499,7 @@ export const ModelComparisonDashboard: React.FC<ModelComparisonProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {results.map((result, idx) => (
+                  {results.map((result) => (
                     <tr
                       key={result.model}
                       className="border-b border-gray-700/50"

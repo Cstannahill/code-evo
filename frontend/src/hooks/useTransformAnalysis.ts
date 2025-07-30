@@ -61,6 +61,9 @@ export const useTransformAnalysis = (
       framework: [],
       library: [],
       tool: [],
+      database: [],
+      platform: [],
+      other: [],
     };
 
     if (rawData.technologies?.language) {
@@ -94,7 +97,10 @@ export const useTransformAnalysis = (
       patterns: rawData.patterns,
       pattern_timeline: {
         timeline: timelineArray,
-        summary: {},
+        summary: {
+          total_months: timelineArray.length,
+          patterns_tracked: Object.keys(patternStats),
+        },
       },
       pattern_statistics: patternStats,
       insights: rawData.insights ?? [],

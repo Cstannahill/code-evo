@@ -341,7 +341,7 @@ const TechnologyTimeline: React.FC<TechnologyTimelineProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {languageStats.map((stat, index) => (
+                {languageStats.map((stat) => (
                   <tr
                     key={stat.name}
                     className="bg-gray-800 border-b border-gray-700 hover:bg-gray-700"

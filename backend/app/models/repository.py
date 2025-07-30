@@ -23,7 +23,7 @@ from app.core.database import Base
 # Imports for MongoDB/ODMantic models
 from odmantic import Model, Field, Reference
 from typing import List, Optional, Dict, Any
-from pydantic import validator
+from pydantic import validator, root_validator
 from bson import ObjectId
 
 logger = logging.getLogger(__name__)
@@ -373,6 +373,7 @@ class Repository(Model):
     status: str = "pending"
     total_commits: int = 0
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = None
     last_analyzed: Optional[datetime] = None
     error_message: Optional[str] = None
 
@@ -472,6 +473,7 @@ class PatternOccurrence(Model):
     model_confidence: Optional[float] = None
     processing_time_ms: Optional[int] = None
     token_usage: Optional[Dict[str, Any]] = None
+    ai_analysis_metadata: Optional[Dict[str, Any]] = None
 
     model_config = {"collection": "pattern_occurrences"}
 
@@ -646,7 +648,7 @@ async def get_repositories_with_stats(
             latest_session = await engine.find_one(
                 AnalysisSession,
                 AnalysisSession.repository_id == repo.id,
-                sort=AnalysisSession.created_at.desc(),
+                sort=AnalysisSession.started_at.desc(),
             )
 
             # Build enhanced repository data
@@ -659,7 +661,7 @@ async def get_repositories_with_stats(
                         "pattern_count": pattern_count,
                         "has_analysis": latest_session is not None,
                         "last_analysis": (
-                            latest_session.created_at if latest_session else None
+                            latest_session.started_at if latest_session else None
                         ),
                         "analysis_status": (
                             latest_session.status if latest_session else "not_analyzed"

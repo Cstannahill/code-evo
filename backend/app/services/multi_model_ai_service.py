@@ -56,6 +56,11 @@ class AIModel(str, Enum):
     CODEGEMMA_7B = "codegemma:7b"
     OPENAI_GPT4 = "gpt-4"
     OPENAI_GPT35_TURBO = "gpt-3.5-turbo"
+    OPENAI_GPT4_1_MINI = "gpt-4.1-mini"
+    OPENAI_GPT4_1_NANO = "gpt-4.1-nano"
+    OPENAI_GPT4O_MINI = "gpt-4o-mini"
+    OPENAI_O4_MINI = "o4-mini"
+    OPENAI_O3_MINI = "o3-mini"
     CLAUDE_SONNET = "claude-3-sonnet"
 
 
@@ -159,7 +164,7 @@ class MultiModelAIService:
             return
 
         try:
-            # We'll use a simple approach that works with current OpenAI library
+            # Legacy models
             self.available_models[AIModel.OPENAI_GPT4] = ModelInfo(
                 name="GPT-4",
                 provider="OpenAI",
@@ -181,7 +186,78 @@ class MultiModelAIService:
                 strengths=["Fast", "Cost-effective", "Good general analysis"],
                 available=True,
             )
-            logger.info("✅ OpenAI models configured")
+
+            # New 2025 models with improved capabilities
+            self.available_models[AIModel.OPENAI_GPT4_1_MINI] = ModelInfo(
+                name="GPT-4.1 Mini",
+                provider="OpenAI",
+                context_window=1000000,  # 1M token context window
+                cost_per_1k_tokens=0.0004,  # $0.40 per million input tokens
+                strengths=[
+                    "Major gains in coding",
+                    "Instruction following",
+                    "83% cost reduction vs GPT-4o",
+                    "2x faster than GPT-4o",
+                ],
+                available=True,
+            )
+
+            self.available_models[AIModel.OPENAI_GPT4_1_NANO] = ModelInfo(
+                name="GPT-4.1 Nano",
+                provider="OpenAI",
+                context_window=1000000,  # 1M token context window
+                cost_per_1k_tokens=0.0001,  # $0.10 per million input tokens
+                strengths=[
+                    "Fastest and cheapest",
+                    "Exceptional small model performance",
+                    "80.1% on MMLU",
+                    "Superior coding capabilities",
+                ],
+                available=True,
+            )
+
+            self.available_models[AIModel.OPENAI_GPT4O_MINI] = ModelInfo(
+                name="GPT-4o Mini",
+                provider="OpenAI",
+                context_window=128000,
+                cost_per_1k_tokens=0.00015,  # Most cost-efficient
+                strengths=[
+                    "Cost-efficient intelligence",
+                    "Vision capabilities",
+                    "Good balance of speed and quality",
+                ],
+                available=True,
+            )
+
+            self.available_models[AIModel.OPENAI_O4_MINI] = ModelInfo(
+                name="O4-Mini",
+                provider="OpenAI",
+                context_window=200000,
+                cost_per_1k_tokens=0.0011,  # $1.10 per million input tokens
+                strengths=[
+                    "Optimized for reasoning",
+                    "Best performance on AIME 2024/2025",
+                    "Excellent in math and coding",
+                    "Visual task capabilities",
+                ],
+                available=True,
+            )
+
+            self.available_models[AIModel.OPENAI_O3_MINI] = ModelInfo(
+                name="O3-Mini",
+                provider="OpenAI",
+                context_window=200000,  # Assumed similar to O4-mini
+                cost_per_1k_tokens=0.002,  # Estimated based on O-series pricing
+                strengths=[
+                    "Advanced reasoning capabilities",
+                    "Latest O-series model",
+                    "Trained to think longer",
+                    "Smart and efficient",
+                ],
+                available=True,
+            )
+
+            logger.info("✅ OpenAI models configured (including new 2025 models)")
         except Exception as e:
             logger.warning(f"❌ OpenAI models initialization failed: {e}")
 
@@ -215,9 +291,74 @@ class MultiModelAIService:
                 "strengths": info.strengths,
                 "available": info.available,
                 "display_name": info.name,  # Add display_name for frontend compatibility
+                "cost_tier": self._get_cost_tier(info.cost_per_1k_tokens),
+                "is_free": info.cost_per_1k_tokens == 0.0,
             }
             for model, info in self.available_models.items()
             if info.available
+        }
+    
+    def _get_cost_tier(self, cost_per_1k_tokens: float) -> str:
+        """Categorize model by cost tier"""
+        if cost_per_1k_tokens == 0.0:
+            return "free"
+        elif cost_per_1k_tokens <= 0.0005:
+            return "ultra_low"
+        elif cost_per_1k_tokens <= 0.002:
+            return "low"
+        elif cost_per_1k_tokens <= 0.01:
+            return "medium"
+        else:
+            return "high"
+    
+    def estimate_analysis_cost(self, code: str, model: AIModel) -> Dict[str, Any]:
+        """Estimate the cost of analyzing code with a specific model"""
+        if model not in self.available_models:
+            return {"error": f"Model {model.value} not available"}
+        
+        model_info = self.available_models[model]
+        
+        # Estimate token count (rough approximation: 1 token ≈ 4 characters)
+        estimated_input_tokens = len(code) // 4
+        
+        # Add some overhead for prompt formatting
+        total_input_tokens = estimated_input_tokens + 200
+        
+        # Estimate output tokens (typically much smaller than input for analysis)
+        estimated_output_tokens = min(500, total_input_tokens // 4)
+        
+        if model_info.cost_per_1k_tokens == 0.0:
+            return {
+                "model": model.value,
+                "estimated_input_tokens": total_input_tokens,
+                "estimated_output_tokens": estimated_output_tokens,
+                "estimated_cost": 0.0,
+                "cost_breakdown": {
+                    "input_cost": 0.0,
+                    "output_cost": 0.0,
+                },
+                "is_free": True,
+            }
+        
+        # Different pricing for input vs output tokens (output typically 4x more expensive)
+        input_cost_per_1k = model_info.cost_per_1k_tokens
+        output_cost_per_1k = model_info.cost_per_1k_tokens * 4  # Typical ratio
+        
+        input_cost = (total_input_tokens / 1000) * input_cost_per_1k
+        output_cost = (estimated_output_tokens / 1000) * output_cost_per_1k
+        total_cost = input_cost + output_cost
+        
+        return {
+            "model": model.value,
+            "estimated_input_tokens": total_input_tokens,
+            "estimated_output_tokens": estimated_output_tokens,
+            "estimated_cost": round(total_cost, 6),
+            "cost_breakdown": {
+                "input_cost": round(input_cost, 6),
+                "output_cost": round(output_cost, 6),
+            },
+            "is_free": False,
+            "cost_tier": self._get_cost_tier(model_info.cost_per_1k_tokens),
         }
 
     async def analyze_with_model(
@@ -249,7 +390,15 @@ class MultiModelAIService:
                 AIModel.CODEGEMMA_7B,
             ]:
                 result = await self._analyze_with_ollama(code, language, model)
-            elif model in [AIModel.OPENAI_GPT4, AIModel.OPENAI_GPT35_TURBO]:
+            elif model in [
+                AIModel.OPENAI_GPT4, 
+                AIModel.OPENAI_GPT35_TURBO,
+                AIModel.OPENAI_GPT4_1_MINI,
+                AIModel.OPENAI_GPT4_1_NANO,
+                AIModel.OPENAI_GPT4O_MINI,
+                AIModel.OPENAI_O4_MINI,
+                AIModel.OPENAI_O3_MINI,
+            ]:
                 result = await self._analyze_with_openai(code, language, model)
             elif model == AIModel.CLAUDE_SONNET:
                 result = await self._analyze_with_claude(code, language, model)

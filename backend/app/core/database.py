@@ -6,6 +6,12 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import logging
 import os
 import redis
+
+# Set ChromaDB telemetry environment variables BEFORE importing chromadb
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+os.environ["CHROMA_SERVER_TELEMETRY"] = "False"
+os.environ["CHROMA_CLIENT_TELEMETRY"] = "False"
+
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 from datetime import datetime
@@ -64,20 +70,21 @@ except Exception as e:
     logger.warning(f"⚠️  Redis not available: {e}")
     redis_client = None
 
-# ChromaDB setup (vector database)
+# ChromaDB setup (vector database) - Updated for v1.0.15
 try:
     chroma_db_path = os.getenv("CHROMA_DB_PATH", "./chroma_db")
+    
+    # ChromaDB 1.0.15 has improved telemetry handling
     chroma_client = chromadb.PersistentClient(
         path=chroma_db_path,
         settings=ChromaSettings(
-            anonymized_telemetry=os.getenv(
-                "CHROMA_ANONYMIZED_TELEMETRY", "false"
-            ).lower()
-            == "true",
+            anonymized_telemetry=False,
             allow_reset=True,
+            is_persistent=True,
         ),
     )
-    logger.info("✅ ChromaDB initialized successfully")
+    
+    logger.info("✅ ChromaDB v1.0.15 initialized successfully")
 except Exception as e:
     logger.warning(f"⚠️  ChromaDB not available: {e}")
     chroma_client = None
@@ -93,7 +100,8 @@ class CacheService:
         self.redis = redis_client
         self.memory = _memory_cache
 
-    def get(self, key: str):
+    def get_sync(self, key: str):
+        """Synchronous get method"""
         if self.redis:
             try:
                 return self.redis.get(key)
@@ -101,7 +109,8 @@ class CacheService:
                 pass
         return self.memory.get(key)
 
-    def set(self, key: str, value: str, ttl: int = 3600):
+    def set_sync(self, key: str, value: str, ttl: int = 3600):
+        """Synchronous set method"""
         if self.redis:
             try:
                 self.redis.setex(key, ttl, value)
@@ -110,7 +119,8 @@ class CacheService:
                 pass
         self.memory[key] = value
 
-    def delete(self, key: str):
+    def delete_sync(self, key: str):
+        """Synchronous delete method"""
         if self.redis:
             try:
                 self.redis.delete(key)
@@ -125,6 +135,35 @@ class CacheService:
             except Exception:
                 pass
         return True
+
+    # Async methods as primary API
+    async def get(self, key: str):
+        """Get value by key (async)"""
+        if self.redis:
+            try:
+                return self.redis.get(key)
+            except Exception:
+                pass
+        return self.memory.get(key)
+
+    async def set(self, key: str, value: str, ttl: int = 3600):
+        """Set value with TTL (async)"""
+        if self.redis:
+            try:
+                self.redis.setex(key, ttl, value)
+                return
+            except Exception:
+                pass
+        self.memory[key] = value
+
+    async def delete(self, key: str):
+        """Delete key (async)"""
+        if self.redis:
+            try:
+                self.redis.delete(key)
+            except Exception:
+                pass
+        self.memory.pop(key, None)
 
 
 # Initialize CacheService

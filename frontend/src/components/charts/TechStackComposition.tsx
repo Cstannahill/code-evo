@@ -122,10 +122,10 @@ export const TechStackComposition: React.FC<TechStackCompositionProps> = ({
     ];
     return categories
       .map((category) => {
-        const techs = technologies[category] || [];
+        const techs = technologies[category as keyof TechnologiesByCategory] || [];
         return {
           name: category.charAt(0).toUpperCase() + category.slice(1),
-          value: techs.reduce((sum, tech) => sum + tech.usage_count, 0),
+          value: techs.reduce((sum: number, tech: any) => sum + tech.usage_count, 0),
           count: techs.length,
           technologies: techs,
         };

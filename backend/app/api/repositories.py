@@ -2,24 +2,40 @@ from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import logging
+from bson import ObjectId
 
-from app.services.repository_service import RepositoryService
-from app.services.pattern_service import PatternService
-from app.services.ai_analysis_service import AIAnalysisService
-from app.services.analysis_service import AnalysisService
+from app.core.service_manager import (
+    get_repository_service,
+    get_pattern_service, 
+    get_ai_analysis_service,
+    get_analysis_service
+)
 from app.tasks.analysis_tasks import analyze_repository_background
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
 
+def convert_objectids_to_strings(obj):
+    """Recursively convert ObjectId fields to strings in dictionaries and lists"""
+    if isinstance(obj, dict):
+        return {key: convert_objectids_to_strings(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_objectids_to_strings(item) for item in obj]
+    elif isinstance(obj, ObjectId):
+        return str(obj)
+    else:
+        return obj
+
+
 def get_services():
-    """Get service instances with lazy initialization"""
-    repository_service = RepositoryService()
-    pattern_service = PatternService()
-    ai_analysis_service = AIAnalysisService()
-    analysis_service = AnalysisService()
-    return repository_service, pattern_service, ai_analysis_service, analysis_service
+    """Get service instances using centralized service manager"""
+    return (
+        get_repository_service(),
+        get_pattern_service(),
+        get_ai_analysis_service(), 
+        get_analysis_service()
+    )
 
 
 router = APIRouter(prefix="/api/repositories", tags=["Repositories"])
@@ -37,7 +53,9 @@ async def list_repositories():
     try:
         repository_service, _, _, _ = get_services()
         result = await repository_service.list_repositories()
-        return result.get("repositories", [])
+        repositories = result.get("repositories", [])
+        # Convert any ObjectIds to strings
+        return convert_objectids_to_strings(repositories)
     except Exception as e:
         logger.error(f"Failed to list repositories: {e}")
         raise HTTPException(status_code=500, detail="Failed to list repositories")
@@ -87,7 +105,8 @@ async def create_repository(
             20,
             repo_data.model_id,
         )
-        return repository.dict()
+        # Convert ObjectIds to strings before returning
+        return convert_objectids_to_strings(repository.dict())
     except Exception as e:
         logger.error(f"Failed to create repository: {e}")
         raise HTTPException(
@@ -103,7 +122,8 @@ async def get_repository(repo_id: str):
         repository = await repository_service.get_repository(repo_id)
         if not repository:
             raise HTTPException(status_code=404, detail="Repository not found")
-        return repository.dict()
+        # Convert ObjectIds to strings before returning
+        return convert_objectids_to_strings(repository.dict())
     except HTTPException:
         raise
     except Exception as e:
@@ -162,7 +182,7 @@ async def get_repository_analysis(repo_id: str):
         analysis_sessions = analysis.get("analysis_sessions", [])
         latest_session = analysis_sessions[0] if analysis_sessions else None
 
-        return {
+        response_data = {
             "repository_id": repo_id,
             "repository": analysis.get("repository", {}),
             "status": analysis.get("repository", {}).get("status", "unknown"),
@@ -196,6 +216,9 @@ async def get_repository_analysis(repo_id: str):
             },
             "timestamp": datetime.utcnow().isoformat(),
         }
+        
+        # Convert any ObjectIds to strings before returning
+        return convert_objectids_to_strings(response_data)
     except Exception as e:
         logger.error(f"Failed to get repository analysis for {repo_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to get repository analysis")
@@ -209,7 +232,7 @@ async def get_repository_patterns(repo_id: str, include_occurrences: bool = True
         data = await pattern_service.get_repository_patterns(
             repo_id, include_occurrences=include_occurrences
         )
-        return data
+        return convert_objectids_to_strings(data)
     except Exception as e:
         logger.error(f"Failed to get patterns for repository {repo_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to get repository patterns")
@@ -226,7 +249,7 @@ async def get_repository_timeline(repo_id: str):
         timeline_data = await pattern_service.get_pattern_timeline(repo_id)
         analysis = await repository_service.get_repository_analysis(repo_id)
         commits_summary = analysis.get("commits_summary", {})
-        return {
+        response_data = {
             "repository_id": repo_id,
             "timeline": timeline_data,
             "summary": {
@@ -242,6 +265,7 @@ async def get_repository_timeline(repo_id: str):
             },
             "timestamp": datetime.utcnow().isoformat(),
         }
+        return convert_objectids_to_strings(response_data)
     except HTTPException:
         raise
     except Exception as e:

@@ -23,14 +23,22 @@ class AnalysisService:
     """
 
     def __init__(self):
-        # set up git and AI backends
-        self.git = GitService()
-        self.ai = AIService()
+        # set up git and AI backends using service manager
+        from app.core.service_manager import (
+            get_git_service,
+            get_ai_service, 
+            get_repository_service,
+            get_pattern_service,
+            get_ai_analysis_service
+        )
+        
+        self.git = get_git_service()
+        self.ai = get_ai_service()
 
-        # Initialize MongoDB services
-        self.repository_service = RepositoryService()
-        self.pattern_service = PatternService()
-        self.ai_analysis_service = AIAnalysisService()
+        # Initialize MongoDB services using singletons
+        self.repository_service = get_repository_service()
+        self.pattern_service = get_pattern_service()
+        self.ai_analysis_service = get_ai_analysis_service()
 
         # mirror AI availability and clients
         status = self.ai.get_status()
@@ -230,8 +238,8 @@ class AnalysisService:
                 "name", repo_url.split("/")[-1].replace(".git", "")
             )
 
-            # Create or update repository
-            repository = await self.repository_service.create_repository(
+            # Get or create repository (handles existing repositories gracefully)
+            repository = await self.repository_service.get_or_create_repository(
                 url=repo_url,
                 name=repo_name,
                 description=repo_info.get("description"),

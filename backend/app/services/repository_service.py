@@ -9,6 +9,7 @@ repository management with comprehensive error handling and performance optimiza
 
 import logging
 import asyncio
+import json
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 from bson import ObjectId
@@ -98,6 +99,7 @@ class RepositoryService:
                 default_branch=branch,
                 status="created",
                 created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow(),
             )
 
             # Save to database
@@ -106,9 +108,17 @@ class RepositoryService:
             # Initialize analysis session
             await self._create_initial_analysis_session(saved_repo.id)
 
-            # Cache repository data
+            # Cache repository data (convert ObjectIds to strings for serialization)
             cache_key = f"repository:{saved_repo.id}"
-            await self.cache.set(cache_key, saved_repo.dict(), ttl=3600)
+            repo_dict = saved_repo.dict()
+            # Convert ObjectId to string for cache serialization
+            if 'id' in repo_dict:
+                repo_dict['id'] = str(repo_dict['id'])
+            # Ensure updated_at is set for new repositories
+            if repo_dict.get('updated_at') is None:
+                repo_dict['updated_at'] = datetime.utcnow().isoformat()
+            # Serialize to JSON string for cache storage
+            await self.cache.set(cache_key, json.dumps(repo_dict, default=str), ttl=3600)
 
             logger.info(f"✅ Created repository: {name} (ID: {saved_repo.id})")
             return saved_repo
@@ -119,6 +129,42 @@ class RepositoryService:
         except Exception as e:
             self._error_count += 1
             logger.error(f"❌ Failed to create repository {name}: {e}")
+            raise
+
+    async def get_or_create_repository(
+        self,
+        url: str,
+        name: str,
+        description: Optional[str] = None,
+        branch: str = "main",
+    ) -> Repository:
+        """
+        Get existing repository by URL or create a new one
+        
+        Args:
+            url: Repository URL
+            name: Repository name
+            description: Optional description
+            branch: Default branch name
+            
+        Returns:
+            Repository: Existing or newly created repository object
+        """
+        try:
+            self._operation_count += 1
+
+            # Check if repository already exists
+            existing = await self.engine.find_one(Repository, Repository.url == url)
+            if existing:
+                logger.info(f"✅ Found existing repository: {name} (ID: {existing.id})")
+                return existing
+
+            # Create new repository if it doesn't exist
+            return await self.create_repository(url, name, description, branch)
+
+        except Exception as e:
+            self._error_count += 1
+            logger.error(f"❌ Failed to get or create repository {name}: {e}")
             raise
 
     async def get_repository(self, repository_id: str) -> Optional[Repository]:
@@ -139,7 +185,9 @@ class RepositoryService:
             cached = await self.cache.get(cache_key)
             if cached:
                 logger.debug(f"📋 Cache hit for repository {repository_id}")
-                return Repository(**cached)
+                # Deserialize from JSON
+                cached_data = json.loads(cached) if isinstance(cached, str) else cached
+                return Repository(**cached_data)
 
             # Convert to ObjectId
             obj_id = ObjectId(repository_id)
@@ -147,7 +195,13 @@ class RepositoryService:
 
             if repository:
                 # Cache for future requests
-                await self.cache.set(cache_key, repository.dict(), ttl=3600)
+                repo_dict = repository.dict()
+                if 'id' in repo_dict:
+                    repo_dict['id'] = str(repo_dict['id'])
+                # Handle None updated_at for existing repositories
+                if repo_dict.get('updated_at') is None:
+                    repo_dict['updated_at'] = datetime.utcnow().isoformat()
+                await self.cache.set(cache_key, json.dumps(repo_dict, default=str), ttl=3600)
                 logger.debug(f"📊 Retrieved repository {repository_id} from database")
 
             return repository
@@ -248,7 +302,13 @@ class RepositoryService:
 
             # Update cache
             cache_key = f"repository:{repository_id}"
-            await self.cache.set(cache_key, repository.dict(), ttl=3600)
+            repo_dict = repository.dict()
+            if 'id' in repo_dict:
+                repo_dict['id'] = str(repo_dict['id'])
+            # Handle None updated_at for existing repositories  
+            if repo_dict.get('updated_at') is None:
+                repo_dict['updated_at'] = datetime.utcnow().isoformat()
+            await self.cache.set(cache_key, json.dumps(repo_dict, default=str), ttl=3600)
 
             logger.info(f"✅ Updated repository {repository_id} status to {status}")
             return True
@@ -511,7 +571,13 @@ class RepositoryService:
 
                 # Update cache
                 cache_key = f"repository:{repository_id}"
-                await self.cache.set(cache_key, repository.dict(), ttl=3600)
+                repo_dict = repository.dict()
+                if 'id' in repo_dict:
+                    repo_dict['id'] = str(repo_dict['id'])
+                # Handle None updated_at for existing repositories
+                if repo_dict.get('updated_at') is None:
+                    repo_dict['updated_at'] = datetime.utcnow().isoformat()
+                await self.cache.set(cache_key, json.dumps(repo_dict, default=str), ttl=3600)
 
         except Exception as e:
             logger.error(f"❌ Failed to update repository stats: {e}")

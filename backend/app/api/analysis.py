@@ -2,36 +2,25 @@ from fastapi import APIRouter, HTTPException
 from typing import Dict, Any, List
 import logging
 
-from app.services.ai_service import AIService
-from app.services.pattern_service import PatternService
-from app.services.ai_analysis_service import AIAnalysisService
-from app.services.repository_service import RepositoryService
+from app.core.service_manager import (
+    get_ai_service,
+    get_pattern_service, 
+    get_ai_analysis_service,
+    get_repository_service
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/analysis", tags=["Analysis"])
 
-# Global service instances (lazy initialized)
-_ai_service = None
-_pattern_service = None
-_ai_analysis_service = None
-_repository_service = None
-
-
 def get_services():
-    """Get or create service instances (lazy initialization)"""
-    global _ai_service, _pattern_service, _ai_analysis_service, _repository_service
-
-    if _ai_service is None:
-        _ai_service = AIService()
-    if _pattern_service is None:
-        _pattern_service = PatternService()
-    if _ai_analysis_service is None:
-        _ai_analysis_service = AIAnalysisService()
-    if _repository_service is None:
-        _repository_service = RepositoryService()
-
-    return _ai_service, _pattern_service, _ai_analysis_service, _repository_service
+    """Get service instances using centralized service manager"""
+    return (
+        get_ai_service(),
+        get_pattern_service(), 
+        get_ai_analysis_service(),
+        get_repository_service()
+    )
 
 
 @router.get("/status")

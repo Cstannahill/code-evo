@@ -317,6 +317,34 @@ async def get_model_statistics(model_name: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/models/{model_name}/estimate-cost")
+async def estimate_analysis_cost(model_name: str, request: Dict[str, str]):
+    """Estimate the cost of analyzing code with a specific model"""
+    try:
+        # Convert string to AIModel enum
+        try:
+            model = AIModel(model_name)
+        except ValueError:
+            raise HTTPException(
+                status_code=400, detail=f"Unsupported model: {model_name}"
+            )
+
+        code = request.get("code", "")
+        if not code:
+            raise HTTPException(status_code=400, detail="Code is required")
+
+        # Get cost estimation
+        cost_estimate = multi_ai_service.estimate_analysis_cost(code, model)
+        
+        return cost_estimate
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error estimating cost: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Helper functions
 def _calculate_comparison_metrics(results: List[AnalysisResult]) -> Dict:
     """Calculate comparison metrics between model results"""

@@ -1,48 +1,33 @@
-# ignore all “.env” files in any sub-directory
+# Environment files
 *.env
+.env
+.env.*
+!.env.example
 
-# (optional but recommended)
 # Node / CRA
 frontend/node_modules/
 frontend/build/
+node_modules/
 
 # Python
 backend/.venv/
 backend/__pycache__/
 backend/*.py[cod]
-node_modules
 venv/
-# Database files (added by cleanup script)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Database files
 backend/code_evolution.db
 backend/chroma_db/
 *.db
 *.sqlite
 *.sqlite3
 
-# Environment files with secrets
-.env
-.env.*
-!.env.example
-
-# Secret files
-*secret*
-*key*
-*token*
-*password*
-credentials/
-secrets/
-
-# Database files (added by cleanup script)
-backend/code_evolution.db
-backend/chroma_db/
-*.db
-*.sqlite
-*.sqlite3
-
-# Environment files with secrets
-.env
-.env.*
-!.env.example
+# Log files
+*.log
 
 # Secret files
 *secret*

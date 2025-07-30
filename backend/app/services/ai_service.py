@@ -5,8 +5,8 @@ import asyncio
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from langchain.llms import Ollama
-from langchain.embeddings import OllamaEmbeddings
+from langchain_community.llms import Ollama
+from langchain_community.embeddings import OllamaEmbeddings
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain.output_parsers import PydanticOutputParser, OutputFixingParser
@@ -341,12 +341,21 @@ class AIService:
                         "OLD CODE:\n```\n{old_code}\n```\n\n"
                         "NEW CODE:\n```\n{new_code}\n```\n\n"
                         "Context: {context}\n\n"
-                        "Analyze the evolution including:\n"
-                        "- How complexity changed (increased, decreased, stable)\n"
-                        "- New patterns introduced\n"
-                        "- Improvements observed\n"
-                        "- What this suggests about the developer's learning\n\n"
-                        "{format_instructions}"
+                        "Analyze the evolution and provide your response in the EXACT JSON format specified below:\n"
+                        "- complexity_change: Use ONLY 'increased', 'decreased', or 'stable'\n"
+                        "- new_patterns: List of specific pattern names (e.g., ['Observer Pattern', 'Factory Method'])\n"
+                        "- improvements: List of specific improvements observed (e.g., ['Better error handling', 'Cleaner code structure'])\n"
+                        "- learning_insights: Single string describing what this suggests about developer learning\n\n"
+                        "IMPORTANT: Respond with ONLY the JSON data, no explanations, no schema definitions, no markdown formatting.\n"
+                        "Do NOT include field descriptions or type information in your response.\n\n"
+                        "{format_instructions}\n\n"
+                        "Example response:\n"
+                        "{{\n"
+                        '  "complexity_change": "decreased",\n'
+                        '  "new_patterns": ["Error Handling Pattern", "Input Validation"],\n'
+                        '  "improvements": ["Better error messages", "More robust validation"],\n'
+                        '  "learning_insights": "Developer is showing improved defensive programming practices"\n'
+                        "}}"
                     ),
                 )
 
@@ -362,7 +371,37 @@ class AIService:
                     ),
                 )
 
-                evolution_analysis = fixing_parser.parse(result)
+                logger.debug(f"Raw evolution analysis result: {result}")
+
+                # Check if result looks like a schema instead of data
+                if "properties" in result.lower() or "type" in result.lower() and "object" in result.lower():
+                    logger.warning("AI returned schema definition instead of data, using fallback")
+                    raise ValueError("Invalid response format - schema returned instead of data")
+
+                try:
+                    evolution_analysis = fixing_parser.parse(result)
+                except Exception as parse_error:
+                    logger.error(f"Failed to parse evolution analysis: {parse_error}")
+                    logger.debug(f"Raw result that failed parsing: {result}")
+                    # Try basic fallback parsing
+                    try:
+                        # Try to extract JSON if present
+                        import re
+                        json_match = re.search(r'\{.*\}', result, re.DOTALL)
+                        if json_match:
+                            json_str = json_match.group()
+                            data = json.loads(json_str)
+                            evolution_analysis = EvolutionAnalysis(**data)
+                        else:
+                            raise parse_error
+                    except Exception:
+                        # Complete fallback
+                        evolution_analysis = EvolutionAnalysis(
+                            complexity_change="stable",
+                            new_patterns=[],
+                            improvements=["Analysis unavailable due to parsing error"],
+                            learning_insights="Unable to analyze evolution due to AI response format"
+                        )
 
                 return {
                     "complexity_change": evolution_analysis.complexity_change,
@@ -375,6 +414,7 @@ class AIService:
 
             except Exception as e:
                 logger.error(f"Evolution analysis error: {e}")
+                logger.debug(f"Full error details: {e.__class__.__name__}: {str(e)}")
 
         # Enhanced fallback analysis
         return {

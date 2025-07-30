@@ -84,11 +84,9 @@ class MongoDBConfig:
         """Validate MongoDB configuration settings"""
         errors: List[str] = []
 
-        if not self.connection_string:
-            errors.append("MONGODB_URL is required")
-
-        if not self.database_name:
-            errors.append("MONGODB_DATABASE is required")
+        # Only validate if connection_string is provided
+        if self.connection_string and not self.database_name:
+            errors.append("MONGODB_DATABASE is required when MONGODB_URL is provided")
 
         if self.max_pool_size < self.min_pool_size:
             errors.append("max_pool_size must be >= min_pool_size")

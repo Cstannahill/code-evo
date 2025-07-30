@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
-import { Dashboard } from "./components/features/Dashboard";
+import { useEffect, useState } from "react";
 import { apiClient } from "./api/client";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import ErrorBoundary from "./components/ErrorBoundary";
 // import LoggingDemo from "./components/LoggingDemo";
 import { useLogger } from "./hooks/useLogger";
 import { MultiAnalysisDashboard } from "./components/features/MultiAnalysisDashboard";
-import ModelDebugTest from "./components/ModelDebugTest";
+import { SimpleThemeToggle } from "./components/ui/ThemeToggle";
 
 function App() {
   const logger = useLogger("App");
@@ -15,9 +14,9 @@ function App() {
   >("checking");
   const [aiStatus, setAiStatus] = useState<
     | {
-        available: boolean;
-        model?: string;
-      }
+      available: boolean;
+      model?: string;
+    }
     | undefined
   >(undefined);
 
@@ -81,18 +80,21 @@ function App() {
                 </div>
               )}
             </div>
-            {backendStatus === "offline" && (
-              <span className="text-destructive">
-                Start backend: cd backend && python -m uvicorn app.main:app
-                --reload
-              </span>
-            )}
+            <div className="flex items-center gap-4">
+              <SimpleThemeToggle />
+              {backendStatus === "offline" && (
+                <span className="text-destructive">
+                  Start backend: cd backend && python -m uvicorn app.main:app
+                  --reload
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="pt-10">
+      <div className="pt-10 main-bg">
         <ErrorBoundary
           onError={(error, _errorInfo) => {
             logger.error("Application Error Boundary triggered", error);

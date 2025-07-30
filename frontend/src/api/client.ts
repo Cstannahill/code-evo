@@ -5,12 +5,6 @@ interface CreateRepositoryRequest {
   model_id?: string; // Add model selection support
 }
 
-interface MultiModelAnalysisRequest {
-  models: string[];
-  code: string;
-  language?: string;
-  repository_id?: string;
-}
 
 // Enhanced API client with model selection
 export class ApiClient {
@@ -120,14 +114,6 @@ export class ApiClient {
     }
   }
 
-  private trackMultiModelComparison(models: string[]) {
-    if (typeof gtag !== "undefined") {
-      gtag("event", "multi_model_comparison", {
-        models: models.join(","),
-        model_count: models.length,
-      });
-    }
-  }
 
   // Existing methods...
   async getRepositories() {
@@ -150,6 +136,13 @@ export class ApiClient {
   async getRepositoryPatterns(id: string, includeOccurrences = true) {
     const response = await fetch(
       `${this.baseUrl}/api/repositories/${id}/patterns?include_occurrences=${includeOccurrences}`
+    );
+    return response.json();
+  }
+
+  async getInsights(repositoryId: string) {
+    const response = await fetch(
+      `${this.baseUrl}/api/repositories/${repositoryId}/insights`
     );
     return response.json();
   }

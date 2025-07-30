@@ -118,6 +118,7 @@ class PatternService:
         model_confidence: Optional[float] = None,
         processing_time_ms: Optional[int] = None,
         token_usage: Optional[Dict[str, Any]] = None,
+        ai_analysis_metadata: Optional[Dict[str, Any]] = None,
     ) -> PatternOccurrence:
         """
         Add a pattern occurrence with comprehensive metadata
@@ -134,6 +135,7 @@ class PatternService:
             model_confidence: AI model confidence score
             processing_time_ms: Processing time in milliseconds
             token_usage: Token usage information
+            ai_analysis_metadata: Additional AI analysis metadata
 
         Returns:
             PatternOccurrence: Created pattern occurrence
@@ -157,6 +159,7 @@ class PatternService:
                 model_confidence=model_confidence,
                 processing_time_ms=processing_time_ms,
                 token_usage=token_usage,
+                ai_analysis_metadata=ai_analysis_metadata,
             )
 
             saved_occurrence = await self.engine.save(occurrence)
@@ -396,7 +399,7 @@ class PatternService:
 
             # Get occurrences in date range
             occurrences = await self.engine.find(
-                PatternOccurrence, *conditions, sort=[("detected_at", 1)]
+                PatternOccurrence, *conditions, sort=PatternOccurrence.detected_at.asc()
             )
 
             # Group by date and pattern
@@ -766,7 +769,7 @@ class PatternService:
             occurrence_count = await self.engine.count(PatternOccurrence)
 
             return {
-                "status": "healthy" if db_health["status"] == "healthy" else "degraded",
+                "status": "healthy" if db_health.get("is_connected", False) and db_health.get("ping_success", False) else "degraded",
                 "database": db_health,
                 "metrics": {
                     "total_operations": self._operation_count,

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from contextlib import asynccontextmanager
 import logging
 from rich.logging import RichHandler
@@ -7,6 +8,8 @@ import sys
 import asyncio
 from datetime import datetime
 import traceback
+import json
+from bson import ObjectId
 from app.models.repository import (
     RepositorySQL,
     CommitSQL,
@@ -46,6 +49,26 @@ logger = logging.getLogger("code_evolution_tracker")
 
 # Global set to track background tasks
 background_tasks = set()
+
+
+# Custom JSON encoder for MongoDB ObjectId
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, ObjectId):
+            return str(obj)
+        return super().default(obj)
+
+
+# Custom JSON response that handles ObjectId
+def custom_jsonable_encoder(obj, **kwargs):
+    if isinstance(obj, dict):
+        return {key: custom_jsonable_encoder(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [custom_jsonable_encoder(item) for item in obj]
+    elif isinstance(obj, ObjectId):
+        return str(obj)
+    else:
+        return jsonable_encoder(obj, **kwargs)
 
 
 def track_background_task(task):

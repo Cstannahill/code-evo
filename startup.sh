@@ -9,16 +9,17 @@ docker-compose up -d
 # Wait for Chroma or DBs to initialize
 sleep 10
 
-# Navigate to backend and start the API
+# Start frontend first
+cd frontend
+pnpm dev &
+FRONTEND_PID=$!
+cd ..
+
+# Start backend
 cd backend
 uvicorn app.main:app --port 8080 &
 BACKEND_PID=$!
+cd ..
 
-# Wait a moment and start frontend
-cd ../frontend
-pnpm dev &
-
-# Optional: wait for background processes (or just let user ctrl+c)
+# Optional: wait for backend process (or both)
 wait $BACKEND_PID
-
-

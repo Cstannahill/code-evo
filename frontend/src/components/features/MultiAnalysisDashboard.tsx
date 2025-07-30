@@ -23,7 +23,7 @@ import {
 import { AnalysisDashboard } from "./AnalysisDashboard";
 import { ModelSelection } from "../ai/ModelSelection";
 import { ModelComparisonDashboard } from "../ai/ModelComparisonDashboard";
-import { defaultModels, type AIModel } from "../../types/ai";
+import type { AIModel } from "../../types/ai";
 import type { RepositoryCreateRequest } from "../../types/api";
 import { useModelAvailability } from "../../hooks/useModelAvailability";
 import { apiClient } from "../../api/client";
@@ -38,7 +38,6 @@ const ModelSelect: React.FC<{
   onModelChange: (id: string) => void;
   disabled?: boolean;
 }> = ({ models, selectedModelId, onModelChange, disabled }) => {
-  const selectedModel = models.find((m) => m.id === selectedModelId);
 
   return (
     <Select.Root
@@ -65,7 +64,7 @@ const ModelSelect: React.FC<{
           <Select.Viewport className="p-1">
             {/* Local Models */}
             <Select.Group>
-              <Select.Label className="px-6 py-1.5 text-xs font-medium text-ctan-gold">
+              <Select.Label className="px-6 py-1.5 text-xs font-medium">
                 Local Models (Free)
               </Select.Label>
               {models
@@ -148,7 +147,7 @@ export const MultiAnalysisDashboard: React.FC = () => {
   const [isComparing, setIsComparing] = useState(false);
 
   const createRepo = useCreateRepository();
-  const { data: selectedRepo, isLoading: repoLoading } =
+  const { data: selectedRepo } =
     useRepository(selectedRepoId);
   const { data: repositories = [] } = useRepositories();
   const availableModels = useModelAvailability();
@@ -387,7 +386,7 @@ export const MultiAnalysisDashboard: React.FC = () => {
                   <ModelSelection
                     selectedModels={selectedModels}
                     onModelToggle={handleModelToggle}
-                    onAnalyze={() => {}}
+                    onAnalyze={() => { }}
                     maxModels={4}
                     analysisType="comparison"
                     loading={isComparing}
@@ -450,9 +449,8 @@ export const MultiAnalysisDashboard: React.FC = () => {
                     variant={selectedRepoId === repo.id ? "default" : "outline"}
                     size="sm"
                     onClick={() => setSelectedRepoId(repo.id)}
-                    className={`repo-button text-xs ${
-                      selectedRepoId === repo.id ? "active" : ""
-                    }`}
+                    className={`repo-button text-xs ${selectedRepoId === repo.id ? "active" : ""
+                      }`}
                   >
                     {repo.name}
                     {repo.status === "analyzing" && (

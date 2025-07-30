@@ -16,7 +16,7 @@ interface PatternTimelineProps {
   data: Array<{
     date: string;
     patterns: Record<string, number>;
-  }>;
+  }> | any;
   height?: number;
 }
 
@@ -44,22 +44,42 @@ export const PatternTimeline: React.FC<PatternTimelineProps> = ({
   data,
   height = 400,
 }) => {
+  // Normalize data to ensure it's an array
+  const normalizedData = React.useMemo(() => {
+    if (!data) return [];
+    
+    // If data has a timeline property, use that
+    if (data.timeline && Array.isArray(data.timeline)) {
+      return data.timeline;
+    }
+    
+    // If data is already an array, use it directly
+    if (Array.isArray(data)) {
+      return data;
+    }
+    
+    // Otherwise return empty array
+    return [];
+  }, [data]);
+
   // Extract all unique pattern names
   const patternNames = React.useMemo(() => {
     const names = new Set<string>();
-    data.forEach((item) => {
-      Object.keys(item.patterns).forEach((pattern) => names.add(pattern));
+    normalizedData.forEach((item) => {
+      if (item && item.patterns && typeof item.patterns === 'object') {
+        Object.keys(item.patterns).forEach((pattern) => names.add(pattern));
+      }
     });
     return Array.from(names);
-  }, [data]);
+  }, [normalizedData]);
 
   // Transform data for recharts - flatten the nested patterns object
   const chartData = React.useMemo(() => {
-    return data.map((item) => ({
+    return normalizedData.map((item) => ({
       date: item.date,
       ...item.patterns, // Spread patterns directly into the data object
     }));
-  }, [data]);
+  }, [normalizedData]);
 
   const colors = [
     "#3b82f6",
@@ -71,6 +91,25 @@ export const PatternTimeline: React.FC<PatternTimelineProps> = ({
     "#ec4899",
     "#84cc16",
   ];
+
+  // Show empty state if no data
+  if (normalizedData.length === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="w-full flex items-center justify-center"
+        style={{ height }}
+      >
+        <div className="text-center text-muted-foreground">
+          <div className="text-4xl mb-2">📊</div>
+          <p>No timeline data available</p>
+          <p className="text-sm mt-1">Pattern timeline will appear after analysis</p>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
