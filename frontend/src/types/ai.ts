@@ -15,18 +15,31 @@ const defaultModels: AIModel[] = [
     usage_count: 0,
   },
   {
-    id: "codellama-13b-001",
-    name: "codellama:13b",
-    display_name: "CodeLlama 13B",
+    id: "devstral-001",
+    name: "devstral",
+    display_name: "Devstral",
     provider: "Ollama (Local)",
     model_type: "code_analysis",
-    context_window: 16384,
+    context_window: 128000,
     cost_per_1k_tokens: 0.0,
     strengths: [
       "Better reasoning",
       "Complex pattern detection",
       "Architectural insights",
     ],
+    is_available: false, // Will be set to true when detected
+    created_at: new Date().toISOString(),
+    usage_count: 0,
+  },
+  {
+    id: "gemma3n-001",
+    name: "gemma3n",
+    display_name: "Gemma 3n",
+    provider: "Ollama (Local)",
+    model_type: "code_analysis",
+    context_window: 32000,
+    cost_per_1k_tokens: 0.0,
+    strengths: ["Google's code model", "Good performance", "Open source"],
     is_available: false, // Will be set to true when detected
     created_at: new Date().toISOString(),
     usage_count: 0,
@@ -49,9 +62,9 @@ const defaultModels: AIModel[] = [
     usage_count: 0,
   },
   {
-    id: "claude-3-sonnet-001",
-    name: "claude-3-sonnet", // Example name, adjust if different
-    display_name: "Claude 3 Sonnet",
+    id: "claude-3.7-sonnet-001",
+    name: "claude-3.7-sonnet", // Example name, adjust if different
+    display_name: "Claude 3.7 Sonnet",
     provider: "Anthropic",
     model_type: "general",
     context_window: 200000,

@@ -24,8 +24,15 @@ from app.models.repository import (
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/multi-model", tags=["Multi-Model Analysis"])
 
-# Initialize multi-model service
-multi_ai_service = MultiModelAIService()
+# Multi-model service will be initialized lazily
+multi_ai_service = None
+
+def get_multi_ai_service():
+    """Get or create multi-model AI service instance"""
+    global multi_ai_service
+    if multi_ai_service is None:
+        multi_ai_service = MultiModelAIService()
+    return multi_ai_service
 
 
 def generate_uuid() -> str:
@@ -62,7 +69,7 @@ class ModelComparisonResponse(BaseModel):
 async def get_available_models():
     """Get all available AI models with their capabilities"""
     try:
-        models = multi_ai_service.get_available_models()
+        models = get_multi_ai_service().get_available_models()
 
         return {
             "available_models": models,
@@ -106,11 +113,11 @@ async def analyze_with_single_model(
             )
 
         # Perform analysis
-        result = await multi_ai_service.analyze_with_model(
+        result = await get_multi_ai_service().analyze_with_model(
             request.code, request.language, model
         )
 
-        model_info = multi_ai_service.available_models.get(model)
+        model_info = get_multi_ai_service().available_models.get(model)
 
         return {
             "model": model.value,
@@ -162,7 +169,7 @@ async def compare_multiple_models(
             )
 
         # Perform parallel analysis with all models
-        results = await multi_ai_service.compare_models(
+        results = await get_multi_ai_service().compare_models(
             request.code, request.language, models
         )
 
@@ -176,11 +183,11 @@ async def compare_multiple_models(
                 {
                     "model": result.model.value,
                     "model_info": {
-                        "name": multi_ai_service.available_models[result.model].name,
-                        "provider": multi_ai_service.available_models[
+                        "name": get_multi_ai_service().available_models[result.model].name,
+                        "provider": get_multi_ai_service().available_models[
                             result.model
                         ].provider,
-                        "strengths": multi_ai_service.available_models[
+                        "strengths": get_multi_ai_service().available_models[
                             result.model
                         ].strengths,
                     },
@@ -230,7 +237,7 @@ async def analyze_repository_with_multiple_models(
             raise HTTPException(status_code=400, detail="No valid models specified")
 
         # Run parallel analysis with multiple models
-        results = await multi_ai_service.analyze_repository_parallel(
+        results = await get_multi_ai_service().analyze_repository_parallel(
             repository_id, models
         )
 
@@ -334,7 +341,7 @@ async def estimate_analysis_cost(model_name: str, request: Dict[str, str]):
             raise HTTPException(status_code=400, detail="Code is required")
 
         # Get cost estimation
-        cost_estimate = multi_ai_service.estimate_analysis_cost(code, model)
+        cost_estimate = get_multi_ai_service().estimate_analysis_cost(code, model)
         
         return cost_estimate
 
@@ -399,10 +406,10 @@ def _calculate_comparison_metrics(results: List[AnalysisResult]) -> Dict:
     costs = {}
 
     for r in results:
-        if r.token_usage and r.model in multi_ai_service.available_models:
+        if r.token_usage and r.model in get_multi_ai_service().available_models:
             cost = (
                 r.token_usage.get("total_tokens", 0)
-                * multi_ai_service.available_models[r.model].cost_per_1k_tokens
+                * get_multi_ai_service().available_models[r.model].cost_per_1k_tokens
                 / 1000
             )
             costs[r.model.value] = cost

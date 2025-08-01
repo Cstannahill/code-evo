@@ -138,7 +138,7 @@ class SecurityAnalyzer:
                     r"(?i)(password|secret|key|token|api_key)\s*=\s*['\"][^'\"]{8,}['\"]",
                     r"(?i)(aws_access_key|aws_secret|github_token)\s*=\s*['\"][^'\"]+['\"]",
                     r"(?i)conn\s*=.*password\s*=\s*['\"][^'\"]+['\"]",
-                    r"['\"][A-Za-z0-9]{20,}['\"].*(?i)(key|secret|token)",
+                    r"(?i)['\"][A-Za-z0-9]{20,}['\"].*(key|secret|token)",
                     r"(?i)private_key\s*=\s*['\"]-----BEGIN"
                 ],
                 "severity": SecuritySeverity.CRITICAL,

@@ -119,6 +119,7 @@ class PatternService:
         processing_time_ms: Optional[int] = None,
         token_usage: Optional[Dict[str, Any]] = None,
         ai_analysis_metadata: Optional[Dict[str, Any]] = None,
+        detected_at: Optional[datetime] = None,
     ) -> PatternOccurrence:
         """
         Add a pattern occurrence with comprehensive metadata
@@ -160,6 +161,7 @@ class PatternService:
                 processing_time_ms=processing_time_ms,
                 token_usage=token_usage,
                 ai_analysis_metadata=ai_analysis_metadata,
+                detected_at=detected_at,
             )
 
             saved_occurrence = await self.engine.save(occurrence)
@@ -790,7 +792,8 @@ class PatternService:
             }
 
 
-# Convenience function for getting service instance
+# Convenience function for getting service instance  
 async def get_pattern_service() -> PatternService:
     """Get pattern service instance"""
-    return PatternService()
+    from app.core.service_manager import get_pattern_service as get_singleton
+    return get_singleton()

@@ -183,7 +183,11 @@ class AnalysisCacheService:
         if self.redis_client:
             try:
                 redis_key = f"analysis_cache:{cache_key}"
-                cached_data = await self.redis_client.get(redis_key)
+                # Handle both sync and async Redis clients
+                if hasattr(self.redis_client, 'get') and asyncio.iscoroutinefunction(self.redis_client.get):
+                    cached_data = await self.redis_client.get(redis_key)
+                else:
+                    cached_data = self.redis_client.get(redis_key)
                 
                 if cached_data:
                     try:
@@ -244,8 +248,11 @@ class AnalysisCacheService:
                 serialized = pickle.dumps(value)
                 compressed = gzip.compress(serialized).decode('latin1')
                 
-                # Store with TTL
-                await self.redis_client.setex(redis_key, ttl_seconds, compressed)
+                # Store with TTL - handle both sync and async Redis clients
+                if hasattr(self.redis_client, 'setex') and asyncio.iscoroutinefunction(self.redis_client.setex):
+                    await self.redis_client.setex(redis_key, ttl_seconds, compressed)
+                else:
+                    self.redis_client.setex(redis_key, ttl_seconds, compressed)
                 
                 logger.debug(f"Cache SET (redis): {cache_key}")
                 
@@ -337,9 +344,18 @@ class AnalysisCacheService:
                 
                 # Note: This is a simplified implementation
                 # In production, consider using Redis SCAN for large datasets
-                keys = await self.redis_client.keys(redis_pattern)
-                if keys:
-                    await self.redis_client.delete(*keys)
+                # Handle both sync and async Redis clients
+                if hasattr(self.redis_client, 'keys') and asyncio.iscoroutinefunction(self.redis_client.keys):
+                    keys = await self.redis_client.keys(redis_pattern)
+                    if keys:
+                        if hasattr(self.redis_client, 'delete') and asyncio.iscoroutinefunction(self.redis_client.delete):
+                            await self.redis_client.delete(*keys)
+                        else:
+                            self.redis_client.delete(*keys)
+                else:
+                    keys = self.redis_client.keys(redis_pattern)
+                    if keys:
+                        self.redis_client.delete(*keys)
                     
             except Exception as e:
                 logger.warning(f"Redis cache invalidation failed: {e}")

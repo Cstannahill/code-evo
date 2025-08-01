@@ -717,7 +717,8 @@ class RepositoryServiceManager:
         self.service = None
 
     async def __aenter__(self) -> RepositoryService:
-        self.service = RepositoryService()
+        from app.core.service_manager import get_repository_service
+        self.service = get_repository_service()
         logger.info("🚀 Repository service started")
         return self.service
 
@@ -733,4 +734,5 @@ class RepositoryServiceManager:
 # Convenience function for getting service instance
 async def get_repository_service() -> RepositoryService:
     """Get repository service instance"""
-    return RepositoryService()
+    from app.core.service_manager import get_repository_service as get_singleton
+    return get_singleton()

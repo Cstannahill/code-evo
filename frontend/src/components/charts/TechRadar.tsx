@@ -13,10 +13,13 @@ import { motion } from "framer-motion";
 
 interface TechnologyRadarProps {
   technologies: {
-    language: Technology[];
-    framework: Technology[];
-    library: Technology[];
-    tool: Technology[];
+    language?: Technology[];
+    framework?: Technology[];
+    library?: Technology[];
+    tool?: Technology[];
+    database?: Technology[];
+    platform?: Technology[];
+    other?: Technology[];
   };
 }
 
@@ -24,18 +27,23 @@ export const TechnologyRadar: React.FC<TechnologyRadarProps> = ({
   technologies,
 }) => {
   const data = React.useMemo(() => {
-    const categories = ["Languages", "Frameworks", "Libraries", "Tools"];
-    return categories.map((category) => {
-      const key = category
-        .toLowerCase()
-        .slice(0, -1) as keyof typeof technologies;
-      const techs = technologies[key] || [];
+    const categoryMap = {
+      "Languages": "language",
+      "Frameworks": "framework", 
+      "Libraries": "library",
+      "Tools": "tool",
+      "Databases": "database",
+      "Platforms": "platform"
+    };
+    
+    return Object.entries(categoryMap).map(([displayName, key]) => {
+      const techs = technologies[key as keyof typeof technologies] || [];
       return {
-        category,
+        category: displayName,
         count: techs.length,
-        usage: techs.reduce((sum, t) => sum + t.usage_count, 0),
+        usage: techs.reduce((sum, t) => sum + (t.usage_count || 0), 0),
       };
-    });
+    }).filter(item => item.count > 0 || item.usage > 0);
   }, [technologies]);
 
   return (

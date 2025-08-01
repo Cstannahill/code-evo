@@ -18,6 +18,7 @@ interface PatternTimelineProps {
     patterns: Record<string, number>;
   }> | any;
   height?: number;
+  topPatterns?: string[];
 }
 
 const CustomTooltip = ({
@@ -43,6 +44,7 @@ const CustomTooltip = ({
 export const PatternTimeline: React.FC<PatternTimelineProps> = ({
   data,
   height = 400,
+  topPatterns,
 }) => {
   // Normalize data to ensure it's an array with better debugging
   const normalizedData = React.useMemo(() => {
@@ -73,8 +75,11 @@ export const PatternTimeline: React.FC<PatternTimelineProps> = ({
     return [];
   }, [data]);
 
-  // Extract all unique pattern names with better error handling
+  // Extract all unique pattern names, or use topPatterns if provided
   const patternNames = React.useMemo(() => {
+    if (topPatterns && Array.isArray(topPatterns) && topPatterns.length > 0) {
+      return topPatterns;
+    }
     const names = new Set<string>();
     normalizedData.forEach((item: { date: string; patterns: Record<string, number> }) => {
       if (item && item.patterns && typeof item.patterns === 'object') {
@@ -84,7 +89,7 @@ export const PatternTimeline: React.FC<PatternTimelineProps> = ({
     const patternArray = Array.from(names);
     console.log("PatternTimeline: Extracted pattern names", patternArray);
     return patternArray;
-  }, [normalizedData]);
+  }, [normalizedData, topPatterns]);
 
   // Transform data for recharts - flatten the nested patterns object
   const chartData = React.useMemo(() => {

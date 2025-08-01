@@ -3,11 +3,16 @@ import os
 import json
 import logging
 import asyncio
+import requests
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from enum import Enum
 from dataclasses import dataclass
-from langchain.llms import Ollama
+try:
+    from langchain_ollama import OllamaLLM
+except ImportError:
+    OllamaLLM = None
+from langchain_community.llms import Ollama
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +57,8 @@ class AIModel(str, Enum):
     """Supported AI models for code analysis"""
 
     CODELLAMA_7B = "codellama:7b"
-    CODELLAMA_13B = "codellama:13b"
-    CODEGEMMA_7B = "codegemma:7b"
+    DEVSTRAL = "devstral"
+    GEMMA3N = "gemma3n"
     OPENAI_GPT4 = "gpt-4"
     OPENAI_GPT35_TURBO = "gpt-3.5-turbo"
     OPENAI_GPT4_1_MINI = "gpt-4.1-mini"
@@ -61,7 +66,7 @@ class AIModel(str, Enum):
     OPENAI_GPT4O_MINI = "gpt-4o-mini"
     OPENAI_O4_MINI = "o4-mini"
     OPENAI_O3_MINI = "o3-mini"
-    CLAUDE_SONNET = "claude-3-sonnet"
+    CLAUDE_SONNET = "claude-3-7-sonnet-20250219"
 
 
 @dataclass
@@ -115,7 +120,24 @@ class MultiModelAIService:
         logger.info(f"✅ Initialized {len(self.available_models)} AI models")
 
     def _init_ollama_models(self):
-        """Initialize Ollama local models"""
+        """Initialize Ollama local models with fast startup"""
+        logger.info("🔄 Initializing Ollama models...")
+        
+        # Quick availability check
+        try:
+            response = requests.get("http://127.0.0.1:11434/api/tags", timeout=3)
+            if response.status_code != 200:
+                logger.warning("❌ Ollama service not available, skipping all Ollama models")
+                return
+            
+            available_models_data = response.json().get("models", [])
+            available_model_names = [m["name"].split(":")[0] for m in available_models_data]
+            logger.info(f"📋 Found {len(available_model_names)} Ollama models: {available_model_names}")
+            
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"❌ Cannot connect to Ollama: {e}, skipping all Ollama models")
+            return
+
         ollama_models = [
             (
                 AIModel.CODELLAMA_7B,
@@ -123,8 +145,8 @@ class MultiModelAIService:
                 ["Fast inference", "Good for basic patterns", "Privacy-focused"],
             ),
             (
-                AIModel.CODELLAMA_13B,
-                "CodeLlama 13B",
+                AIModel.DEVSTRAL,
+                "devstral",
                 [
                     "Better reasoning",
                     "Complex pattern detection",
@@ -132,28 +154,36 @@ class MultiModelAIService:
                 ],
             ),
             (
-                AIModel.CODEGEMMA_7B,
-                "CodeGemma 7B",
+                AIModel.GEMMA3N,
+                "gemma3n",
                 ["Google's code model", "Good performance", "Open source"],
             ),
         ]
 
         for model_enum, display_name, strengths in ollama_models:
             try:
-                client = Ollama(model=model_enum.value, temperature=0.1)
-                # Test connection with a simple prompt
-                test_response = client("Hello")
-                if test_response:
-                    self.model_clients[model_enum] = client
-                    self.available_models[model_enum] = ModelInfo(
-                        name=display_name,
-                        provider="Ollama (Local)",
-                        context_window=16384,
-                        cost_per_1k_tokens=0.0,  # Free local
-                        strengths=strengths,
-                        available=True,
-                    )
-                    logger.info(f"✅ {display_name} initialized")
+                # Check if this specific model is downloaded
+                if model_enum.value not in available_model_names:
+                    logger.info(f"⏭️ {display_name} not downloaded, skipping initialization")
+                    continue
+
+                # Initialize client without testing (lazy loading for fast startup)
+                if OllamaLLM is not None:
+                    client = OllamaLLM(model=model_enum.value, temperature=0.1)
+                else:
+                    client = Ollama(model=model_enum.value, temperature=0.1)
+                
+                self.model_clients[model_enum] = client
+                self.available_models[model_enum] = ModelInfo(
+                    name=display_name,
+                    provider="Ollama (Local)",
+                    context_window=16384,
+                    cost_per_1k_tokens=0.0,  # Free local
+                    strengths=strengths,
+                    available=True,
+                )
+                logger.info(f"✅ {display_name} initialized (lazy loading)")
+                
             except Exception as e:
                 logger.warning(f"❌ {display_name} not available: {e}")
 
@@ -284,15 +314,20 @@ class MultiModelAIService:
         """Get all available models with their info"""
         return {
             model.value: {
-                "name": info.name,
+                "id": model.value,  # Add the model ID that frontend expects
+                "name": model.value,  # Use model.value as the technical name
+                "display_name": info.name,  # Use info.name as the display name
                 "provider": info.provider,
                 "context_window": info.context_window,
                 "cost_per_1k_tokens": info.cost_per_1k_tokens,
                 "strengths": info.strengths,
                 "available": info.available,
-                "display_name": info.name,  # Add display_name for frontend compatibility
+                "is_available": info.available,  # Frontend expects is_available
                 "cost_tier": self._get_cost_tier(info.cost_per_1k_tokens),
                 "is_free": info.cost_per_1k_tokens == 0.0,
+                "model_type": "code_analysis",  # Default model type
+                "created_at": "2024-01-01T00:00:00.000Z",  # Default timestamp
+                "usage_count": 0,  # Default usage count
             }
             for model, info in self.available_models.items()
             if info.available
@@ -362,7 +397,7 @@ class MultiModelAIService:
         }
 
     async def analyze_with_model(
-        self, code: str, language: str, model: AIModel
+        self, code: str, language: str, model: AIModel, **kwargs
     ) -> AnalysisResult:
         """Analyze code with a specific model"""
         start_time = asyncio.get_event_loop().time()
@@ -386,10 +421,10 @@ class MultiModelAIService:
             # Route to appropriate analysis method
             if model in [
                 AIModel.CODELLAMA_7B,
-                AIModel.CODELLAMA_13B,
-                AIModel.CODEGEMMA_7B,
+                AIModel.DEVSTRAL,
+                AIModel.GEMMA3N,
             ]:
-                result = await self._analyze_with_ollama(code, language, model)
+                result = await self._analyze_with_ollama(code, language, model, **kwargs)
             elif model in [
                 AIModel.OPENAI_GPT4, 
                 AIModel.OPENAI_GPT35_TURBO,
@@ -399,9 +434,9 @@ class MultiModelAIService:
                 AIModel.OPENAI_O4_MINI,
                 AIModel.OPENAI_O3_MINI,
             ]:
-                result = await self._analyze_with_openai(code, language, model)
+                result = await self._analyze_with_openai(code, language, model, **kwargs)
             elif model == AIModel.CLAUDE_SONNET:
-                result = await self._analyze_with_claude(code, language, model)
+                result = await self._analyze_with_claude(code, language, model, **kwargs)
             else:
                 raise ValueError(f"Unsupported model: {model}")
 
@@ -558,7 +593,7 @@ class MultiModelAIService:
             }
 
     async def _analyze_with_ollama(
-        self, code: str, language: str, model: AIModel
+        self, code: str, language: str, model: AIModel, **kwargs
     ) -> AnalysisResult:
         """Analyze with Ollama models"""
         client = self.model_clients[model]
@@ -584,7 +619,7 @@ class MultiModelAIService:
 
         try:
             response = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: client(prompt)
+                None, lambda: client.invoke(prompt)
             )
 
             # Parse JSON response (with robust fallback)
@@ -613,7 +648,7 @@ class MultiModelAIService:
             )
 
     async def _analyze_with_openai(
-        self, code: str, language: str, model: AIModel
+        self, code: str, language: str, model: AIModel, **kwargs
     ) -> AnalysisResult:
         """Analyze with OpenAI models - Updated for current API"""
         try:
@@ -622,36 +657,46 @@ class MultiModelAIService:
 
             client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-            response = client.chat.completions.create(
-                model=model.value,
-                messages=[
+            # Prepare API call parameters
+            api_params = {
+                "model": model.value,
+                "messages": [
                     {
                         "role": "system",
-                        "content": "You are an expert code analyzer. Respond only with valid JSON.",
+                        "content": "You are an expert code analyzer. You MUST respond with ONLY valid JSON. No explanations, no text outside JSON. ONLY JSON."
                     },
                     {
                         "role": "user",
-                        "content": f"""
-                        Analyze this {language} code and return JSON:
-                        
-                        ```{language}
-                        {code[:2000]}
-                        ```
-                        
-                        Return only this JSON format:
-                        {{
-                            "patterns": ["list of programming patterns"],
-                            "complexity_score": 1-10,
-                            "skill_level": "beginner|intermediate|advanced", 
-                            "suggestions": ["improvement suggestions"],
-                            "confidence": 0-1
-                        }}
-                        """,
+                        "content": f"""Analyze this {language} code. Respond with ONLY this JSON format (no additional text):
+
+```{language}
+{code[:2000]}
+```
+
+{{
+    "patterns": ["list of programming patterns found"],
+    "complexity_score": 5.5,
+    "skill_level": "intermediate", 
+    "suggestions": ["specific improvement suggestions"],
+    "confidence": 0.8
+}}"""
                     },
                 ],
-                temperature=0.1,
-                max_tokens=1000,
-            )
+            }
+            
+            # Add temperature for models that support it (exclude o3/o4 models)
+            if not any(x in model.value for x in ["o3-mini", "o4-mini", "o3", "o4"]):
+                api_params["temperature"] = 0.1
+            
+            # Add token limit parameters from kwargs
+            if "max_tokens" in kwargs:
+                api_params["max_tokens"] = kwargs["max_tokens"]
+            elif "max_completion_tokens" in kwargs:
+                api_params["max_completion_tokens"] = kwargs["max_completion_tokens"]
+            else:
+                api_params["max_tokens"] = 1000  # Default fallback
+            
+            response = client.chat.completions.create(**api_params)
 
             content = response.choices[0].message.content
             data = self._parse_response_json(content)
@@ -663,6 +708,7 @@ class MultiModelAIService:
                 skill_level=data.get("skill_level", "intermediate"),
                 suggestions=data.get("suggestions", []),
                 confidence=float(data.get("confidence", 0.8)),
+                processing_time=0.0,  # Will be set by caller
                 token_usage={
                     "prompt_tokens": response.usage.prompt_tokens,
                     "completion_tokens": response.usage.completion_tokens,
@@ -678,11 +724,12 @@ class MultiModelAIService:
                 skill_level="intermediate",
                 suggestions=[f"OpenAI API error: {str(e)}"],
                 confidence=0.3,
+                processing_time=0.0,
                 error=str(e),
             )
 
     async def _analyze_with_claude(
-        self, code: str, language: str, model: AIModel
+        self, code: str, language: str, model: AIModel, **kwargs
     ) -> AnalysisResult:
         """Analyze with Anthropic Claude"""
         try:
@@ -691,7 +738,7 @@ class MultiModelAIService:
             client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
             message = client.messages.create(
-                model="claude-3-sonnet-20240229",
+                model="claude-3-7-sonnet-20250219",
                 max_tokens=1000,
                 temperature=0.1,
                 messages=[
@@ -727,6 +774,7 @@ class MultiModelAIService:
                 skill_level=data.get("skill_level", "intermediate"),
                 suggestions=data.get("suggestions", []),
                 confidence=float(data.get("confidence", 0.85)),
+                processing_time=0.0,  # Will be set by caller
                 token_usage={
                     "input_tokens": message.usage.input_tokens,
                     "output_tokens": message.usage.output_tokens,
@@ -743,6 +791,7 @@ class MultiModelAIService:
                 skill_level="intermediate",
                 suggestions=[f"Claude API error: {str(e)}"],
                 confidence=0.3,
+                processing_time=0.0,
                 error=str(e),
             )
 

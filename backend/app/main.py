@@ -10,6 +10,7 @@ from datetime import datetime
 import traceback
 import json
 from bson import ObjectId
+import os
 from app.models.repository import (
     RepositorySQL,
     CommitSQL,
@@ -80,50 +81,72 @@ def track_background_task(task):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle with proper task cleanup"""
-    logger.info("🚀 Starting Code Evolution Tracker Backend...")
+    logger.info("🚀 [LIFESPAN] Starting Code Evolution Tracker Backend... (PID: %s)", str(os.getpid()))
+    startup_time = datetime.utcnow().isoformat()
+    logger.info(f"[LIFESPAN] Startup initiated at {startup_time}")
 
     try:
         # Initialize database
-        create_tables()
-        db_info = get_db_info()
-        logger.info(f"📊 Database initialized: {db_info}")
+
+        logger.info("[LIFESPAN] Creating SQL tables...")
+        try:
+            create_tables()
+            db_info = get_db_info()
+            logger.info(f"📊 Database initialized: {db_info}")
+        except Exception as e:
+            logger.error(f"[LIFESPAN] ❌ Error initializing SQL DB: {e}")
+            logger.error(traceback.format_exc())
+            raise
 
         # Initialize enhanced MongoDB system
-        from app.core.database import initialize_enhanced_database
 
-        mongo_result = await initialize_enhanced_database()
-        logger.info(
-            f"🍃 MongoDB initialized: {mongo_result.get('mongodb_connected', False)}"
-        )
+        logger.info("[LIFESPAN] Initializing enhanced MongoDB system...")
+        try:
+            from app.core.database import initialize_enhanced_database
+            mongo_result = await initialize_enhanced_database()
+            logger.info(f"🍃 MongoDB initialized: {mongo_result.get('mongodb_connected', False)}")
+        except Exception as e:
+            logger.error(f"[LIFESPAN] ❌ Error initializing MongoDB: {e}")
+            logger.error(traceback.format_exc())
+            raise
 
         # Test all external connections
-        from app.services.ai_service import AIService
 
-        ai_service = AIService()
-        ai_status = ai_service.get_status()
-        logger.info(f"🤖 AI Service Status: {ai_status}")
+        logger.info("[LIFESPAN] Initializing AIService...")
+        try:
+            from app.core.service_manager import get_ai_service
+            ai_service = get_ai_service()
+            ai_status = ai_service.get_status()
+            logger.info(f"🤖 AI Service Status: {ai_status}")
+        except Exception as e:
+            logger.error(f"[LIFESPAN] ❌ Error initializing AIService: {e}")
+            logger.error(traceback.format_exc())
+            raise
 
         yield
 
+
     except Exception as e:
-        logger.error(f"❌ Startup failed: {str(e)}")
+        logger.error(f"[LIFESPAN] ❌ Startup failed: {str(e)}")
         logger.error(traceback.format_exc())
         raise
     finally:
-        logger.info("🔄 Shutting down Code Evolution Tracker Backend...")
+        shutdown_time = datetime.utcnow().isoformat()
+        logger.info(f"[LIFESPAN] 🔄 Shutting down Code Evolution Tracker Backend... (PID: %s)", str(os.getpid()))
+        logger.info(f"[LIFESPAN] Shutdown initiated at {shutdown_time}")
 
         # Close enhanced database connections
-        from app.core.database import close_enhanced_connections
-
         try:
+            from app.core.database import close_enhanced_connections
             await close_enhanced_connections()
-            logger.info("✅ Database connections closed")
+            logger.info("[LIFESPAN] ✅ Database connections closed")
         except Exception as e:
-            logger.warning(f"⚠️ Error closing database connections: {e}")
+            logger.warning(f"[LIFESPAN] ⚠️ Error closing database connections: {e}")
+            logger.warning(traceback.format_exc())
 
         # Cancel all background tasks
         if background_tasks:
-            logger.info(f"⏹️  Cancelling {len(background_tasks)} background tasks...")
+            logger.info(f"[LIFESPAN] ⏹️  Cancelling {len(background_tasks)} background tasks...")
             for task in background_tasks.copy():
                 if not task.done():
                     task.cancel()
@@ -135,15 +158,14 @@ async def lifespan(app: FastAPI):
                         asyncio.gather(*background_tasks, return_exceptions=True),
                         timeout=10.0,
                     )
-                    logger.info("✅ All background tasks cancelled successfully")
+                    logger.info("[LIFESPAN] ✅ All background tasks cancelled successfully")
                 except asyncio.TimeoutError:
-                    logger.warning(
-                        "⚠️  Some background tasks didn't cancel within timeout"
-                    )
+                    logger.warning("[LIFESPAN] ⚠️  Some background tasks didn't cancel within timeout")
                 except Exception as e:
-                    logger.warning(f"⚠️  Error during task cancellation: {e}")
+                    logger.warning(f"[LIFESPAN] ⚠️  Error during task cancellation: {e}")
+                    logger.warning(traceback.format_exc())
 
-        logger.info("👋 Shutdown complete")
+        logger.info("[LIFESPAN] 👋 Shutdown complete")
 
 
 # Create FastAPI app with enhanced configuration
@@ -210,9 +232,9 @@ async def health_check():
             mongodb_status = {"connected": False, "error": str(e)}
 
         # Check AI service
-        from app.services.ai_service import AIService
+        from app.core.service_manager import get_ai_service
 
-        ai_service = AIService()
+        ai_service = get_ai_service()
         ai_status = ai_service.get_status()
 
         return {

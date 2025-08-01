@@ -2,14 +2,14 @@ import json
 import logging
 import re
 import asyncio
-from datetime import datetime
+import datetime
 from typing import Any, Dict, List, Optional
 
-from langchain_community.llms import Ollama
-from langchain_community.embeddings import OllamaEmbeddings
-from langchain.chains import LLMChain
+from langchain_ollama import OllamaLLM, OllamaEmbeddings
+from langchain_core.runnables import RunnableSequence
 from langchain.prompts import PromptTemplate
 from langchain.output_parsers import PydanticOutputParser, OutputFixingParser
+from langchain.chains import LLMChain
 from pydantic import BaseModel, Field
 
 from app.core.database import get_enhanced_database_manager, get_collection
@@ -47,6 +47,23 @@ class EvolutionAnalysis(BaseModel):
 
 
 class AIService:
+    def _get_openai_token_param(self, model_name: str, value: int) -> dict:
+        """
+        Utility to select correct token parameter for OpenAI models.
+        Uses 'max_completion_tokens' for new models, 'max_tokens' for legacy models.
+        Includes robust error handling and logging.
+        """
+        try:
+            # New models require 'max_completion_tokens', legacy use 'max_tokens'
+            if any(s in model_name for s in ["gpt-4-1106", "gpt-4-vision", "gpt-4o", "gpt-3.5-turbo-1106", "o3-mini", "o4-mini"]):
+                logger.debug(f"Using 'max_completion_tokens' for model {model_name}")
+                return {"max_completion_tokens": value}
+            else:
+                logger.debug(f"Using 'max_tokens' for model {model_name}")
+                return {"max_tokens": value}
+        except Exception as e:
+            logger.error(f"Error determining OpenAI token param for model {model_name}: {e}")
+            return {"max_tokens": value}
     """Enhanced AI service with robust pattern analysis and embeddings"""
 
     def __init__(self):
@@ -58,15 +75,20 @@ class AIService:
         self.architectural_analyzer = get_architectural_analyzer()
         self.performance_analyzer = get_performance_analyzer()
         self.ensemble = None  # Initialize after services are ready
+        
+        # Model selection support
+        self.preferred_model: Optional[str] = None
+        self.multi_model_service = None
+        
         self._initialize_services()
 
     def _initialize_services(self) -> None:
         """Initialize AI services with fallback handling"""
         try:
             # Initialize Ollama LLM
-            self.llm = Ollama(model="codellama:7b", temperature=0.1)
+            self.llm = OllamaLLM(model="codellama:7b", temperature=0.1)
             # Test the connection
-            self.llm("test")
+            self.llm.invoke("test")
             self.ollama_available = True
             logger.info("Ollama LLM initialized successfully")
 
@@ -88,22 +110,55 @@ class AIService:
             from app.core.service_manager import get_ai_ensemble
             self.ensemble = get_ai_ensemble(self)
             logger.info("AI Ensemble initialized")
+            
+            # Initialize multi-model service for model selection
+            from app.services.multi_model_ai_service import MultiModelAIService
+            self.multi_model_service = MultiModelAIService()
+            logger.info("Multi-model AI service initialized")
 
         except Exception as e:
             logger.error(f"Error initializing AI services: {e}")
             self.ollama_available = False
 
+    def _get_timestamp(self) -> str:
+        """Get current timestamp - utility method to avoid import issues"""
+        from datetime import datetime
+        return datetime.utcnow().isoformat()
+
+    def set_preferred_model(self, model_id: str) -> None:
+        """Set the preferred model for AI analysis"""
+        self.preferred_model = model_id
+        logger.info(f"🤖 Set preferred model to: {model_id}")
+        
+        # Validate model is available
+        if self.multi_model_service:
+            available_models = self.multi_model_service.get_available_models()
+            if model_id not in available_models:
+                logger.warning(f"⚠️  Model {model_id} not available. Available models: {list(available_models.keys())}")
+            else:
+                logger.info(f"✅ Model {model_id} is available and selected")
+
     def get_status(self) -> Dict[str, Any]:
         """Get AI service status"""
         logger.info(f"Fetching AI service status: {self}")
-        return {
+        status = {
             "ollama_available": self.ollama_available,
             "ollama_model": "codellama:7b" if self.ollama_available else None,
             "embeddings_available": self.embeddings is not None,
             "embeddings_model": "nomic-embed-text" if self.embeddings else None,
             "vector_db_available": self.collection is not None,
-            "timestamp": datetime.utcnow().isoformat(),
+            "preferred_model": self.preferred_model,
+            "multi_model_service_available": self.multi_model_service is not None,
+            "timestamp": datetime.datetime.utcnow().isoformat(),
         }
+        
+        # Add available models info
+        if self.multi_model_service:
+            available_models = self.multi_model_service.get_available_models()
+            status["available_models_count"] = len(available_models)
+            status["openai_models_available"] = any("gpt" in model for model in available_models.keys())
+            
+        return status
 
     @cache_analysis_result("pattern", ttl_seconds=3600)  # 1 hour cache
     async def analyze_code_pattern(self, code: str, language: str) -> Dict[str, Any]:
@@ -113,6 +168,38 @@ class AIService:
         """
         detected_patterns = self._detect_patterns_simple(code, language)
 
+        # Use selected model if available via multi-model service
+        if self.preferred_model and self.multi_model_service:
+            try:
+                from app.services.multi_model_ai_service import AIModel
+                model_enum = AIModel(self.preferred_model)
+                
+                logger.info(f"🤖 Using selected model {self.preferred_model} for pattern analysis")
+                # Patch: Pass correct token param for OpenAI models
+                token_param = self._get_openai_token_param(self.preferred_model, 2048)
+                result = await self.multi_model_service.analyze_with_model(
+                    code, language, model_enum, **token_param
+                )
+                
+                return {
+                    "detected_patterns": detected_patterns,
+                    "ai_patterns": result.patterns,
+                    "combined_patterns": list(set(detected_patterns + result.patterns)),
+                    "complexity_score": result.complexity_score,
+                    "skill_level": result.skill_level,
+                    "suggestions": result.suggestions,
+                    "ai_powered": True,
+                    "model_used": self.preferred_model,
+                    "confidence": result.confidence,
+                    "processing_time": result.processing_time,
+                    "token_usage": result.token_usage,
+                }
+                
+            except Exception as e:
+                logger.error(f"Selected model {self.preferred_model} analysis failed: {e}")
+                # Fall back to default analysis
+        
+        # Fallback to Ollama if available
         if self.ollama_available:
             try:
                 parser = PydanticOutputParser(pydantic_object=PatternAnalysis)
@@ -139,17 +226,18 @@ class AIService:
                     ),
                 )
 
-                chain = LLMChain(llm=self.llm, prompt=prompt)
 
+                # Use RunnableSequence for prompt | llm | output_parser
+                chain = (prompt | self.llm | parser)
                 # run in executor to avoid blocking
                 result = await asyncio.get_event_loop().run_in_executor(
                     None,
-                    lambda: chain.run(
-                        code=code[:1500],
-                        language=language,
-                        simple_patterns=", ".join(detected_patterns),
-                        format_instructions=parser.get_format_instructions(),
-                    ),
+                    lambda: chain.invoke({
+                        "code": code[:1500],
+                        "language": language,
+                        "simple_patterns": ", ".join(detected_patterns),
+                        "format_instructions": parser.get_format_instructions(),
+                    }),
                 )
 
                 # Try to extract JSON from the response
@@ -231,6 +319,38 @@ class AIService:
     @cache_analysis_result("quality", ttl_seconds=3600)  # 1 hour cache
     async def analyze_code_quality(self, code: str, language: str) -> Dict[str, Any]:
         """Analyze code quality with detailed insights"""
+        
+        # Use selected model if available via multi-model service
+        if self.preferred_model and self.multi_model_service:
+            try:
+                from app.services.multi_model_ai_service import AIModel
+                model_enum = AIModel(self.preferred_model)
+                
+                logger.info(f"🤖 Using selected model {self.preferred_model} for quality analysis")
+                # Patch: Pass correct token param for OpenAI models
+                token_param = self._get_openai_token_param(self.preferred_model, 2048)
+                result = await self.multi_model_service.analyze_with_model(
+                    code, language, model_enum, **token_param
+                )
+                
+                # Convert to quality analysis format
+                return {
+                    "quality_score": min(100, result.complexity_score * 10),  # Scale to 100
+                    "readability": result.skill_level.capitalize(),
+                    "issues": [f"Complexity: {result.complexity_score}/10"],
+                    "improvements": result.suggestions,
+                    "ai_powered": True,
+                    "model_used": self.preferred_model,
+                    "confidence": result.confidence,
+                    "processing_time": result.processing_time,
+                    "token_usage": result.token_usage,
+                }
+                
+            except Exception as e:
+                logger.error(f"Selected model {self.preferred_model} quality analysis failed: {e}")
+                # Fall back to default analysis
+        
+        # Fallback to Ollama if available
         if self.ollama_available:
             try:
                 parser = PydanticOutputParser(pydantic_object=CodeQualityAnalysis)
@@ -251,15 +371,15 @@ class AIService:
                     ),
                 )
 
-                chain = LLMChain(llm=self.llm, prompt=prompt)
 
+                chain = (prompt | self.llm | parser)
                 result = await asyncio.get_event_loop().run_in_executor(
                     None,
-                    lambda: chain.run(
-                        code=code[:1500],
-                        language=language,
-                        format_instructions=parser.get_format_instructions(),
-                    ),
+                    lambda: chain.invoke({
+                        "code": code[:1500],
+                        "language": language,
+                        "format_instructions": parser.get_format_instructions(),
+                    }),
                 )
 
                 # Try to parse the response with robust error handling
@@ -422,7 +542,7 @@ class AIService:
                     "improvements": evolution_analysis.improvements,
                     "learning_insights": evolution_analysis.learning_insights,
                     "ai_powered": True,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.datetime.utcnow().isoformat(),
                 }
 
             except Exception as e:
@@ -436,44 +556,266 @@ class AIService:
             "improvements": ["Code structure maintained"],
             "learning_insights": "Enable Ollama for detailed evolution analysis",
             "ai_powered": False,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.datetime.utcnow().isoformat(),
         }
 
     async def generate_insights(
         self, analysis_data: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
-        Generate high-level insights based on patterns, technologies, and optionally AI.
+        Generate comprehensive insights based on patterns, technologies, and AI analysis.
         """
         insights: List[Dict[str, Any]] = []
 
-        # Pattern summary
+        # Extract data from analysis
         patterns = analysis_data.get("patterns", {})
-        if patterns:
-            insights.append(
-                {
-                    "type": "pattern_summary",
-                    "title": f"Detected {len(patterns)} Programming Patterns",
-                    "description": f"Most common patterns: {', '.join(list(patterns.keys())[:3])}",
-                    "data": {"patterns": patterns},
-                }
-            )
-
-        # Technology stack overview
         technologies = analysis_data.get("technologies", [])
-        if technologies:
-            insights.append(
-                {
-                    "type": "technology_adoption",
-                    "title": "Technology Stack Analysis",
-                    "description": f"Primary technologies: {', '.join(technologies[:3])}",
-                    "data": {"technologies": technologies},
-                }
-            )
+        commits = analysis_data.get("commits", 0)
 
-        # You can add an LLM-powered insight here if desired...
+        # 1. Pattern Analysis Insights
+        if patterns:
+            pattern_insights = self._analyze_patterns(patterns)
+            insights.extend(pattern_insights)
+
+        # 2. Technology Stack Insights
+        if technologies:
+            tech_insights = self._analyze_technology_stack(technologies)
+            insights.extend(tech_insights)
+
+        # 3. Code Quality Insights
+        quality_insights = self._analyze_code_quality(patterns, commits)
+        insights.extend(quality_insights)
+
+        # 4. Architecture Insights
+        arch_insights = self._analyze_architecture(patterns, technologies)
+        insights.extend(arch_insights)
+
+        # 5. Evolution Insights
+        if commits > 0:
+            evolution_insights = self._analyze_evolution(patterns, commits)
+            insights.extend(evolution_insights)
+
+        # 6. AI-Powered Recommendations (if LLM available)
+        if self.ollama_available and self.llm:
+            try:
+                ai_insights = await self._generate_ai_recommendations(analysis_data)
+                insights.extend(ai_insights)
+            except Exception as e:
+                logger.warning(f"Failed to generate AI recommendations: {e}")
 
         return insights
+
+    def _analyze_patterns(self, patterns: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Analyze pattern usage and generate insights."""
+        insights = []
+        
+        # Pattern complexity analysis
+        complex_patterns = []
+        simple_patterns = []
+        antipatterns = []
+        
+        for pattern_name, pattern_data in patterns.items():
+            if isinstance(pattern_data, dict):
+                complexity = pattern_data.get("complexity_level", "intermediate")
+                is_antipattern = pattern_data.get("is_antipattern", False)
+                occurrences = pattern_data.get("occurrences", 0)
+                
+                if is_antipattern:
+                    antipatterns.append((pattern_name, occurrences))
+                elif complexity == "advanced":
+                    complex_patterns.append((pattern_name, occurrences))
+                elif complexity == "simple":
+                    simple_patterns.append((pattern_name, occurrences))
+
+        # Generate pattern-based insights
+        if complex_patterns:
+            insights.append({
+                "type": "achievement",
+                "title": "Advanced Pattern Mastery",
+                "description": f"Your codebase demonstrates mastery of {len(complex_patterns)} advanced patterns, showing sophisticated architectural thinking.",
+                "data": {"patterns": dict(complex_patterns), "complexity": "advanced"}
+            })
+
+        if antipatterns:
+            total_antipattern_occurrences = sum(count for _, count in antipatterns)
+            insights.append({
+                "type": "warning", 
+                "title": "Code Quality Concerns",
+                "description": f"Detected {len(antipatterns)} anti-patterns with {total_antipattern_occurrences} total occurrences. Consider refactoring these areas.",
+                "data": {"antipatterns": dict(antipatterns), "priority": "high"}
+            })
+
+        if len(patterns) > 15:
+            insights.append({
+                "type": "trend",
+                "title": "Rich Pattern Ecosystem",
+                "description": f"Your project uses {len(patterns)} different patterns, indicating a mature and well-structured codebase.",
+                "data": {"pattern_count": len(patterns), "diversity_score": min(100, len(patterns) * 5)}
+            })
+
+        return insights
+
+    def _analyze_technology_stack(self, technologies: List[str]) -> List[Dict[str, Any]]:
+        """Analyze technology choices and generate insights."""
+        insights = []
+        
+        tech_count = len(technologies)
+        
+        if tech_count > 10:
+            insights.append({
+                "type": "trend",
+                "title": "Diverse Technology Portfolio", 
+                "description": f"Your project leverages {tech_count} technologies, demonstrating a modern, polyglot approach to development.",
+                "data": {"technologies": technologies, "diversity_score": min(100, tech_count * 8)}
+            })
+        elif tech_count > 5:
+            insights.append({
+                "type": "recommendation",
+                "title": "Balanced Technology Stack",
+                "description": f"Good balance with {tech_count} core technologies. Consider whether all are necessary for maintenance overhead.",
+                "data": {"technologies": technologies, "balance_score": 75}
+            })
+        else:
+            insights.append({
+                "type": "recommendation", 
+                "title": "Focused Technology Approach",
+                "description": f"Minimal tech stack with {tech_count} technologies. This can improve maintainability but may limit capabilities.",
+                "data": {"technologies": technologies, "focus_score": 85}
+            })
+
+        return insights
+
+    def _analyze_code_quality(self, patterns: Dict[str, Any], commits: int) -> List[Dict[str, Any]]:
+        """Generate code quality insights."""
+        insights = []
+        
+        # Calculate quality metrics
+        total_patterns = len(patterns)
+        antipattern_count = sum(1 for p in patterns.values() 
+                              if isinstance(p, dict) and p.get("is_antipattern", False))
+        
+        quality_score = max(0, 100 - (antipattern_count * 15))
+        
+        if quality_score >= 80:
+            insights.append({
+                "type": "achievement",
+                "title": "High Code Quality",
+                "description": f"Excellent code quality score of {quality_score}% with minimal anti-patterns detected.",
+                "data": {"score": quality_score, "antipatterns": antipattern_count}
+            })
+        elif quality_score >= 60:
+            insights.append({
+                "type": "recommendation",
+                "title": "Good Code Quality",
+                "description": f"Solid code quality score of {quality_score}%. Focus on reducing the {antipattern_count} anti-patterns for improvement.",
+                "data": {"score": quality_score, "antipatterns": antipattern_count}
+            })
+        else:
+            insights.append({
+                "type": "warning",
+                "title": "Code Quality Needs Attention", 
+                "description": f"Code quality score of {quality_score}% indicates {antipattern_count} anti-patterns requiring immediate attention.",
+                "data": {"score": quality_score, "antipatterns": antipattern_count, "priority": "high"}
+            })
+
+        return insights
+
+    def _analyze_architecture(self, patterns: Dict[str, Any], technologies: List[str]) -> List[Dict[str, Any]]:
+        """Analyze architectural patterns and structure."""
+        insights = []
+        
+        # Look for architectural indicators
+        arch_patterns = []
+        for pattern_name in patterns.keys():
+            pattern_lower = pattern_name.lower()
+            if any(arch in pattern_lower for arch in ['mvc', 'mvp', 'mvvm', 'facade', 'adapter', 'strategy']):
+                arch_patterns.append(pattern_name)
+
+        if arch_patterns:
+            insights.append({
+                "type": "achievement",
+                "title": "Strong Architectural Foundation",
+                "description": f"Detected {len(arch_patterns)} architectural patterns: {', '.join(arch_patterns[:3])}{'...' if len(arch_patterns) > 3 else ''}",
+                "data": {"architectural_patterns": arch_patterns}
+            })
+
+        # Analyze technology coherence
+        if len(technologies) > 8:
+            insights.append({
+                "type": "recommendation",
+                "title": "Architecture Complexity Review",
+                "description": "Consider reviewing architecture complexity as the diverse tech stack may impact maintainability.",
+                "data": {"tech_count": len(technologies), "suggestion": "consolidation_review"}
+            })
+
+        return insights
+
+    def _analyze_evolution(self, patterns: Dict[str, Any], commits: int) -> List[Dict[str, Any]]:
+        """Analyze code evolution insights."""
+        insights = []
+        
+        patterns_per_commit = len(patterns) / max(commits, 1)
+        
+        if patterns_per_commit > 0.5:
+            insights.append({
+                "type": "trend",
+                "title": "Rapid Pattern Evolution",
+                "description": f"High pattern density with {len(patterns)} patterns across {commits} commits, indicating active architectural development.",
+                "data": {"pattern_density": patterns_per_commit, "evolution_rate": "high"}
+            })
+        elif patterns_per_commit > 0.2:
+            insights.append({
+                "type": "trend", 
+                "title": "Steady Architectural Growth",
+                "description": f"Consistent pattern introduction with {len(patterns)} patterns over {commits} commits shows steady evolution.",
+                "data": {"pattern_density": patterns_per_commit, "evolution_rate": "steady"}
+            })
+
+        return insights
+
+    async def _generate_ai_recommendations(self, analysis_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Generate AI-powered recommendations using LLM."""
+        if not self.llm:
+            return []
+
+        try:
+            # Prepare context for AI analysis
+            patterns = analysis_data.get("patterns", {})
+            technologies = analysis_data.get("technologies", [])
+            commits = analysis_data.get("commits", 0)
+
+            context = f"""
+            Code Analysis Summary:
+            - Total Patterns: {len(patterns)}
+            - Technologies: {', '.join(technologies[:10])}
+            - Commits Analyzed: {commits}
+            - Top Patterns: {', '.join(list(patterns.keys())[:5])}
+            
+            Please provide 2-3 specific, actionable recommendations for improving this codebase.
+            Focus on architecture, maintainability, and best practices.
+            """
+
+            # Generate AI recommendations
+            response = await self.llm.ainvoke(context)
+            
+            if response and hasattr(response, 'content'):
+                recommendation_text = response.content
+                
+                return [{
+                    "type": "ai_analysis",
+                    "title": "AI-Powered Code Recommendations",
+                    "description": recommendation_text[:200] + "..." if len(recommendation_text) > 200 else recommendation_text,
+                    "data": {
+                        "full_analysis": recommendation_text,
+                        "source": "ai_llm",
+                        "confidence": 0.8
+                    }
+                }]
+
+        except Exception as e:
+            logger.error(f"Failed to generate AI recommendations: {e}")
+            
+        return []
 
     async def store_pattern_embedding(
         self, code: str, patterns: List[str], metadata: Dict[str, Any]
@@ -490,7 +832,7 @@ class AIService:
             metadata.update(
                 {
                     "patterns": json.dumps(patterns),
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.datetime.utcnow().isoformat(),
                     "code_preview": code[:200],
                 }
             )
@@ -499,7 +841,7 @@ class AIService:
                 embeddings=[embedding],
                 documents=[code[:1000]],
                 metadatas=[metadata],
-                ids=[f"code_{datetime.utcnow().timestamp()}_{hash(code)}"],
+                ids=[f"code_{datetime.datetime.utcnow().timestamp()}_{hash(code)}"],
             )
 
             logger.info(f"✅ Stored embedding for {len(patterns)} patterns")
@@ -626,6 +968,53 @@ class AIService:
             if "import " in code_lower:
                 patterns.append("module_imports")
 
+        # Rust patterns
+        elif language.lower() == "rust":
+            if "fn " in code_lower:
+                patterns.append("function_definition")
+            if "struct " in code_lower:
+                patterns.append("struct_definition")
+            if "enum " in code_lower:
+                patterns.append("enum_definition")
+            if "impl " in code_lower:
+                patterns.append("implementation_block")
+            if "trait " in code_lower:
+                patterns.append("trait_definition")
+            if "match " in code_lower:
+                patterns.append("pattern_matching")
+            if "if let" in code_lower:
+                patterns.append("conditional_binding")
+            if "unwrap()" in code_lower:
+                patterns.append("unwrap_pattern")
+            if "?" in code and "result" in code_lower:
+                patterns.append("error_propagation")
+            if "async fn" in code_lower:
+                patterns.append("async_functions")
+            if ".await" in code_lower:
+                patterns.append("await_pattern")
+            if "use " in code_lower:
+                patterns.append("module_imports")
+            if "mut " in code_lower:
+                patterns.append("mutable_binding")
+            if "&" in code and ("ref" in code_lower or "borrow" in code_lower):
+                patterns.append("borrowing_pattern")
+            if "clone()" in code_lower:
+                patterns.append("clone_pattern")
+            if "box<" in code_lower or "rc<" in code_lower or "arc<" in code_lower:
+                patterns.append("smart_pointers")
+            if "lifetime" in code_lower or "'" in code:
+                patterns.append("lifetime_annotations")
+            if "unsafe" in code_lower:
+                patterns.append("unsafe_code")
+            if "macro_rules!" in code_lower:
+                patterns.append("macro_definition")
+            if "vec![" in code_lower:
+                patterns.append("vector_initialization")
+            if ".iter()" in code_lower or ".map(" in code_lower or ".filter(" in code_lower:
+                patterns.append("iterator_pattern")
+            if "thread::" in code_lower or "spawn(" in code_lower:
+                patterns.append("concurrency_pattern")
+
         # General patterns (all languages)
         if "if " in code_lower:
             patterns.append("conditional_logic")
@@ -718,6 +1107,7 @@ class AIService:
             "skill_level": skill_level,
             "suggestions": suggestions,
             "ai_powered": False,
+            "model_used": "rule_based_fallback",
         }
 
     def _enhanced_quality_analysis(self, code: str, language: str) -> Dict[str, Any]:
@@ -792,6 +1182,7 @@ class AIService:
             "issues": issues,
             "improvements": improvements,
             "ai_powered": False,
+            "model_used": "rule_based_fallback",
         }
 
     @cache_analysis_result("security", ttl_seconds=1800)  # 30 minute cache (security is time-sensitive)
@@ -809,7 +1200,14 @@ class AIService:
         """
         try:
             # Run security analysis
-            vulnerabilities = self.security_analyzer.analyze_code(code, file_path, language)
+            # Handle both sync and async security analyzers
+            if hasattr(self.security_analyzer, 'analyze_code'):
+                if asyncio.iscoroutinefunction(self.security_analyzer.analyze_code):
+                    vulnerabilities = await self.security_analyzer.analyze_code(code, file_path, language)
+                else:
+                    vulnerabilities = self.security_analyzer.analyze_code(code, file_path, language)
+            else:
+                vulnerabilities = []
             
             # Generate comprehensive report
             security_report = self.security_analyzer.generate_security_report(vulnerabilities)
@@ -820,7 +1218,7 @@ class AIService:
                 "patterns_checked": len(self.security_analyzer.patterns),
                 "file_path": file_path,
                 "language": language or self.security_analyzer._detect_language(file_path),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.datetime.utcnow().isoformat()
             }
             
             logger.info(f"Security analysis completed: {len(vulnerabilities)} vulnerabilities found")
@@ -834,7 +1232,7 @@ class AIService:
                 "total_vulnerabilities": 0,
                 "error": str(e),
                 "recommendations": ["Security analysis failed - manual review recommended"],
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.datetime.utcnow().isoformat()
             }
 
     async def analyze_architecture(self, repository_path: str, file_list: List[str] = None) -> Dict[str, Any]:
@@ -860,7 +1258,7 @@ class AIService:
                 "analyzer_version": "1.0.0",
                 "repository_path": repository_path,
                 "files_analyzed": len(file_list) if file_list else 0,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.datetime.utcnow().isoformat()
             }
             
             logger.info(f"Architecture analysis completed: {analysis.primary_style.value} style detected")
@@ -885,7 +1283,7 @@ class AIService:
                 },
                 "error": str(e),
                 "recommendations": ["Architecture analysis failed - manual review recommended"],
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.datetime.utcnow().isoformat()
             }
 
     @cache_analysis_result("performance", ttl_seconds=1800)  # 30 minute cache
@@ -903,10 +1301,20 @@ class AIService:
         """
         try:
             # Run performance analysis
-            issues = await self.performance_analyzer.analyze_performance(code, file_path, language)
+            # Handle both sync and async performance analyzers
+            if hasattr(self.performance_analyzer, 'analyze_performance'):
+                if asyncio.iscoroutinefunction(self.performance_analyzer.analyze_performance):
+                    issues = await self.performance_analyzer.analyze_performance(code, file_path, language)
+                else:
+                    issues = self.performance_analyzer.analyze_performance(code, file_path, language)
+            else:
+                issues = []
+            
+            # Calculate performance metrics
+            metrics = self.performance_analyzer.calculate_performance_metrics(issues)
             
             # Generate comprehensive report
-            performance_report = self.performance_analyzer.generate_performance_report(issues)
+            performance_report = self.performance_analyzer.generate_performance_report(issues, metrics)
             
             # Add metadata
             performance_report["analysis_metadata"] = {
@@ -914,7 +1322,7 @@ class AIService:
                 "patterns_checked": len(self.performance_analyzer.patterns),
                 "file_path": file_path,
                 "language": language or self.performance_analyzer._detect_language(file_path),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": self._get_timestamp()
             }
             
             logger.info(f"Performance analysis completed: {len(issues)} issues found")
@@ -928,7 +1336,7 @@ class AIService:
                 "total_issues": 0,
                 "error": str(e),
                 "optimizations": ["Performance analysis failed - manual review recommended"],
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": self._get_timestamp()
             }
 
     async def analyze_with_ensemble(
@@ -1005,7 +1413,7 @@ class AIService:
             elif analysis_type == "performance":
                 return await self.analyze_performance(code, file_path, language)
             else:
-                return {"error": f"Analysis failed: {e}", "timestamp": datetime.utcnow().isoformat()}
+                return {"error": f"Analysis failed: {e}", "timestamp": datetime.datetime.utcnow().isoformat()}
 
     def get_ensemble_status(self) -> Dict[str, Any]:
         """Get AI ensemble status"""

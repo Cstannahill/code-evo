@@ -6,6 +6,9 @@ import {
   CheckCircle,
   Info,
   TrendingUp,
+  Zap,
+  Lock,
+  Activity,
   type LucideProps,
 } from "lucide-react";
 import type { PatternInfo, CodeQualityData } from "../../types/analysis";
@@ -15,13 +18,37 @@ interface AnalysisDataForQuality {
   pattern_statistics: Record<string, PatternInfo>;
   summary: {
     antipatterns_detected: number;
-    // Add other relevant properties from summary if used
   };
   analysis_session: {
     commits_analyzed: number;
-    // Add other relevant properties from analysis_session if used
   };
-  // Add other top-level properties of analysis if used
+  security_analysis?: {
+    overall_score: number;
+    risk_level: string;
+    total_vulnerabilities: number;
+    vulnerabilities_by_severity: Record<string, number>;
+    recommendations: string[];
+    security_patterns?: Array<{name: string; type: string; is_positive: boolean}>;
+  };
+  performance_analysis?: {
+    overall_score: number;
+    performance_grade: string;
+    total_issues: number;
+    optimizations: string[];
+    performance_patterns?: Array<{name: string; type: string; impact: string}>;
+  };
+  architectural_analysis?: {
+    quality_metrics: {
+      overall_score: number;
+      modularity: number;
+      coupling: number;
+      cohesion: number;
+      grade: string;
+    };
+    design_patterns: Array<{name: string; confidence: number; detected_in: string}>;
+    architectural_styles: string[];
+    recommendations: string[];
+  };
 }
 
 interface CodeQualityDashboardProps {
@@ -147,8 +174,8 @@ export const CodeQualityDashboard: React.FC<CodeQualityDashboardProps> = ({
         </p>
       </motion.div>
 
-      {/* Quality Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Enhanced Quality Metrics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
         <QualityCard
           title="Maintainability"
           score={qualityMetrics.maintainability}
@@ -167,6 +194,30 @@ export const CodeQualityDashboard: React.FC<CodeQualityDashboardProps> = ({
           description="Ease of writing and maintaining tests"
           icon={TrendingUp}
         />
+        {analysis.security_analysis && (
+          <QualityCard
+            title="Security"
+            score={analysis.security_analysis.overall_score}
+            description="Security vulnerability assessment"
+            icon={Lock}
+          />
+        )}
+        {analysis.performance_analysis && (
+          <QualityCard
+            title="Performance"
+            score={analysis.performance_analysis.overall_score}
+            description="Performance optimization level"
+            icon={Zap}
+          />
+        )}
+        {analysis.architectural_analysis && (
+          <QualityCard
+            title="Architecture"
+            score={analysis.architectural_analysis.quality_metrics.overall_score}
+            description="Architectural design quality"
+            icon={Activity}
+          />
+        )}
       </div>
 
       {/* Issues Summary */}
@@ -285,6 +336,158 @@ export const CodeQualityDashboard: React.FC<CodeQualityDashboardProps> = ({
           </div>
         </div>
       </motion.div>
+
+      {/* Enhanced Analysis Sections */}
+      {analysis.security_analysis && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="bg-card rounded-lg border p-6 shadow-lg"
+        >
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Lock className="w-5 h-5 text-red-500" />
+            Security Analysis
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Risk Level</span>
+                <span className={`px-2 py-1 rounded text-xs font-bold ${
+                  analysis.security_analysis.risk_level === 'low' ? 'bg-green-100 text-green-800' :
+                  analysis.security_analysis.risk_level === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-red-100 text-red-800'
+                }`}>
+                  {analysis.security_analysis.risk_level.toUpperCase()}
+                </span>
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">
+                  Total Vulnerabilities: {analysis.security_analysis.total_vulnerabilities}
+                </div>
+                {Object.entries(analysis.security_analysis.vulnerabilities_by_severity).map(([severity, count]) => (
+                  count > 0 && (
+                    <div key={severity} className="flex justify-between text-sm">
+                      <span className="capitalize">{severity}:</span>
+                      <span className="font-medium">{count}</span>
+                    </div>
+                  )
+                ))}
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium mb-2">Security Recommendations</h4>
+              <ul className="space-y-1 text-sm text-muted-foreground">
+                {analysis.security_analysis.recommendations.slice(0, 3).map((rec, index) => (
+                  <li key={index} className="flex items-start gap-2">
+                    <span className="w-1 h-1 bg-muted-foreground rounded-full mt-2 flex-shrink-0" />
+                    {rec}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {analysis.performance_analysis && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="bg-card rounded-lg border p-6 shadow-lg"
+        >
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Zap className="w-5 h-5 text-yellow-500" />
+            Performance Analysis
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Performance Grade</span>
+                <span className={`px-2 py-1 rounded text-xs font-bold ${
+                  ['A', 'B'].includes(analysis.performance_analysis.performance_grade) ? 'bg-green-100 text-green-800' :
+                  analysis.performance_analysis.performance_grade === 'C' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-red-100 text-red-800'
+                }`}>
+                  {analysis.performance_analysis.performance_grade}
+                </span>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Performance Issues: {analysis.performance_analysis.total_issues}
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium mb-2">Performance Optimizations</h4>
+              <ul className="space-y-1 text-sm text-muted-foreground">
+                {analysis.performance_analysis.optimizations.slice(0, 3).map((opt, index) => (
+                  <li key={index} className="flex items-start gap-2">
+                    <span className="w-1 h-1 bg-muted-foreground rounded-full mt-2 flex-shrink-0" />
+                    {opt}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {analysis.architectural_analysis && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6 }}
+          className="bg-card rounded-lg border p-6 shadow-lg"
+        >
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-blue-500" />
+            Architectural Analysis
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div>
+              <h4 className="text-sm font-medium mb-2">Quality Metrics</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Modularity:</span>
+                  <span className="font-medium">{(analysis.architectural_analysis.quality_metrics.modularity * 100).toFixed(0)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Coupling:</span>
+                  <span className="font-medium">{(analysis.architectural_analysis.quality_metrics.coupling * 100).toFixed(0)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Cohesion:</span>
+                  <span className="font-medium">{(analysis.architectural_analysis.quality_metrics.cohesion * 100).toFixed(0)}%</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium mb-2">Design Patterns</h4>
+              <div className="space-y-1 text-sm">
+                {analysis.architectural_analysis.design_patterns.slice(0, 4).map((pattern, index) => (
+                  <div key={index} className="flex justify-between">
+                    <span>{pattern.name}:</span>
+                    <span className="font-medium">{(pattern.confidence * 100).toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium mb-2">Architecture Styles</h4>
+              <div className="flex flex-wrap gap-1 mb-3">
+                {analysis.architectural_analysis.architectural_styles.map((style, index) => (
+                  <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                    {style}
+                  </span>
+                ))}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Grade: {analysis.architectural_analysis.quality_metrics.grade}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 };

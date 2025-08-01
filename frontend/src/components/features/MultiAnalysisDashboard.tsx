@@ -27,22 +27,19 @@ import { MACompareAnalysisSection } from "./multi-analysis/MACompareAnalysisSect
 import { MARepositoryList } from "./multi-analysis/MARepositoryList";
 import { MAResultsSection } from "./multi-analysis/MAResultsSection";
 
+
 export const MultiAnalysisDashboard: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState("");
   const [selectedRepoId, setSelectedRepoId] = useState<string | null>(null);
-  const [selectedModelId, setSelectedModelId] = useState<string | undefined>(
-    undefined
-  );
+  const [selectedModelId, setSelectedModelId] = useState<string | undefined>(undefined);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
-  const [analysisMode, setAnalysisMode] = useState<"single" | "compare">(
-    "single"
-  );
+  const [analysisMode, setAnalysisMode] = useState<"single" | "compare">("single");
   const [comparisonResults, setComparisonResults] = useState<any>(null);
   const [isComparing, setIsComparing] = useState(false);
+  const [analysisStarted, setAnalysisStarted] = useState(false);
 
   const createRepo = useCreateRepository();
-  const { data: selectedRepo } =
-    useRepository(selectedRepoId);
+  const { data: selectedRepo } = useRepository(selectedRepoId);
   const { data: repositories = [] } = useRepositories();
   const availableModels = useModelAvailability();
   console.log("Available Models:", availableModels);
@@ -57,6 +54,15 @@ export const MultiAnalysisDashboard: React.FC = () => {
     }
   }, [availableModels, selectedModelId]);
 
+  // Track analysisStarted state based on repo status
+  useEffect(() => {
+    if (selectedRepo?.status === "analyzing") {
+      setAnalysisStarted(true);
+    } else if (selectedRepo?.status === "completed" || selectedRepo?.status === "failed") {
+      setAnalysisStarted(false);
+    }
+  }, [selectedRepo?.status]);
+
   // Handle single analysis
   const handleSingleAnalysis = async () => {
     if (!repoUrl.trim() || !selectedModelId) {
@@ -64,10 +70,9 @@ export const MultiAnalysisDashboard: React.FC = () => {
       return;
     }
 
+    setAnalysisStarted(true); // Immediately show analyzing state
     try {
-      const modelName = availableModels.find(
-        (m) => m.id === selectedModelId
-      )?.name;
+      const modelName = availableModels.find((m) => m.id === selectedModelId)?.name;
       const repoPayload: RepositoryCreateRequest = {
         url: repoUrl,
         model_id: modelName, // Pass the model name, not ID
@@ -78,6 +83,7 @@ export const MultiAnalysisDashboard: React.FC = () => {
       setRepoUrl("");
       toast.success("Analysis started!");
     } catch (error) {
+      setAnalysisStarted(false); // Reset if error
       console.error("Failed to create repository for analysis:", error);
     }
   };
@@ -133,7 +139,7 @@ export const MultiAnalysisDashboard: React.FC = () => {
   };
 
   const selectedModel = availableModels.find((m) => m.id === selectedModelId);
-  const isAnalyzing = selectedRepo?.status === "analyzing";
+  const isAnalyzing = analysisStarted || selectedRepo?.status === "analyzing";
 
   return (
     <>
@@ -161,7 +167,7 @@ export const MultiAnalysisDashboard: React.FC = () => {
             transition={{ delay: 0.1 }}
             className="mb-8 bg-card"
           >
-            <div className="bg-card rounded-lg p-6 shadow-xl">
+            <div className="bg-ctan-card rounded-lg p-6 shadow-xl">
               {/* Analysis Mode Tabs (componentized) */}
               <MAAnalysisModeTabs
                 analysisMode={analysisMode}

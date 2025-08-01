@@ -17,7 +17,7 @@ cd ..
 
 # Start backend
 cd backend
-uvicorn app.main:app --port 8080 &
+uvicorn app.main:app --port 8080 --reload &
 BACKEND_PID=$!
 cd ..
 

@@ -56,7 +56,7 @@ const ModelDebugTest: React.FC = () => {
         ))}
       </ul>
 
-      <h3>CodeLlama 13B Status:</h3>
+      <h3>Devstral Status:</h3>
       <p>
         Present in response: {availableModels["codellama:13b"] ? "YES" : "NO"}
       </p>

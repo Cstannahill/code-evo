@@ -17,7 +17,7 @@ export function ThemeToggle({ variant = 'button', className = '' }: ThemeToggleP
           value={theme}
           onChange={(e) => setTheme(e.target.value as 'light' | 'dark' | 'system')}
           className="
-            bg-[var(--ctan-card)] border border-[var(--ctan-border)] rounded-md px-3 py-2 text-sm
+             border border-[var(--ctan-border)] rounded-md px-3 py-2 text-sm
             text-[var(--ctan-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--ctan-gold)]/50
             focus:border-[var(--ctan-gold)]/50 transition-all duration-200
           "
@@ -37,15 +37,15 @@ export function ThemeToggle({ variant = 'button', className = '' }: ThemeToggleP
   ] as const;
 
   return (
-    <div className={`flex items-center bg-[var(--ctan-card)] border border-[var(--ctan-border)] rounded-lg p-1 ${className}`}>
+    <div className={`flex items-center  border border-[var(--ctan-border)] rounded-lg p-1 ${className}`}>
       {themes.map(({ value, icon: Icon, label }) => (
         <motion.button
           key={value}
           onClick={() => setTheme(value)}
           className={`
             relative flex items-center justify-center w-8 h-8 rounded-md transition-all duration-200
-            ${theme === value 
-              ? 'text-[var(--ctan-bg)]' 
+            ${theme === value
+              ? 'text-[#ffd700]'
               : 'text-[var(--ctan-text-secondary)] hover:text-[var(--ctan-text-primary)] hover:bg-[var(--ctan-hover)]'
             }
           `}
@@ -56,7 +56,7 @@ export function ThemeToggle({ variant = 'button', className = '' }: ThemeToggleP
           <AnimatePresence>
             {theme === value && (
               <motion.div
-                className="absolute inset-0 bg-[var(--ctan-gold)] rounded-md"
+                className="absolute inset-0  rounded-md"
                 layoutId="theme-indicator"
                 initial={false}
                 animate={{ opacity: 1 }}
@@ -65,9 +65,9 @@ export function ThemeToggle({ variant = 'button', className = '' }: ThemeToggleP
               />
             )}
           </AnimatePresence>
-          <Icon 
-            size={16} 
-            className="relative z-10" 
+          <Icon
+            size={16}
+            className="relative z-10"
           />
         </motion.button>
       ))}
@@ -88,10 +88,10 @@ export function SimpleThemeToggle({ className = '' }: { className?: string }) {
       onClick={toggleTheme}
       className={`
         flex items-center justify-center w-10 h-10 rounded-full
-        bg-[var(--ctan-card)] border border-[var(--ctan-border)]
+        border border-[var(--ctan-border)]
         text-[var(--ctan-text-primary)] hover:text-[var(--ctan-gold)]
         hover:border-[var(--ctan-gold)]/30 hover:bg-[var(--ctan-hover)]
-        transition-all duration-200
+        transition-all duration-200 bg-[#d4d4d5] 
         ${className}
       `}
       whileHover={{ scale: 1.05 }}

@@ -773,9 +773,31 @@ class AIAnalysisService:
                 "error": str(e),
                 "timestamp": datetime.utcnow().isoformat(),
             }
+    
+    async def get_repository_enhanced_analysis(self, repository_id: str) -> Optional[Dict[str, Any]]:
+        """Get enhanced analysis results for a repository if available"""
+        try:
+            self._operation_count += 1
+            
+            # For now, return None since enhanced analysis collection doesn't exist yet
+            # In future implementations, this would query MongoDB for:
+            # - Security analysis results
+            # - Performance analysis results  
+            # - Architectural analysis results
+            # - Ensemble metadata
+            # - Incremental analysis metadata
+            
+            logger.info(f"Enhanced analysis requested for repository {repository_id}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to get enhanced analysis for repository {repository_id}: {e}")
+            self._error_count += 1
+            return None
 
 
 # Convenience function for getting service instance
 async def get_ai_analysis_service() -> AIAnalysisService:
     """Get AI analysis service instance"""
-    return AIAnalysisService()
+    from app.core.service_manager import get_ai_analysis_service as get_singleton
+    return get_singleton()

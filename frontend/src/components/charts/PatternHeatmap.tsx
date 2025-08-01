@@ -5,6 +5,7 @@ interface PatternHeatmapProps {
   data: any;
   width?: number;
   height?: number;
+  topPatterns?: string[];
 }
 
 interface HeatmapCell {
@@ -18,10 +19,11 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
   data,
   width = 800,
   height = 400,
+  topPatterns,
 }) => {
   const heatmapData = useMemo(() => {
     console.log("PatternHeatmap: Processing data", data);
-    
+
     if (!data?.pattern_statistics || !data?.pattern_timeline) {
       console.log("PatternHeatmap: Missing pattern_statistics or pattern_timeline", {
         hasPatternStats: !!data?.pattern_statistics,
@@ -30,9 +32,15 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
       return { cells: [], patterns: [], months: [] };
     }
 
-    const patterns = Object.keys(data.pattern_statistics).slice(0, 8); // Limit for display
+    let patterns = Object.keys(data.pattern_statistics);
+    if (topPatterns && topPatterns.length > 0) {
+      // Only include patterns in topPatterns, preserving order
+      patterns = patterns.filter((p) => topPatterns.includes(p.replace(/_/g, " ")));
+    } else {
+      patterns = patterns.slice(0, 8); // fallback limit
+    }
     console.log("PatternHeatmap: Patterns to display", patterns);
-    
+
     // Normalize timeline data with better debugging
     let timeline = [];
     if (data.pattern_timeline?.timeline && Array.isArray(data.pattern_timeline.timeline)) {
@@ -90,7 +98,7 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
     });
 
     return { cells, patterns, months };
-  }, [data]);
+  }, [data, topPatterns]);
 
   if (heatmapData.cells.length === 0) {
     return (

@@ -21,6 +21,7 @@ export interface MAResultsSectionProps {
     comparisonResults?: any;
 }
 
+
 export const MAResultsSection: React.FC<MAResultsSectionProps> = ({
     analysisMode,
     isAnalyzing,
@@ -28,8 +29,12 @@ export const MAResultsSection: React.FC<MAResultsSectionProps> = ({
     selectedRepo,
     selectedModel,
     comparisonResults,
-}) => (
-    <React.Fragment>
+}) => {
+    // Always render AnalysisDashboard, but control its rendering with props
+    const shouldShowAnalysisDashboard =
+        selectedRepoId && selectedRepo && analysisMode === "single" && selectedRepo.status === "completed";
+
+    return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             {comparisonResults && analysisMode === "compare" ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -49,7 +54,7 @@ export const MAResultsSection: React.FC<MAResultsSectionProps> = ({
                                 {selectedModel && <span>Using {selectedModel.display_name} for analysis</span>}
                             </div>
                         </div>
-                    ) : selectedRepo.status === "completed" ? (
+                    ) : shouldShowAnalysisDashboard ? (
                         <AnalysisDashboard repositoryId={selectedRepoId} />
                     ) : (
                         <div className="text-center py-20 ctan-card rounded-lg">
@@ -67,5 +72,5 @@ export const MAResultsSection: React.FC<MAResultsSectionProps> = ({
                 </motion.div>
             )}
         </motion.div>
-    </React.Fragment>
-);
+    );
+};

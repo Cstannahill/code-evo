@@ -57,6 +57,19 @@ class TimelineResponse(BaseModel):
             return str(v)
         return v
 
+    @validator("timeline", pre=True)
+    def convert_timeline_objectids(cls, v):
+        # Recursively convert ObjectIds in timeline dicts to str
+        def convert(obj):
+            if isinstance(obj, ObjectId):
+                return str(obj)
+            if isinstance(obj, dict):
+                return {k: convert(val) for k, val in obj.items()}
+            if isinstance(obj, list):
+                return [convert(i) for i in obj]
+            return obj
+        return convert(v)
+
 
 class PatternOccurrenceResponse(BaseModel):
     id: Optional[str] = Field(alias="_id", default=None)
@@ -67,12 +80,15 @@ class PatternOccurrenceResponse(BaseModel):
     detected_at: datetime
     ai_model_used: Optional[str] = None  # New field from MongoDB model
     model_confidence: Optional[float] = None  # New field from MongoDB model
+    repository_id: Optional[str] = None
+    pattern_id: Optional[str] = None
+    commit_id: Optional[str] = None
 
     class Config:
         populate_by_name = True
         json_encoders = {ObjectId: str}
 
-    @validator("id", pre=True)
+    @validator("id", "repository_id", "pattern_id", "commit_id", pre=True)
     def convert_objectid_to_str(cls, v):
         if isinstance(v, ObjectId):
             return str(v)

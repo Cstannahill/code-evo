@@ -38,7 +38,13 @@ export const CodeQualityMetrics: React.FC<CodeQualityMetricsProps> = ({
       techDebt: Math.max(0, 100 - antipatterns * 25),
       modernization: Math.min(
         100,
-        Object.values(analysis.technologies || {}).flat().length * 10 + 30
+        (() => {
+          if (!analysis.technologies) return 30;
+          if (Array.isArray(analysis.technologies)) {
+            return analysis.technologies.length * 10 + 30;
+          }
+          return Object.values(analysis.technologies).flat().length * 10 + 30;
+        })()
       ),
     };
   }, [analysis]);
@@ -72,10 +78,10 @@ export const CodeQualityMetrics: React.FC<CodeQualityMetricsProps> = ({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gray-800 rounded-lg border border-gray-700 p-6 shadow-lg"
+        className="bg-card rounded-lg border p-6 shadow-lg"
       >
         <div className="flex items-center justify-between mb-4">
-          <h4 className="text-sm font-medium text-gray-300">{title}</h4>
+          <h4 className="text-sm font-medium">{title}</h4>
           <Icon className={`w-5 h-5 ${color}`} />
         </div>
         <div className="w-24 h-24 mx-auto mb-4">
@@ -85,13 +91,13 @@ export const CodeQualityMetrics: React.FC<CodeQualityMetricsProps> = ({
             styles={buildStyles({
               textSize: "18px",
               pathColor: hexColor,
-              textColor: "#f3f4f6", // gray-100
-              trailColor: "#374151", // gray-700
+              textColor: "hsl(var(--foreground))",
+              trailColor: "hsl(var(--muted))",
               pathTransition: "stroke-dashoffset 0.5s ease 0s",
             })}
           />
         </div>
-        <p className="text-xs text-center text-gray-400">{description}</p>
+        <p className="text-xs text-center text-muted-foreground">{description}</p>
       </motion.div>
     );
   };

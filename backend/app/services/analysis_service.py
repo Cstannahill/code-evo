@@ -386,6 +386,7 @@ class AnalysisService:
                             "quality_analysis": quality_result,
                             "analysis_index": i,
                         },
+                        detected_at=candidate.get("commit_date"),
                     )
 
             logger.info(f"✅ Added pattern occurrences for repository {repository_id}")

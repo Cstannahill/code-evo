@@ -326,6 +326,15 @@ class GitService:
                     self._parse_deno_json(item.data_stream.read().decode(), tech)
                 elif name == "pyproject.toml":
                     self._parse_pyproject_toml(item.data_stream.read().decode(), tech)
+                # Docker detection
+                elif name in ("dockerfile", "dockerfile.dev", "dockerfile.prod", "dockerfile.test"):
+                    tech["tools"].add("Docker")
+                    self._parse_dockerfile(item.data_stream.read().decode(), tech)
+                elif name in ("docker-compose.yml", "docker-compose.yaml", "docker-compose.dev.yml", "docker-compose.prod.yml"):
+                    tech["tools"].add("Docker Compose")
+                    self._parse_docker_compose(item.data_stream.read().decode(), tech)
+                elif name == ".dockerignore":
+                    tech["tools"].add("Docker")
         except Exception as e:
             logger.error(f"Error extracting technologies: {e}")
         tech["frameworks"] = list(tech["frameworks"])
@@ -357,7 +366,9 @@ class GitService:
                 "qwik": "Qwik",
                 "remix": "Remix",
                 "nestjs": "NestJS",
-                "@nestjs/core": "NestJS"
+                "@nestjs/core": "NestJS",
+                "@tauri-apps/api": "Tauri",
+                "@tauri-apps/cli": "Tauri"
             }
             
             # Libraries
@@ -472,25 +483,68 @@ class GitService:
             deps = data.get("dependencies", {})
             
             framework_map = {
+                # Web frameworks
                 "actix-web": "Actix Web",
                 "warp": "Warp",
                 "rocket": "Rocket",
                 "axum": "Axum",
                 "tide": "Tide",
                 "tokio": "Tokio",
-                "async-std": "async-std"
+                "async-std": "async-std",
+                "hyper": "Hyper",
+                # Desktop/GUI frameworks
+                "tauri": "Tauri",
+                "egui": "egui",
+                "iced": "Iced",
+                "druid": "Druid",
+                "slint": "Slint",
+                "gtk4": "GTK4",
+                "fltk": "FLTK",
+                # Game engines
+                "bevy": "Bevy",
+                "amethyst": "Amethyst",
+                "ggez": "ggez",
+                # Other frameworks
+                "yew": "Yew",
+                "leptos": "Leptos",
+                "dioxus": "Dioxus"
             }
             
             library_map = {
+                # Serialization
                 "serde": "Serde",
-                "reqwest": "Reqwest", 
+                "serde_json": "Serde JSON",
+                "toml": "TOML",
+                # HTTP/Networking
+                "reqwest": "Reqwest",
+                "hyper": "Hyper",
+                "surf": "Surf",
+                # CLI
                 "clap": "Clap",
+                "structopt": "StructOpt",
+                # Database
                 "diesel": "Diesel",
                 "sqlx": "SQLx",
+                "rusqlite": "rusqlite",
+                "mongodb": "MongoDB",
+                # Date/Time
                 "chrono": "Chrono",
+                "time": "Time",
+                # Utils
                 "uuid": "UUID",
+                "regex": "Regex",
+                "thiserror": "thiserror",
+                "anyhow": "anyhow",
+                # Logging
                 "log": "log",
-                "env_logger": "env_logger"
+                "env_logger": "env_logger",
+                "tracing": "Tracing",
+                # Crypto
+                "ring": "Ring",
+                "rustls": "rustls",
+                # Testing
+                "proptest": "proptest",
+                "quickcheck": "quickcheck"
             }
             
             for dep in deps:
@@ -506,19 +560,71 @@ class GitService:
         """Parse Go go.mod for modules"""
         try:
             framework_map = {
+                # Web frameworks
                 "github.com/gin-gonic/gin": "Gin",
-                "github.com/gorilla/mux": "Gorilla Mux",
+                "github.com/gorilla/mux": "Gorilla Mux", 
                 "github.com/labstack/echo": "Echo",
                 "github.com/gofiber/fiber": "Fiber",
-                "github.com/beego/beego": "Beego"
+                "github.com/beego/beego": "Beego",
+                "github.com/go-chi/chi": "Chi",
+                "github.com/valyala/fasthttp": "FastHTTP",
+                "github.com/iris-contrib/middleware": "Iris",
+                "github.com/kataras/iris": "Iris",
+                "github.com/go-martini/martini": "Martini",
+                "github.com/revel/revel": "Revel",
+                "github.com/astaxie/beego": "Beego",
+                # Microservices frameworks  
+                "github.com/grpc/grpc-go": "gRPC",
+                "go.micro.dev/v4": "Go Micro",
+                "github.com/go-kit/kit": "Go Kit",
+                # GraphQL
+                "github.com/99designs/gqlgen": "gqlgen",
+                "github.com/graphql-go/graphql": "GraphQL Go",
+                # CLI frameworks
+                "github.com/spf13/cobra": "Cobra",
+                "github.com/urfave/cli": "CLI"
             }
             
             library_map = {
-                "github.com/golang/protobuf": "Protocol Buffers",
+                # Database
+                "gorm.io/gorm": "GORM",
+                "github.com/jmoiron/sqlx": "SQLx",
                 "go.mongodb.org/mongo-driver": "MongoDB Driver",
                 "github.com/go-redis/redis": "Redis Client",
-                "gorm.io/gorm": "GORM",
-                "github.com/stretchr/testify": "Testify"
+                "github.com/go-sql-driver/mysql": "MySQL Driver",
+                "github.com/lib/pq": "PostgreSQL Driver",
+                "github.com/mattn/go-sqlite3": "SQLite Driver",
+                # Serialization
+                "github.com/golang/protobuf": "Protocol Buffers",
+                "google.golang.org/protobuf": "Protocol Buffers",
+                "github.com/json-iterator/go": "JSON Iterator",
+                "gopkg.in/yaml.v3": "YAML",
+                "github.com/BurntSushi/toml": "TOML",
+                # HTTP/Networking
+                "github.com/gorilla/websocket": "Gorilla WebSocket",
+                "github.com/valyala/fasthttp": "FastHTTP",
+                "golang.org/x/net": "Go Net",
+                # Logging
+                "github.com/sirupsen/logrus": "Logrus",
+                "go.uber.org/zap": "Zap",
+                "github.com/rs/zerolog": "Zerolog",
+                # Configuration
+                "github.com/spf13/viper": "Viper",
+                "github.com/kelseyhightower/envconfig": "Envconfig",
+                # Testing
+                "github.com/stretchr/testify": "Testify",
+                "github.com/golang/mock": "GoMock",
+                "github.com/onsi/ginkgo": "Ginkgo",
+                "github.com/onsi/gomega": "Gomega",
+                # Crypto
+                "golang.org/x/crypto": "Go Crypto",
+                # Time
+                "github.com/jinzhu/now": "Now",
+                # Validation
+                "github.com/go-playground/validator": "Validator",
+                # Utils
+                "github.com/google/uuid": "UUID",
+                "github.com/pkg/errors": "Errors"
             }
             
             for line in content.split("\n"):
@@ -850,6 +956,94 @@ class GitService:
                         in_fn = True
                         indent = lvl
         return snippets
+
+    def _parse_dockerfile(self, content: str, tech: Dict) -> None:
+        """Parse Dockerfile for base images and tools"""
+        try:
+            lines = content.split('\n')
+            for line in lines:
+                line = line.strip().upper()
+                if line.startswith('FROM '):
+                    base_image = line.split('FROM ')[1].split(':')[0].split(' ')[0]
+                    
+                    # Detect base technologies from Docker images
+                    base_image_lower = base_image.lower()
+                    if 'node' in base_image_lower:
+                        tech["tools"].add("Node.js")
+                    elif 'python' in base_image_lower:
+                        tech["tools"].add("Python")
+                    elif 'nginx' in base_image_lower:
+                        tech["tools"].add("Nginx")
+                    elif 'apache' in base_image_lower:
+                        tech["tools"].add("Apache")
+                    elif 'postgres' in base_image_lower:
+                        tech["tools"].add("PostgreSQL")
+                    elif 'mysql' in base_image_lower:
+                        tech["tools"].add("MySQL")
+                    elif 'redis' in base_image_lower:
+                        tech["tools"].add("Redis")
+                    elif 'mongo' in base_image_lower:
+                        tech["tools"].add("MongoDB")
+                    elif 'golang' in base_image_lower or 'go:' in base_image_lower:
+                        tech["tools"].add("Go")
+                    elif 'rust' in base_image_lower:
+                        tech["tools"].add("Rust")
+                    elif 'openjdk' in base_image_lower or 'java' in base_image_lower:
+                        tech["tools"].add("Java")
+                    elif 'alpine' in base_image_lower:
+                        tech["tools"].add("Alpine Linux")
+                    elif 'ubuntu' in base_image_lower:
+                        tech["tools"].add("Ubuntu")
+                        
+        except Exception as e:
+            logger.warning(f"Error parsing Dockerfile: {e}")
+
+    def _parse_docker_compose(self, content: str, tech: Dict) -> None:
+        """Parse docker-compose.yml for services and technologies"""
+        try:
+            import yaml
+            data = yaml.safe_load(content)
+            
+            services = data.get('services', {})
+            for service_name, service_config in services.items():
+                image = service_config.get('image', '')
+                if image:
+                    image_lower = image.lower()
+                    if 'postgres' in image_lower:
+                        tech["tools"].add("PostgreSQL")
+                    elif 'mysql' in image_lower:
+                        tech["tools"].add("MySQL")
+                    elif 'redis' in image_lower:
+                        tech["tools"].add("Redis")
+                    elif 'mongo' in image_lower:
+                        tech["tools"].add("MongoDB")
+                    elif 'nginx' in image_lower:
+                        tech["tools"].add("Nginx")
+                    elif 'apache' in image_lower:
+                        tech["tools"].add("Apache")
+                    elif 'elasticsearch' in image_lower:
+                        tech["tools"].add("Elasticsearch")
+                    elif 'rabbitmq' in image_lower:
+                        tech["tools"].add("RabbitMQ")
+                    elif 'kafka' in image_lower:
+                        tech["tools"].add("Apache Kafka")
+                        
+                # Check for environment variables that indicate technologies
+                environment = service_config.get('environment', {})
+                if isinstance(environment, list):
+                    env_vars = ' '.join(environment).lower()
+                elif isinstance(environment, dict):
+                    env_vars = ' '.join(environment.keys()).lower()
+                else:
+                    env_vars = ''
+                    
+                if 'database_url' in env_vars or 'db_' in env_vars:
+                    tech["tools"].add("Database")
+                if 'redis_url' in env_vars:
+                    tech["tools"].add("Redis")
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing docker-compose: {e}")
 
     def cleanup(self) -> None:
         """Remove all temp dirs with better Windows compatibility"""

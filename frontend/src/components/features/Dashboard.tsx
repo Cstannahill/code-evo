@@ -74,8 +74,10 @@ export const Dashboard: React.FC = () => {
       };
 
       const repo = await createRepo.mutateAsync(repoPayload);
+      console.log("🎯 Repository created:", repo);
       setSelectedRepoId(repo.id);
       setRepoUrl("");
+      console.log("🔄 Selected repository ID set to:", repo.id);
     } catch (error) {
       console.error("Failed to create repository for analysis:", error);
     }
@@ -88,7 +90,19 @@ export const Dashboard: React.FC = () => {
   };
 
   const selectedModel = getSelectedModelInfo();
-  const isAnalyzing = selectedRepo?.status === "analyzing";
+  const isAnalyzing = selectedRepo?.status === "analyzing" || selectedRepo?.status === "pending";
+
+  // Debug logging for repository status changes
+  React.useEffect(() => {
+    if (selectedRepo) {
+      console.log("📋 Repository status updated:", {
+        id: selectedRepo.id,
+        name: selectedRepo.name,
+        status: selectedRepo.status,
+        isAnalyzing
+      });
+    }
+  }, [selectedRepo?.status, selectedRepo?.id, isAnalyzing]);
 
   return (
     <>
@@ -236,11 +250,12 @@ export const Dashboard: React.FC = () => {
                   <div className="text-center py-20">
                     <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin text-primary" />
                     <h3 className="text-xl font-semibold mb-2">
-                      Analyzing Repository
+                      {selectedRepo.status === "pending" ? "Initializing Analysis" : "Analyzing Repository"}
                     </h3>
                     <p className="text-muted-foreground">
-                      This may take a few minutes depending on the repository
-                      size...
+                      {selectedRepo.status === "pending"
+                        ? "Setting up repository analysis and starting background tasks..."
+                        : "This may take a few minutes depending on the repository size..."}
                     </p>
                     <div className="mt-8 inline-flex items-center gap-2 text-sm text-muted-foreground">
                       <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
@@ -253,7 +268,7 @@ export const Dashboard: React.FC = () => {
                   </div>
                 ) : selectedRepo.status === "completed" ? (
                   <AnalysisDashboard repositoryId={selectedRepoId} />
-                ) : (
+                ) : selectedRepo.status === "failed" ? (
                   <div className="text-center py-20">
                     <X className="w-12 h-12 mx-auto mb-4 text-destructive" />
                     <h3 className="text-xl font-semibold mb-2">
@@ -263,13 +278,25 @@ export const Dashboard: React.FC = () => {
                       Something went wrong. Please try again.
                     </p>
                   </div>
+                ) : (
+                  <div className="text-center py-20">
+                    <div className="w-12 h-12 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
+                      <span className="text-xl">⚠️</span>
+                    </div>
+                    <h3 className="text-xl font-semibold mb-2">
+                      Unknown Status
+                    </h3>
+                    <p className="text-muted-foreground">
+                      Repository status: {selectedRepo.status}. Please refresh the page.
+                    </p>
+                  </div>
                 )}
               </motion.div>
             ) : (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-center py-20 bg-card rounded-lg border"
+                className="text-center py-20 bg-ctan-card rounded-lg border"
               >
                 <Github className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
                 <h3 className="text-xl font-semibold mb-2">

@@ -49,7 +49,8 @@ async def analyze_repository_background(
         db_manager = get_enhanced_database_manager()
 
         # Initialize analysis service
-        analysis_service = AnalysisService()
+        from app.core.service_manager import get_analysis_service
+        analysis_service = get_analysis_service()
 
         # Use specific model if provided
         if model_id:

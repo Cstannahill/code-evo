@@ -24,10 +24,16 @@ export const useRepositoryAnalysis = (
     },
     enabled: !!repoId,
     refetchInterval: (query) => {
-      // Poll while analyzing
-      if (query?.state?.data?.status === "analyzing") {
-        return 5000; // 5 seconds
+      // Poll while pending or analyzing
+      const status = query?.state?.data?.status;
+      console.log("📊 Analysis polling check - status:", status);
+      
+      if (status === "pending" || status === "analyzing") {
+        console.log("🔄 Polling analysis data - status:", status);
+        return 4000; // 4 seconds for analysis data
       }
+      
+      console.log("ℹ️ Analysis polling stopped for status:", status);
       return false;
     },
   });

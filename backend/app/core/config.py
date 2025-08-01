@@ -22,7 +22,8 @@ class Settings(BaseSettings):
 
     # OpenAI (optional)
     OPENAI_API_KEY: Optional[str] = None
-
+    # Anthropic (optional)
+    ANTHROPIC_API_KEY: Optional[str] = None
     # Security
     SECRET_KEY: str = "dev-secret-key-change-in-production"
     ALGORITHM: str = "HS256"

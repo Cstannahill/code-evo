@@ -27,6 +27,7 @@
 - **Framework Detection**: React, Vue, Angular, Node.js ecosystems
 - **Evolution Tracking**: Pattern adoption over time with comparative analysis
 - **Multi-Model Comparison**: Side-by-side analysis with consensus scoring
+- **Timeline/Graph Accuracy**: Backend now propagates real commit dates to timeline and graph events, ensuring accurate historical data visualization.
 
 #### ✅ Frontend: Modern React with Working Model Integration
 
@@ -42,7 +43,7 @@
 
 **✅ Working Model Integration:**
 
-- **Local Models**: CodeLlama 7B, CodeLlama 13B, CodeGemma 7B fully functional
+- **Local Models**: CodeLlama 7B, Devstral, CodeGemma 7B fully functional
 - **Model Selection**: Frontend successfully displays and selects available Ollama models
 - **Analysis Pipeline**: End-to-end code analysis working with local models
 - **API Integration**: Completed model availability hook and Dashboard component data transformation
@@ -472,7 +473,7 @@ OPENAI_RATE_LIMIT_PER_MINUTE=60  # Rate limiting configuration
 **Current Working Models:**
 
 - ✅ CodeLlama 7B (Local Ollama)
-- ✅ CodeLlama 13B (Local Ollama)
+- ✅ Devstral (Local Ollama)
 - ✅ CodeGemma 7B (Local Ollama)
 - 🔧 GPT-4 (Requires API key)
 - 🔧 GPT-3.5 Turbo (Requires API key)
@@ -506,9 +507,15 @@ pnpm dev                       # Development server (port 5173)
 - All Pylance errors in `backend/app/api/analysis.py` and `backend/app/tasks/analysis_tasks.py` related to service method usage, type safety, and parameter passing have been resolved.
 - API and background task layers now use correct service and model utility functions, with explicit type conversions and robust error handling.
 - Background analysis, status, and cancel flows are now type-safe and consistent with backend contracts.
+- AIService now includes a utility to select the correct OpenAI token parameter (`max_completion_tokens` for new models, `max_tokens` for legacy models) with robust error handling and logging. All relevant calls to the multi-model service in `analyze_code_pattern` and `analyze_code_quality` now use this utility, ensuring compatibility with both old and new OpenAI models.
 
 ## Immediate Next Steps
 
+- Test backend analysis with both legacy and new OpenAI models to confirm the token parameter fix works as intended.
+- Monitor logs for any parameter-related errors or unexpected behavior.
+- If successful, propagate the utility to any other OpenAI call sites as needed.
+- Test the dashboard/timeline to confirm that real commit dates are now reflected in all graphs and events (timeline/graph accuracy fix).
+- If any timeline/graph still uses today's date, further audit frontend or API serialization for date propagation issues.
 - Verify background analysis and status/cancel flows in integration testing.
 - Add/expand automated tests for error and edge cases in background task and analysis flows.
 - Continue monitoring logs for runtime errors or contract mismatches.

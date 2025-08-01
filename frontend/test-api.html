@@ -42,9 +42,9 @@
           console.log("Models object:", models);
           console.log("Model keys:", Object.keys(models));
 
-          // Check specifically for CodeLlama 13B
+          // Check specifically for Devstral
           const codellama13b = models["codellama:13b"];
-          console.log("CodeLlama 13B:", codellama13b);
+          console.log("Devstral:", codellama13b);
 
           // Filter local models (cost = 0)
           const localModels = Object.entries(models).filter(
@@ -61,10 +61,10 @@
                     <p><strong>Model keys:</strong> ${Object.keys(models).join(
                       ", "
                     )}</p>
-                    <p><strong>CodeLlama 13B present:</strong> ${
+                    <p><strong>Devstral present:</strong> ${
                       codellama13b ? "YES" : "NO"
                     }</p>
-                    <p><strong>CodeLlama 13B available:</strong> ${
+                    <p><strong>Devstral available:</strong> ${
                       codellama13b?.available ? "YES" : "NO"
                     }</p>
                     <p><strong>Local models count:</strong> ${

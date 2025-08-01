@@ -504,6 +504,15 @@ class PatternOccurrence(Model):
             return ObjectId(v)
         return v
 
+    @validator("detected_at", pre=True)
+    def validate_detected_at(cls, v):
+        if v is None:
+            return datetime.utcnow()
+        if isinstance(v, datetime):
+            # Remove timezone info to make it naive
+            return v.replace(tzinfo=None)
+        return v
+
 
 class AnalysisSession(Model):
     """Analysis session model for MongoDB"""
