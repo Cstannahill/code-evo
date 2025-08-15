@@ -176,13 +176,13 @@ export const Dashboard: React.FC = () => {
           >
             <form onSubmit={handleAnalyze} className="flex gap-4 mb-4">
               <div className="relative flex-1">
-                <Github className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Github className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5" />
                 <input
                   type="url"
                   value={repoUrl}
                   onChange={(e) => setRepoUrl(e.target.value)}
                   placeholder="https://github.com/username/repository"
-                  className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="w-full text-[#ffb700] repo-input pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm ring-offset-background placeholder:text-[#ffb700] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   disabled={createRepo.isPending}
                   required
                 />

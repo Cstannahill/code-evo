@@ -60,16 +60,32 @@ export const TechnologyEvolutionChart: React.FC<
       if (!technologies || typeof technologies !== 'object') {
         return [];
       }
-      return Object.values(technologies)
-        .flat()
-        .filter(tech => {
-          if (!tech) return false;
-          if (typeof tech === 'string') return tech.length > 0;
-          return tech.name && typeof tech.name === 'string' && tech.name.length > 0;
-        })
-        .map(tech => typeof tech === 'string' ? tech : tech.name)
-        .filter(name => name && typeof name === 'string') // Extra safety check
-        .slice(0, 8); // Limit to top 8 for readability
+      
+      const techNames: string[] = [];
+      
+      // Handle different technology categories
+      Object.entries(technologies).forEach(([category, items]) => {
+        if (category === 'languages' && typeof items === 'object' && items !== null) {
+          // Languages are key-value pairs: {"JavaScript": 5, "Python": 3}
+          Object.keys(items).forEach(lang => {
+            if (lang && typeof lang === 'string' && lang.length > 0) {
+              techNames.push(lang);
+            }
+          });
+        } else if (Array.isArray(items)) {
+          // Frameworks, libraries, tools are arrays: ["React", "Express.js"]
+          items.forEach(item => {
+            if (typeof item === 'string' && item.length > 0) {
+              techNames.push(item);
+            } else if (item && typeof item === 'object' && item.name) {
+              techNames.push(item.name);
+            }
+          });
+        }
+      });
+      
+      // Remove duplicates and limit to top 8 for readability
+      return [...new Set(techNames)].slice(0, 8);
     }, [technologies]);
 
     if (!normalizedTimeline || normalizedTimeline.length === 0 || allTechs.length === 0) {
@@ -152,22 +168,36 @@ export const TechnologyEvolutionChart: React.FC<
       return [];
     }
 
-    const techs = Object.values(technologies)
-      .flat()
-      .filter(tech => {
-        if (!tech) return false;
-        if (typeof tech === 'string') return tech.length > 0;
-        return tech.name && typeof tech.name === 'string' && tech.name.length > 0;
-      })
-      .map(tech => ({
-        name: typeof tech === 'string' ? tech : tech.name,
-        ...((typeof tech === 'object' && tech !== null) ? tech : {})
-      }))
-      .filter(tech => tech.name && typeof tech.name === 'string') // Extra safety check
-      .slice(0, 8);
+    const techs: Array<{name: string, [key: string]: any}> = [];
     
-    console.log("TechnologyEvolutionChart: Displaying technologies", techs);
-    return techs;
+    // Handle different technology categories
+    Object.entries(technologies).forEach(([category, items]) => {
+      if (category === 'languages' && typeof items === 'object' && items !== null) {
+        // Languages are key-value pairs: {"JavaScript": 5, "Python": 3}
+        Object.entries(items).forEach(([lang, count]) => {
+          if (lang && typeof lang === 'string' && lang.length > 0) {
+            techs.push({ name: lang, usage_count: count, category: 'language' });
+          }
+        });
+      } else if (Array.isArray(items)) {
+        // Frameworks, libraries, tools are arrays: ["React", "Express.js"]
+        items.forEach(item => {
+          if (typeof item === 'string' && item.length > 0) {
+            techs.push({ name: item, category });
+          } else if (item && typeof item === 'object' && item.name) {
+            techs.push({ name: item.name, category, ...item });
+          }
+        });
+      }
+    });
+    
+    // Remove duplicates by name and limit to top 8 for readability
+    const uniqueTechs = techs.filter((tech, index, self) => 
+      self.findIndex(t => t.name === tech.name) === index
+    ).slice(0, 8);
+    
+    console.log("TechnologyEvolutionChart: Displaying technologies", uniqueTechs);
+    return uniqueTechs;
   }, [technologies]);
 
   // Show empty state if no data

@@ -3,7 +3,14 @@
 
 /* Enhanced Title Gradient */
 .brand-title {
-  background: linear-gradient(135deg, var(--ctan-amber) 0%, var(--ctan-gold) 25%, var(--ctan-warm-yellow) 50%, var(--ctan-gold) 75%, var(--ctan-orange) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--ctan-amber) 0%,
+    var(--ctan-gold) 25%,
+    var(--ctan-warm-yellow) 50%,
+    var(--ctan-gold) 75%,
+    var(--ctan-orange) 100%
+  );
   background-size: 200% 200%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -12,9 +19,15 @@
 }
 
 @keyframes gradient-shift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 /* Enhanced Button Styling */
@@ -28,7 +41,7 @@
 }
 
 .ctan-button::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -56,18 +69,19 @@
 
 /* Repository Button Styling */
 .repo-button {
-  background: linear-gradient(145deg, #1a1a1d, #141416);
-  border: 1px solid rgba(255, 183, 0, 0.1);
+  background: linear-gradient(145deg, #48484a, #1c1c1d);
+  border: 2px solid rgba(235, 170, 8, 0.1);
   backdrop-filter: blur(10px);
   transition: all 0.3s ease;
+  color: #ffb700;
 }
 
 .repo-button:hover {
-  background: linear-gradient(145deg, #1f1f23, #18181b);
+  background: linear-gradient(145deg, #c6c3af, #18181b);
   border-color: rgba(255, 183, 0, 0.3);
   box-shadow: 0 0 20px rgba(255, 183, 0, 0.1);
+  color: #ffbb00;
 }
-
 
 /* Model Select Enhancement */
 .model-select-trigger {
@@ -88,7 +102,7 @@
 }
 
 .ctan-tab::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: 0;
   left: 0;
@@ -112,13 +126,18 @@
 }
 
 .ctan-card::before {
-  content: '';
+  content: "";
   position: absolute;
   top: -2px;
   left: -2px;
   right: -2px;
   bottom: -2px;
-  background: linear-gradient(45deg, var(--ctan-orange), var(--ctan-gold), var(--ctan-orange));
+  background: linear-gradient(
+    45deg,
+    var(--ctan-orange),
+    var(--ctan-gold),
+    var(--ctan-orange)
+  );
   border-radius: inherit;
   opacity: 0;
   z-index: -1;
@@ -131,8 +150,13 @@
 
 /* Icon Glow Animation */
 @keyframes icon-glow {
-  0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 183, 0, 0.5)); }
-  50% { filter: drop-shadow(0 0 20px rgba(255, 183, 0, 0.8)); }
+  0%,
+  100% {
+    filter: drop-shadow(0 0 10px rgba(255, 183, 0, 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 20px rgba(255, 183, 0, 0.8));
+  }
 }
 
 .ctan-icon {
@@ -146,19 +170,28 @@
 }
 
 .ctan-loading::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 183, 0, 0.1), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 183, 0, 0.1),
+    transparent
+  );
   animation: loading-sweep 1.5s ease-in-out infinite;
 }
 
 @keyframes loading-sweep {
-  0% { left: -100%; }
-  100% { left: 100%; }
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
 }
 
 /* Favicon Implementation */
@@ -171,7 +204,7 @@
   .brand-title {
     font-size: 2.5rem;
   }
-  
+
   .ctan-button {
     padding: 0.5rem 1rem;
   }
@@ -182,4 +215,8 @@
   background: linear-gradient(145deg, var(--ctan-orange), var(--ctan-gold));
   border-color: var(--ctan-gold);
   color: var(--ctan-bg);
+}
+
+.repo-input {
+  color: #ffb700 !important;
 }

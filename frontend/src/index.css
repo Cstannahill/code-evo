@@ -42,6 +42,8 @@
     --ctan-text-primary: #18181b;
     --ctan-text-secondary: #71717a;
     --ctan-text-muted: #d4d4d5;
+    --ctan-text-gold: #ffb700;
+    --ctan-text-warm-yellow: #ffd700;
   }
 
   .dark {
@@ -71,5 +73,5 @@
 }
 
 .repo-input {
-  color: white !important;
+  color: #ffb700 !important;
 }

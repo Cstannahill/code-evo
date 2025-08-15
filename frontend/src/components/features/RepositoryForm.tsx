@@ -74,9 +74,8 @@ const RepositoryForm: React.FC<RepositoryFormProps> = ({
               value={url}
               onChange={handleUrlChange}
               placeholder="https://github.com/username/repository"
-              className={`w-full pl-10 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-700 text-gray-100 placeholder-gray-500 ${
-                errors.length > 0 ? "border-red-500" : "border-gray-600"
-              }`}
+              className={`w-full pl-10 repo-input pr-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-700 text-gray-100 placeholder-gray-500 ${errors.length > 0 ? "border-red-500" : "border-gray-600"
+                }`}
               disabled={loading}
             />
           </div>

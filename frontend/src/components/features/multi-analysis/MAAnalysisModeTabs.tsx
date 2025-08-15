@@ -40,17 +40,17 @@ export const MAAnalysisModeTabs: React.FC<MAAnalysisModeTabsProps> = ({
         onValueChange={(v) => setAnalysisMode(v as "single" | "compare")}
     >
         <div className="flex items-center justify-between mb-6">
-            <TabsList className="grid w-fit grid-cols-2 bg-ctan-dark-hover">
+            <TabsList className="grid w-fit grid-cols-2 bg-ctan-dark-hover text-[#ffd700] ">
                 <TabsTrigger
                     value="single"
-                    className="ctan-tab flex items-center gap-2"
+                    className="ctan-tab flex items-center gap-2 hover:text-[#ffb700]"
                 >
                     <Brain className="w-4 h-4" />
                     Analyze
                 </TabsTrigger>
                 <TabsTrigger
                     value="compare"
-                    className="ctan-tab flex items-center gap-2"
+                    className="ctan-tab flex items-center gap-2 hover:text-[#ffb700]"
                 >
                     <Zap className="w-4 h-4" />
                     Compare Models
