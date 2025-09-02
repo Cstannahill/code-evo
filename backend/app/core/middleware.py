@@ -14,21 +14,30 @@ class EnhancedCORSMiddleware:
 
     @staticmethod
     def configure(app):
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=[
+        # Allow override via environment variable CORS_ORIGINS (comma-separated)
+        import os
+
+        raw = os.getenv("CORS_ORIGINS")
+        if raw:
+            origins = [o.strip() for o in raw.split(",") if o.strip()]
+        else:
+            origins = [
                 "http://localhost:3000",
                 "http://localhost:3001",
                 "http://localhost:5173",  # Vite default
                 "http://127.0.0.1:3000",
                 "http://127.0.0.1:5173",
-            ],
+            ]
+
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
             expose_headers=["*"],
         )
-        logger.info("✅ CORS configured for frontend connections")
+        logger.info(f"✅ CORS configured for frontend connections: {origins}")
 
 
 class ConnectionLoggingMiddleware:

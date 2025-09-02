@@ -31,16 +31,24 @@ from .mongodb_monitoring import MongoDBMonitor, HealthCheckResult
 
 logger = logging.getLogger(__name__)
 env_path = Path(__file__).resolve().parents[2] / ".env"
-# SQLite setup (keeping this simple)
-DATABASE_PATH = "code_evolution.db"
+load_dotenv(dotenv_path=env_path)
+
+# Prefer DATABASE_URL (Postgres) in production; fallback to local SQLite for dev
+DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_PATH = os.getenv("SQLITE_PATH", "code_evolution.db")
 SQLITE_URL = f"sqlite:///{DATABASE_PATH}"
 
-engine = create_engine(
-    SQLITE_URL,
-    connect_args={"check_same_thread": False},
-    echo=False,
-)
-load_dotenv(dotenv_path=env_path)
+if DATABASE_URL:
+    # Use the DATABASE_URL provided (e.g., postgres://...)
+    engine = create_engine(DATABASE_URL, echo=False)
+    logger.info("Using DATABASE_URL for SQL engine")
+else:
+    engine = create_engine(
+        SQLITE_URL,
+        connect_args={"check_same_thread": False},
+        echo=False,
+    )
+    logger.info("Using local SQLite database")
 MONGODB_URL = os.getenv("MONGODB_URL", "your-cluster-connection-string")
 mongodb_client = AsyncIOMotorClient(MONGODB_URL)
 mongodb_db = mongodb_client.code_evolution_ai
@@ -73,7 +81,7 @@ except Exception as e:
 # ChromaDB setup (vector database) - Updated for v1.0.15
 try:
     chroma_db_path = os.getenv("CHROMA_DB_PATH", "./chroma_db")
-    
+
     # ChromaDB 1.0.15 has improved telemetry handling
     chroma_client = chromadb.PersistentClient(
         path=chroma_db_path,
@@ -83,7 +91,7 @@ try:
             is_persistent=True,
         ),
     )
-    
+
     logger.info("✅ ChromaDB v1.0.15 initialized successfully")
 except Exception as e:
     logger.warning(f"⚠️  ChromaDB not available: {e}")
@@ -183,9 +191,8 @@ def get_db():
 def create_tables():
     """Create all database tables and log status"""
     try:
-        logger.info(
-            f"🚀 Initializing SQLite database at: {os.path.abspath(DATABASE_PATH)}"
-        )
+        db_label = "SQLite" if not DATABASE_URL else "Postgres"
+        logger.info(f"🚀 Initializing {db_label} database")
 
         # Import all models to ensure they're registered with Base
         from app.models.repository import (
@@ -228,21 +235,40 @@ def create_tables():
 def get_db_info():
     """Return database diagnostics"""
     try:
+        cache_type = "Redis" if redis_client else "Memory"
+        vector_db = "ChromaDB" if chroma_client else "Disabled"
+
         with engine.connect() as conn:
-            result = conn.execute(
-                text("SELECT COUNT(*) FROM sqlite_master WHERE type='table';")
-            )
-            table_count = result.scalar()
-            cache_type = "Redis" if redis_client else "Memory"
-            vector_db = "ChromaDB" if chroma_client else "Disabled"
+            dialect = engine.dialect.name
+            if dialect in ("sqlite",):
+                result = conn.execute(
+                    text("SELECT COUNT(*) FROM sqlite_master WHERE type='table';")
+                )
+                table_count = result.scalar()
+                db_type = "SQLite"
+                database_path = os.path.abspath(DATABASE_PATH)
+                database_size = (
+                    os.path.getsize(DATABASE_PATH)
+                    if os.path.exists(DATABASE_PATH)
+                    else 0
+                )
+            else:
+                # Generic info for Postgres and other SQL engines
+                result = conn.execute(
+                    text(
+                        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';"
+                    )
+                )
+                table_count = result.scalar()
+                db_type = engine.dialect.name
+                database_path = os.getenv("DATABASE_URL") or "unknown"
+                database_size = None
 
         return {
-            "database_path": os.path.abspath(DATABASE_PATH),
-            "database_size": (
-                os.path.getsize(DATABASE_PATH) if os.path.exists(DATABASE_PATH) else 0
-            ),
+            "database_path": database_path,
+            "database_size": database_size,
             "table_count": table_count,
-            "database_type": "SQLite",
+            "database_type": db_type,
             "cache_type": cache_type,
             "vector_db": vector_db,
             "redis_connected": bool(redis_client),

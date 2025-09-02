@@ -3,11 +3,13 @@ import os
 import json
 import logging
 import asyncio
+import time
 import requests
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from enum import Enum
 from dataclasses import dataclass
+
 try:
     from langchain_ollama import OllamaLLM
 except ImportError:
@@ -59,14 +61,13 @@ class AIModel(str, Enum):
     CODELLAMA_7B = "codellama:7b"
     DEVSTRAL = "devstral"
     GEMMA3N = "gemma3n"
-    OPENAI_GPT4 = "gpt-4"
-    OPENAI_GPT35_TURBO = "gpt-3.5-turbo"
+    OPENAI_GPT4_1 = "gpt-4.1"
     OPENAI_GPT4_1_MINI = "gpt-4.1-mini"
     OPENAI_GPT4_1_NANO = "gpt-4.1-nano"
-    OPENAI_GPT4O_MINI = "gpt-4o-mini"
-    OPENAI_O4_MINI = "o4-mini"
-    OPENAI_O3_MINI = "o3-mini"
-    CLAUDE_SONNET = "claude-3-7-sonnet-20250219"
+    OPENAI_GPT5 = "gpt-5"
+    OPENAI_GPT5_MINI = "gpt-5-mini"
+    OPENAI_GPT5_NANO = "gpt-5-nano"
+    CLAUDE_SONNET = "claude-sonnet-4-20250514"
 
 
 @dataclass
@@ -122,20 +123,93 @@ class MultiModelAIService:
     def _init_ollama_models(self):
         """Initialize Ollama local models with fast startup"""
         logger.info("🔄 Initializing Ollama models...")
-        
-        # Quick availability check
-        try:
-            response = requests.get("http://127.0.0.1:11434/api/tags", timeout=3)
-            if response.status_code != 200:
-                logger.warning("❌ Ollama service not available, skipping all Ollama models")
-                return
-            
-            available_models_data = response.json().get("models", [])
-            available_model_names = [m["name"].split(":")[0] for m in available_models_data]
-            logger.info(f"📋 Found {len(available_model_names)} Ollama models: {available_model_names}")
-            
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"❌ Cannot connect to Ollama: {e}, skipping all Ollama models")
+        # Prefer using configured OLLAMA_HOST/OLLAMA_PORT (avoid defaulting to localhost)
+        ollama_host = os.getenv("OLLAMA_HOST", "127.0.0.1")
+        ollama_port = os.getenv("OLLAMA_PORT", "11434")
+
+        endpoints = [
+            f"http://{ollama_host}:{ollama_port}/v1/models",
+            f"http://{ollama_host}:{ollama_port}/api/tags",
+            # fallback to loopback if specific host fails (last resort)
+            f"http://127.0.0.1:{ollama_port}/v1/models",
+            f"http://127.0.0.1:{ollama_port}/api/tags",
+        ]
+        available_model_names_full = []
+        available_model_names_base = []
+
+        # Retry with exponential backoff to allow Ollama to finish warm-up
+        max_attempts = 10
+        for attempt in range(1, max_attempts + 1):
+            for url in endpoints:
+                try:
+                    logger.info(f"🔎 Checking Ollama at {url} (attempt {attempt})")
+                    resp = requests.get(url, timeout=5)
+                    if resp.status_code != 200:
+                        logger.debug(
+                            f"Ollama endpoint {url} returned {resp.status_code}"
+                        )
+                        continue
+
+                    payload = resp.json()
+
+                    # two formats supported: v1/models -> {"object":"list","data":[{id:...}]}
+                    # or legacy /api/tags -> {"models": [{"name": "codellama:7b"}, ...]}
+                    models_list = []
+                    if isinstance(payload, dict) and payload.get("data"):
+                        # v1/models
+                        data = payload.get("data") or []
+                        for item in data:
+                            # item may have 'id' or 'name'
+                            name = item.get("id") or item.get("name")
+                            if name:
+                                models_list.append(name)
+                    elif isinstance(payload, dict) and payload.get("models"):
+                        for item in payload.get("models"):
+                            name = item.get("name") or item.get("id")
+                            if name:
+                                models_list.append(name)
+                    else:
+                        # Unknown payload shape, attempt to extract any strings
+                        if isinstance(payload, list):
+                            for item in payload:
+                                if isinstance(item, dict):
+                                    name = item.get("name") or item.get("id")
+                                    if name:
+                                        models_list.append(name)
+
+                    if not models_list:
+                        logger.info(
+                            f"ℹ️ Ollama at {url} responded but returned no models"
+                        )
+                        continue
+
+                    available_model_names_full = models_list
+                    available_model_names_base = [
+                        n.split(":")[0] for n in models_list if n
+                    ]
+                    logger.info(
+                        f"📋 Found {len(available_model_names_full)} Ollama models: {available_model_names_full}"
+                    )
+                    break
+
+                except requests.exceptions.RequestException as e:
+                    logger.debug(f"Ollama check failed for {url}: {e}")
+                    continue
+
+            if available_model_names_full:
+                break
+
+            # Exponential backoff with small jitter to give Ollama time to load models
+            sleep_time = min(30, attempt * 3) + (attempt % 3)
+            logger.info(
+                f"⏳ Ollama not ready or returned no models, retrying in {sleep_time}s (attempt {attempt}/{max_attempts})"
+            )
+            time.sleep(sleep_time)
+
+        if not available_model_names_full:
+            logger.warning(
+                "❌ Ollama models not discovered after retries, skipping all Ollama models"
+            )
             return
 
         ollama_models = [
@@ -162,9 +236,17 @@ class MultiModelAIService:
 
         for model_enum, display_name, strengths in ollama_models:
             try:
-                # Check if this specific model is downloaded
-                if model_enum.value not in available_model_names:
-                    logger.info(f"⏭️ {display_name} not downloaded, skipping initialization")
+                # Check if this specific model is downloaded. Accept either full name
+                # (e.g. 'codellama:7b') or base name ('codellama') returned by Ollama.
+                model_full = model_enum.value
+                model_base = model_full.split(":")[0]
+                if (
+                    model_full not in available_model_names_full
+                    and model_base not in available_model_names_base
+                ):
+                    logger.info(
+                        f"⏭️ {display_name} not downloaded, skipping initialization"
+                    )
                     continue
 
                 # Initialize client without testing (lazy loading for fast startup)
@@ -172,7 +254,7 @@ class MultiModelAIService:
                     client = OllamaLLM(model=model_enum.value, temperature=0.1)
                 else:
                     client = Ollama(model=model_enum.value, temperature=0.1)
-                
+
                 self.model_clients[model_enum] = client
                 self.available_models[model_enum] = ModelInfo(
                     name=display_name,
@@ -183,7 +265,7 @@ class MultiModelAIService:
                     available=True,
                 )
                 logger.info(f"✅ {display_name} initialized (lazy loading)")
-                
+
             except Exception as e:
                 logger.warning(f"❌ {display_name} not available: {e}")
 
@@ -194,34 +276,25 @@ class MultiModelAIService:
             return
 
         try:
-            # Legacy models
-            self.available_models[AIModel.OPENAI_GPT4] = ModelInfo(
-                name="GPT-4",
+
+            # New 2025 models with improved capabilities
+            self.available_models[AIModel.OPENAI_GPT4_1] = ModelInfo(
+                name="GPT-4.1",
                 provider="OpenAI",
-                context_window=128000,
-                cost_per_1k_tokens=0.03,
+                context_window=1047576,  # 1M token context window
+                cost_per_1k_tokens=0.0020,  # $2.00 per million input tokens
                 strengths=[
-                    "Exceptional reasoning",
-                    "Detailed explanations",
-                    "Latest patterns",
+                    "Improved reasoning",
+                    "Better coding capabilities",
+                    "Enhanced context understanding",
                 ],
                 available=True,
             )
 
-            self.available_models[AIModel.OPENAI_GPT35_TURBO] = ModelInfo(
-                name="GPT-3.5 Turbo",
-                provider="OpenAI",
-                context_window=16384,
-                cost_per_1k_tokens=0.002,
-                strengths=["Fast", "Cost-effective", "Good general analysis"],
-                available=True,
-            )
-
-            # New 2025 models with improved capabilities
             self.available_models[AIModel.OPENAI_GPT4_1_MINI] = ModelInfo(
                 name="GPT-4.1 Mini",
                 provider="OpenAI",
-                context_window=1000000,  # 1M token context window
+                context_window=1047576,  # 1M token context window
                 cost_per_1k_tokens=0.0004,  # $0.40 per million input tokens
                 strengths=[
                     "Major gains in coding",
@@ -235,7 +308,7 @@ class MultiModelAIService:
             self.available_models[AIModel.OPENAI_GPT4_1_NANO] = ModelInfo(
                 name="GPT-4.1 Nano",
                 provider="OpenAI",
-                context_window=1000000,  # 1M token context window
+                context_window=1047576,  # 1M token context window
                 cost_per_1k_tokens=0.0001,  # $0.10 per million input tokens
                 strengths=[
                     "Fastest and cheapest",
@@ -246,43 +319,39 @@ class MultiModelAIService:
                 available=True,
             )
 
-            self.available_models[AIModel.OPENAI_GPT4O_MINI] = ModelInfo(
-                name="GPT-4o Mini",
+            self.available_models[AIModel.OPENAI_GPT5] = ModelInfo(
+                name="GPT-5",
                 provider="OpenAI",
-                context_window=128000,
-                cost_per_1k_tokens=0.00015,  # Most cost-efficient
+                context_window=400000,  # 400k token context window
+                cost_per_1k_tokens=0.00125,  # $1.25 per million input tokens
                 strengths=[
-                    "Cost-efficient intelligence",
-                    "Vision capabilities",
-                    "Good balance of speed and quality",
+                    "Major improvements in reasoning",
+                    "Enhanced context understanding",
+                    "Faster response times",
                 ],
                 available=True,
             )
 
-            self.available_models[AIModel.OPENAI_O4_MINI] = ModelInfo(
-                name="O4-Mini",
+            self.available_models[AIModel.OPENAI_GPT5_MINI] = ModelInfo(
+                name="GPT-5 Mini",
                 provider="OpenAI",
-                context_window=200000,
-                cost_per_1k_tokens=0.0011,  # $1.10 per million input tokens
+                context_window=400000,  # 400k token context window
+                cost_per_1k_tokens=0.00025,  # $0.25 per million input tokens
                 strengths=[
-                    "Optimized for reasoning",
-                    "Best performance on AIME 2024/2025",
-                    "Excellent in math and coding",
-                    "Visual task capabilities",
+                    "Optimized for speed",
+                    "Lower cost for high-volume tasks",
                 ],
                 available=True,
             )
 
-            self.available_models[AIModel.OPENAI_O3_MINI] = ModelInfo(
-                name="O3-Mini",
+            self.available_models[AIModel.OPENAI_GPT5_NANO] = ModelInfo(
+                name="GPT-5 Nano",
                 provider="OpenAI",
-                context_window=200000,  # Assumed similar to O4-mini
-                cost_per_1k_tokens=0.002,  # Estimated based on O-series pricing
+                context_window=400000,  # 400k token context window
+                cost_per_1k_tokens=0.00005,  # $0.05 per million input tokens
                 strengths=[
-                    "Advanced reasoning capabilities",
-                    "Latest O-series model",
-                    "Trained to think longer",
-                    "Smart and efficient",
+                    "Fastest and cheapest",
+                    "Exceptional small model performance",
                 ],
                 available=True,
             )
@@ -299,10 +368,10 @@ class MultiModelAIService:
 
         try:
             self.available_models[AIModel.CLAUDE_SONNET] = ModelInfo(
-                name="Claude 3 Sonnet",
+                name="Claude 4 Sonnet",
                 provider="Anthropic",
                 context_window=200000,
-                cost_per_1k_tokens=0.015,
+                cost_per_1k_tokens=0.003,  # $3.00 per million input tokens
                 strengths=["Code quality focus", "Security analysis", "Best practices"],
                 available=True,
             )
@@ -332,7 +401,7 @@ class MultiModelAIService:
             for model, info in self.available_models.items()
             if info.available
         }
-    
+
     def _get_cost_tier(self, cost_per_1k_tokens: float) -> str:
         """Categorize model by cost tier"""
         if cost_per_1k_tokens == 0.0:
@@ -345,23 +414,23 @@ class MultiModelAIService:
             return "medium"
         else:
             return "high"
-    
+
     def estimate_analysis_cost(self, code: str, model: AIModel) -> Dict[str, Any]:
         """Estimate the cost of analyzing code with a specific model"""
         if model not in self.available_models:
             return {"error": f"Model {model.value} not available"}
-        
+
         model_info = self.available_models[model]
-        
+
         # Estimate token count (rough approximation: 1 token ≈ 4 characters)
         estimated_input_tokens = len(code) // 4
-        
+
         # Add some overhead for prompt formatting
         total_input_tokens = estimated_input_tokens + 200
-        
+
         # Estimate output tokens (typically much smaller than input for analysis)
         estimated_output_tokens = min(500, total_input_tokens // 4)
-        
+
         if model_info.cost_per_1k_tokens == 0.0:
             return {
                 "model": model.value,
@@ -374,15 +443,15 @@ class MultiModelAIService:
                 },
                 "is_free": True,
             }
-        
+
         # Different pricing for input vs output tokens (output typically 4x more expensive)
         input_cost_per_1k = model_info.cost_per_1k_tokens
         output_cost_per_1k = model_info.cost_per_1k_tokens * 4  # Typical ratio
-        
+
         input_cost = (total_input_tokens / 1000) * input_cost_per_1k
         output_cost = (estimated_output_tokens / 1000) * output_cost_per_1k
         total_cost = input_cost + output_cost
-        
+
         return {
             "model": model.value,
             "estimated_input_tokens": total_input_tokens,
@@ -424,19 +493,24 @@ class MultiModelAIService:
                 AIModel.DEVSTRAL,
                 AIModel.GEMMA3N,
             ]:
-                result = await self._analyze_with_ollama(code, language, model, **kwargs)
+                result = await self._analyze_with_ollama(
+                    code, language, model, **kwargs
+                )
             elif model in [
-                AIModel.OPENAI_GPT4, 
-                AIModel.OPENAI_GPT35_TURBO,
+                AIModel.OPENAI_GPT4_1,
                 AIModel.OPENAI_GPT4_1_MINI,
                 AIModel.OPENAI_GPT4_1_NANO,
-                AIModel.OPENAI_GPT4O_MINI,
-                AIModel.OPENAI_O4_MINI,
-                AIModel.OPENAI_O3_MINI,
+                AIModel.OPENAI_GPT5,
+                AIModel.OPENAI_GPT5_MINI,
+                AIModel.OPENAI_GPT5_NANO,
             ]:
-                result = await self._analyze_with_openai(code, language, model, **kwargs)
+                result = await self._analyze_with_openai(
+                    code, language, model, **kwargs
+                )
             elif model == AIModel.CLAUDE_SONNET:
-                result = await self._analyze_with_claude(code, language, model, **kwargs)
+                result = await self._analyze_with_claude(
+                    code, language, model, **kwargs
+                )
             else:
                 raise ValueError(f"Unsupported model: {model}")
 
@@ -663,7 +737,7 @@ class MultiModelAIService:
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are an expert code analyzer. You MUST respond with ONLY valid JSON. No explanations, no text outside JSON. ONLY JSON."
+                        "content": "You are an expert code analyzer. You MUST respond with ONLY valid JSON. No explanations, no text outside JSON. ONLY JSON.",
                     },
                     {
                         "role": "user",
@@ -679,23 +753,43 @@ class MultiModelAIService:
     "skill_level": "intermediate", 
     "suggestions": ["specific improvement suggestions"],
     "confidence": 0.8
-}}"""
+}}""",
                     },
                 ],
             }
-            
-            # Add temperature for models that support it (exclude o3/o4 models)
-            if not any(x in model.value for x in ["o3-mini", "o4-mini", "o3", "o4"]):
+
+            # Add temperature only for models that support it (exclude o3/o4 and GPT-5 family)
+            unsupported_temp_models = [
+                "o3-mini",
+                "o4-mini",
+                "o3",
+                "o4",
+                "gpt-5",
+                "gpt-5-mini",
+                "gpt-5-nano",
+            ]
+            if not any(x in model.value.lower() for x in unsupported_temp_models):
                 api_params["temperature"] = 0.1
-            
-            # Add token limit parameters from kwargs
-            if "max_tokens" in kwargs:
-                api_params["max_tokens"] = kwargs["max_tokens"]
-            elif "max_completion_tokens" in kwargs:
-                api_params["max_completion_tokens"] = kwargs["max_completion_tokens"]
+
+            # Add token limit parameters based on model type
+            gpt5_models = ["gpt-5", "gpt-5-mini", "gpt-5-nano"]
+            if any(m in model.value.lower() for m in gpt5_models):
+                if "max_completion_tokens" in kwargs:
+                    api_params["max_completion_tokens"] = kwargs[
+                        "max_completion_tokens"
+                    ]
+                elif "max_tokens" in kwargs:
+                    api_params["max_completion_tokens"] = kwargs["max_tokens"]
+                else:
+                    api_params["max_completion_tokens"] = 1000  # Default fallback
             else:
-                api_params["max_tokens"] = 1000  # Default fallback
-            
+                if "max_tokens" in kwargs:
+                    api_params["max_tokens"] = kwargs["max_tokens"]
+                elif "max_completion_tokens" in kwargs:
+                    api_params["max_tokens"] = kwargs["max_completion_tokens"]
+                else:
+                    api_params["max_tokens"] = 1000  # Default fallback
+
             response = client.chat.completions.create(**api_params)
 
             content = response.choices[0].message.content

@@ -1,14 +1,20 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "./api/client";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, LogIn } from "lucide-react";
 import ErrorBoundary from "./components/ErrorBoundary";
 // import LoggingDemo from "./components/LoggingDemo";
 import { useLogger } from "./hooks/useLogger";
 import { MultiAnalysisDashboard } from "./components/features/MultiAnalysisDashboard";
 import { SimpleThemeToggle } from "./components/ui/ThemeToggle";
+import { AuthModal } from "./components/auth/AuthModal";
+import { UserMenu } from "./components/auth/UserMenu";
 
-function App() {
+// Main App Content Component
+function AppContent() {
   const logger = useLogger("App");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [backendStatus, setBackendStatus] = useState<
     "checking" | "online" | "offline"
   >("checking");
@@ -22,6 +28,23 @@ function App() {
 
   useEffect(() => {
     logger.mount();
+
+    const checkAuth = async () => {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        try {
+          const response = await fetch('/api/auth/me', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          setIsAuthenticated(response.ok);
+        } catch (error) {
+          setIsAuthenticated(false);
+        }
+      }
+      setAuthLoading(false);
+    };
 
     const doCheck = async () => {
       logger.info("Checking backend status");
@@ -44,12 +67,25 @@ function App() {
       }
     };
 
+    checkAuth();
     doCheck();
 
     return () => {
       logger.unmount();
     };
   }, []);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {/* Status Bar */}
@@ -63,7 +99,7 @@ function App() {
                 ) : (
                   <AlertCircle className="w-4 h-4 text-red-500" />
                 )}
-                <span className="text-muted-foreground">
+                <span className="text-stone-400/40">
                   Backend: {backendStatus}
                 </span>
               </div>
@@ -74,7 +110,7 @@ function App() {
                   ) : (
                     <AlertCircle className="w-4 h-4 text-orange-500" />
                   )}
-                  <span className="text-muted-foreground">
+                  <span className="text-stone-400/40">
                     AI: {aiStatus.available ? `Active` : "Not Available"}
                   </span>
                 </div>
@@ -82,6 +118,20 @@ function App() {
             </div>
             <div className="flex items-center gap-4">
               <SimpleThemeToggle />
+
+              {/* Authentication UI */}
+              {isAuthenticated ? (
+                <UserMenu />
+              ) : (
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  <LogIn className="w-3 h-3" />
+                  Login / Register
+                </button>
+              )}
+
               {backendStatus === "offline" && (
                 <span className="text-destructive">
                   Start backend: cd backend && python -m uvicorn app.main:app
@@ -115,8 +165,19 @@ function App() {
           </div>
         )} */}
       </div>
+
+      {/* Authentication Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+      />
     </>
   );
+}
+
+// Main App Component
+function App() {
+  return <AppContent />;
 }
 
 export default App;

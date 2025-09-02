@@ -35,7 +35,7 @@ export const MAResultsSection: React.FC<MAResultsSectionProps> = ({
         selectedRepoId && selectedRepo && analysisMode === "single" && selectedRepo.status === "completed";
 
     return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="dark:text-[#ffd700]">
             {comparisonResults && analysisMode === "compare" ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                     {/* ModelComparisonDashboard should be rendered here */}

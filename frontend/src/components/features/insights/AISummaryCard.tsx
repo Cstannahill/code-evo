@@ -5,15 +5,15 @@ import type { Analysis } from "../../../types/insights";
 
 interface AISummaryCardProps {
     analysis: Analysis;
-    firstPatternKey: string;
 }
 
-export const AISummaryCard: React.FC<AISummaryCardProps> = ({ analysis, firstPatternKey }) => {
+export const AISummaryCard: React.FC<AISummaryCardProps> = ({ analysis }) => {
     // Calculate additional metrics for enhanced summary
-    const techCount = Object.values(analysis.technologies || {}).flat().length;
-    const complexityLevel = analysis.summary.total_patterns > 15 ? "Advanced" : 
-                           analysis.summary.total_patterns > 8 ? "Intermediate" : "Basic";
-    
+    const techs = analysis.technologies || {};
+    const techCount = Array.isArray(techs) ? techs.length : Object.values(techs).flat().length;
+    const totalPatterns = analysis?.summary?.total_patterns || 0;
+    const complexityLevel = totalPatterns > 15 ? "Advanced" : totalPatterns > 8 ? "Intermediate" : "Basic";
+
     // Enhanced analysis data if available
     const enhancedAnalysis = analysis as any;
     const hasEnhancedData = enhancedAnalysis.security_analysis || enhancedAnalysis.performance_analysis;
@@ -33,10 +33,10 @@ export const AISummaryCard: React.FC<AISummaryCardProps> = ({ analysis, firstPat
                         AI Analysis Summary
                         {hasEnhancedData && <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Enhanced</span>}
                     </h3>
-                    
+
                     <div className="space-y-3">
                         <p className="text-sm text-muted-foreground leading-relaxed">
-                            Your repository demonstrates <span className="font-medium">{analysis.summary.total_patterns} distinct coding patterns</span> across <span className="font-medium">{analysis.analysis_session.commits_analyzed} commits</span>. 
+                            Your repository demonstrates <span className="font-medium">{analysis.summary.total_patterns} distinct coding patterns</span> across <span className="font-medium">{analysis.analysis_session.commits_analyzed} commits</span>.
                             The codebase shows <span className="font-medium">{techCount > 10 ? "high" : techCount > 5 ? "moderate" : "focused"} technological diversity</span> with a complexity level of <span className="font-medium">{complexityLevel}</span>.
                             {analysis.summary.antipatterns_detected > 0 && ` ${analysis.summary.antipatterns_detected} areas have been identified for potential improvement.`}
                         </p>
@@ -53,7 +53,7 @@ export const AISummaryCard: React.FC<AISummaryCardProps> = ({ analysis, firstPat
                                         </div>
                                     </div>
                                 )}
-                                
+
                                 {enhancedAnalysis.performance_analysis && (
                                     <div className="flex items-center gap-2 p-3 bg-card rounded-lg border">
                                         <Zap className="w-4 h-4 text-yellow-500" />
@@ -63,7 +63,7 @@ export const AISummaryCard: React.FC<AISummaryCardProps> = ({ analysis, firstPat
                                         </div>
                                     </div>
                                 )}
-                                
+
                                 {enhancedAnalysis.architectural_analysis && (
                                     <div className="flex items-center gap-2 p-3 bg-card rounded-lg border">
                                         <TrendingUp className="w-4 h-4 text-green-500" />

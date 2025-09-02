@@ -51,8 +51,10 @@ export const TechnologyEvolutionChart: React.FC<
 
   const data = React.useMemo(() => {
     console.log("TechnologyEvolutionChart: Processing data with", { 
-      technologies: Object.keys(technologies || {}), 
-      timelineLength: normalizedTimeline?.length 
+      technologies: technologies,
+      technologiesKeys: Object.keys(technologies || {}), 
+      timelineLength: normalizedTimeline?.length,
+      timeline: normalizedTimeline
     });
 
     // Get all unique technologies from the technologies object

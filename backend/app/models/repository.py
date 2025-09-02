@@ -22,7 +22,7 @@ from app.core.database import Base
 
 # Imports for MongoDB/ODMantic models
 from odmantic import Model, Field, Reference
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from pydantic import validator, root_validator
 from bson import ObjectId
 
@@ -39,7 +39,77 @@ from app.models.enhanced_analysis import (
     AnalysisDashboard
 )
 
+# User authentication and API key management models
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# User Authentication Models (SQL and MongoDB)
+# ---------------------------------------------------------------------------
+
+class UserSQL(Base):
+    __tablename__ = "users"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    username = Column(String, unique=True, nullable=False, index=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    full_name = Column(String)
+    hashed_password = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+    is_guest = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_login = Column(DateTime)
+    
+    # Relationships
+    api_keys = relationship("APIKeySQL", back_populates="user", cascade="all, delete-orphan")
+    user_repositories = relationship("UserRepositorySQL", back_populates="user", cascade="all, delete-orphan")
+
+
+class APIKeySQL(Base):
+    __tablename__ = "api_keys"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"))
+    provider = Column(String, nullable=False, index=True)  # openai, anthropic, gemini
+    key_name = Column(String)  # user-friendly name
+    encrypted_key = Column(Text, nullable=False)  # encrypted API key
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_used = Column(DateTime)
+    is_active = Column(Boolean, default=True)
+    usage_count = Column(Integer, default=0)
+    
+    # Relationships
+    user = relationship("UserSQL", back_populates="api_keys")
+    
+    __table_args__ = (
+        UniqueConstraint("user_id", "provider", "key_name", name="uq_user_provider_key"),
+        Index("idx_api_key_provider", "provider"),
+        Index("idx_api_key_active", "is_active"),
+    )
+
+
+class UserRepositorySQL(Base):
+    __tablename__ = "user_repositories"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"))
+    repository_id = Column(String, ForeignKey("repositories.id", ondelete="CASCADE"))
+    access_type = Column(String, default="owner")  # owner, viewer, contributor
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_accessed = Column(DateTime)
+    
+    # Relationships
+    user = relationship("UserSQL", back_populates="user_repositories")
+    repository = relationship("RepositorySQL")
+    
+    __table_args__ = (
+        UniqueConstraint("user_id", "repository_id", name="uq_user_repository"),
+        Index("idx_user_repo_user", "user_id"),
+        Index("idx_user_repo_repository", "repository_id"),
+    )
 
 
 class RepositorySQL(Base):
@@ -376,9 +446,62 @@ class ModelBenchmarkSQL(Base):
 # MongoDB/ODMantic models (moved from repository2.py)
 # ---------------------------------------------------------------------------
 
+class User(Model):
+    """User model for MongoDB"""
+    
+    username: str = Field(unique=True, index=True)
+    email: str = Field(unique=True, index=True)
+    full_name: Optional[str] = None
+    hashed_password: str
+    is_active: bool = Field(default=True, index=True)
+    is_guest: bool = Field(default=False, index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    last_login: Optional[datetime] = None
+    
+    model_config = {"collection": "users"}
+
+
+class APIKey(Model):
+    """API Key model for MongoDB"""
+    
+    user_id: ObjectId = Field(index=True)
+    provider: str = Field(index=True)  # openai, anthropic, gemini
+    key_name: Optional[str] = None  # user-friendly name
+    encrypted_key: str  # encrypted API key
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    last_used: Optional[datetime] = None
+    is_active: bool = Field(default=True, index=True)
+    usage_count: int = Field(default=0)
+    
+    model_config = {"collection": "api_keys"}
+
+    @validator("user_id", pre=True)
+    def validate_user_id(cls, v):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+class UserRepository(Model):
+    """User-Repository access model for MongoDB"""
+    
+    user_id: ObjectId = Field(index=True)
+    repository_id: ObjectId = Field(index=True)
+    access_type: str = "owner"  # owner, viewer, contributor
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    last_accessed: Optional[datetime] = None
+    
+    model_config = {"collection": "user_repositories"}
+
+    @validator("user_id", "repository_id", pre=True)
+    def validate_object_ids(cls, v):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
 
 class Repository(Model):
-    """Repository model for MongoDB"""
+    """Repository model for MongoDB - supports both global and user-specific tracking"""
 
     url: str = Field(unique=True, index=True)
     name: str
@@ -389,8 +512,45 @@ class Repository(Model):
     updated_at: Optional[datetime] = None
     last_analyzed: Optional[datetime] = None
     error_message: Optional[str] = None
-
+    
+    # Access control - optional for backward compatibility
+    is_public: Optional[bool] = Field(default=None, index=True)  # publicly accessible for global analysis
+    created_by_user: Optional[ObjectId] = Field(default=None, index=True)  # user who first added it
+    analysis_count: Optional[int] = Field(default=None)  # track how many times analyzed
+    unique_users: Optional[int] = Field(default=None)  # track unique users who analyzed it
+    
+    # Metadata for global tracking - optional for backward compatibility
+    tags: Optional[List[str]] = Field(default=None)  # searchable tags
+    description: Optional[str] = Field(default=None)
+    primary_language: Optional[str] = Field(default=None, index=True)
+    
     model_config = {"collection": "repositories"}
+
+    @validator("created_by_user", pre=True)
+    def validate_created_by_user(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+
+    # Helper methods to get values with defaults
+    def get_is_public(self) -> bool:
+        """Get is_public with default value for backward compatibility"""
+        return self.is_public if self.is_public is not None else True
+
+    def get_analysis_count(self) -> int:
+        """Get analysis_count with default value for backward compatibility"""
+        return self.analysis_count if self.analysis_count is not None else 0
+
+    def get_unique_users(self) -> int:
+        """Get unique_users with default value for backward compatibility"""
+        return self.unique_users if self.unique_users is not None else 0
+
+    def get_tags(self) -> List[str]:
+        """Get tags with default value for backward compatibility"""
+        return self.tags if self.tags is not None else []
 
 
 class Commit(Model):

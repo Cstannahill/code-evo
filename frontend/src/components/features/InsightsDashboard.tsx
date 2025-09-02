@@ -187,15 +187,12 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({
     }
   };
 
-  const firstPatternKey = React.useMemo(() => {
-    const patternKeys = Object.keys(analysis.pattern_statistics || {});
-    return patternKeys[0]?.replace("_", " ") || "patterns";
-  }, [analysis.pattern_statistics]);
+  // firstPatternKey removed — no longer used by AISummaryCard
 
   return (
     <div className="space-y-6">
       {/* AI Summary */}
-      <AISummaryCard analysis={analysis} firstPatternKey={firstPatternKey} />
+      <AISummaryCard analysis={analysis} />
 
       {/* Empty State */}
       {processedInsights.length === 0 && (

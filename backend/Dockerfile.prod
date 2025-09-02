@@ -1,0 +1,51 @@
+# backend/Dockerfile.prod
+# Multi-stage production Dockerfile for the backend
+
+FROM python:3.11-slim AS build
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy only requirements for layer caching
+COPY backend/requirements.prod.txt ./requirements.prod.txt
+RUN pip install --no-cache-dir -r requirements.prod.txt
+
+# Copy application code
+COPY . .
+
+# Final smaller image
+FROM python:3.11-slim AS runtime
+WORKDIR /app
+
+# System deps required at runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  libpq5 \
+  curl \
+  netcat-openbsd \
+  git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed site-packages from builder (pip installs into same python env)
+COPY --from=build /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=build /usr/local/bin /usr/local/bin
+
+# Copy application files
+COPY --from=build /app /app
+
+WORKDIR /app
+
+# Ensure wait script is executable
+RUN chmod +x /app/backend/wait_for_services.sh || true
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD sh -c 'curl -fsS http://127.0.0.1:${PORT:-8080}/health || exit 1'
+
+ENTRYPOINT ["/app/backend/wait_for_services.sh"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --proxy-headers"]

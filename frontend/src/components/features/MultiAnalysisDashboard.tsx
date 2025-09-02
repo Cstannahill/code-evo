@@ -187,7 +187,6 @@ export const MultiAnalysisDashboard: React.FC = () => {
                     handleKeyPress={handleKeyPress}
                     handleSingleAnalysis={handleSingleAnalysis}
                     createRepoPending={createRepo.isPending}
-                    isAnalyzing={isAnalyzing}
                   />
                 </TabsContent>
 
@@ -203,7 +202,6 @@ export const MultiAnalysisDashboard: React.FC = () => {
                   />
                   <MACompareAnalysisSection
                     selectedModels={selectedModels}
-                    onModelToggle={handleModelToggle}
                     repoUrl={repoUrl}
                     setRepoUrl={setRepoUrl}
                     handleKeyPress={handleKeyPress}

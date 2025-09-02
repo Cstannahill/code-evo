@@ -1,7 +1,7 @@
 import React from "react";
 import { Github, Loader2 } from "lucide-react";
 import { Button } from "../../ui/button";
-import type { AIModel } from "../../../types/ai";
+// AIModel type import removed because not used in this component
 
 /**
  * MACompareAnalysisSection - Handles multi-model comparison UI
@@ -15,7 +15,6 @@ import type { AIModel } from "../../../types/ai";
  */
 export interface MACompareAnalysisSectionProps {
     selectedModels: string[];
-    onModelToggle: (id: string) => void;
     repoUrl: string;
     setRepoUrl: (url: string) => void;
     handleKeyPress: (e: React.KeyboardEvent, action: () => void) => void;
@@ -25,7 +24,6 @@ export interface MACompareAnalysisSectionProps {
 
 export const MACompareAnalysisSection: React.FC<MACompareAnalysisSectionProps> = ({
     selectedModels,
-    onModelToggle,
     repoUrl,
     setRepoUrl,
     handleKeyPress,

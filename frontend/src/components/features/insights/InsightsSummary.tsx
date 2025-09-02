@@ -12,7 +12,7 @@ export const InsightsSummary: React.FC<InsightsSummaryProps> = ({ categorizedIns
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="bg-card rounded-lg border p-6"
+        className="bg-card rounded-lg border p-6 "
     >
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Brain className="w-5 h-5" /> AI Insights Summary

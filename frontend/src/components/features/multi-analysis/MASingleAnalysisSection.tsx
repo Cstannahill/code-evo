@@ -21,7 +21,6 @@ export interface MASingleAnalysisSectionProps {
     handleKeyPress: (e: React.KeyboardEvent, action: () => void) => void;
     handleSingleAnalysis: () => void;
     createRepoPending: boolean;
-    isAnalyzing: boolean;
 }
 
 export const MASingleAnalysisSection: React.FC<MASingleAnalysisSectionProps> = ({
@@ -31,7 +30,6 @@ export const MASingleAnalysisSection: React.FC<MASingleAnalysisSectionProps> = (
     handleKeyPress,
     handleSingleAnalysis,
     createRepoPending,
-    isAnalyzing,
 }) => (
     <div className="space-y-4">
         {/* Selected Model Info */}
@@ -65,7 +63,7 @@ export const MASingleAnalysisSection: React.FC<MASingleAnalysisSectionProps> = (
                 value={repoUrl}
                 onChange={(e) => setRepoUrl(e.target.value)}
                 onKeyPress={(e) => handleKeyPress(e, handleSingleAnalysis)}
-                placeholder="https://github.com/username/repositoryaa"
+                placeholder="https://github.com/username/repository"
                 className="w-full pl-10 pr-4 py-3 rounded-md border repo-input border-ctan-dark-border bg-ctan-dark-hover text-sm placeholder:text-ctan-text-muted focus:outline-none focus:ring-2 focus:ring-ctan-gold focus:border-transparent transition-all duration-300"
                 disabled={createRepoPending}
             />

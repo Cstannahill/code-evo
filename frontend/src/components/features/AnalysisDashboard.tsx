@@ -158,7 +158,27 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ repository
       .sort((a, b) => b.value - a.value)
       .slice(0, TOP_PATTERNS_LIMIT);
   }, [analysis?.pattern_statistics]);
-  const totalCommits = analysis?.analysis_session?.commits_analyzed || 0;
+  // total_commits may only exist on EnhancedRepositoryAnalysisResponse
+  const totalCommits =
+    analysis?.analysis_session?.commits_analyzed ||
+    (analysis && "total_commits" in analysis ? (analysis as any).total_commits : undefined) ||
+    (analysis?.summary && "total_commits" in analysis.summary ? (analysis.summary as any).total_commits : undefined) ||
+    0;
+
+  // Debug commit data issues
+  React.useEffect(() => {
+    if (analysis) {
+      console.log('AnalysisDashboard Debug:', {
+        analysis_session: analysis.analysis_session,
+        total_commits: "total_commits" in (analysis || {}) ? (analysis as any).total_commits : 0,
+        summary: analysis.summary,
+        calculated_totalCommits: totalCommits,
+        timeline_length: analysis.pattern_timeline?.timeline?.length,
+        available_keys: Object.keys(analysis)
+      });
+    }
+  }, [analysis, totalCommits]);
+
   const totalPatterns = Object.keys(analysis?.pattern_statistics || {}).length;
   const totalTechnologies = React.useMemo(() => {
     if (!analysis?.technologies) return 0;
@@ -278,7 +298,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ repository
       </motion.div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full -500">
         <TabsList className="grid grid-cols-6 w-full">
           {tabs.map((tab) => (
             <TabsTrigger

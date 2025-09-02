@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Depends
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import logging
@@ -12,6 +12,9 @@ from app.core.service_manager import (
 )
 from app.tasks.analysis_tasks import analyze_repository_background
 from pydantic import BaseModel
+from app.api.auth import get_current_user, get_user_api_key
+from app.models.repository import User, Repository, UserRepository
+from app.core.database import get_engine
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,9 @@ class RepositoryCreateWithModel(BaseModel):
     url: str
     branch: str = "main"
     model_id: Optional[str] = None
+    is_private: bool = False
+    tags: List[str] = []
+    description: Optional[str] = None
 
 
 @router.get("/", response_model=List[Dict[str, Any]])
@@ -677,3 +683,287 @@ def _score_to_grade(score: int) -> str:
         return "D"
     else:
         return "F"
+
+
+# User-specific repository endpoints
+@router.get("/user/my-repositories", response_model=List[Dict[str, Any]])
+async def get_user_repositories(current_user: User = Depends(get_current_user)):
+    """Get repositories associated with the current user"""
+    try:
+        engine = await get_engine()
+        
+        # Get user's repository associations
+        user_repos = await engine.find(UserRepository, UserRepository.user_id == current_user.id)
+        
+        # Get repository details
+        repositories = []
+        for user_repo in user_repos:
+            try:
+                repo = await engine.get(Repository, user_repo.repository_id)
+                if repo:
+                    repo_dict = repo.dict()
+                    repo_dict['access_type'] = user_repo.access_type
+                    repo_dict['user_last_accessed'] = user_repo.last_accessed
+                    repositories.append(repo_dict)
+            except Exception as e:
+                logger.warning(f"Could not load repository {user_repo.repository_id}: {e}")
+        
+        return convert_objectids_to_strings(repositories)
+    except Exception as e:
+        logger.error(f"Failed to get user repositories: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get user repositories")
+
+
+@router.post("/user/add-repository", response_model=Dict[str, Any])
+async def add_repository_to_user(
+    repo_data: RepositoryCreateWithModel,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    force_reanalyze: bool = Query(False, description="Force re-analysis of existing repository"),
+):
+    """Add a repository to the user's collection and optionally start analysis"""
+    try:
+        engine = await get_engine()
+        repository_service, _, _, _ = get_services()
+        
+        # Check if repository already exists globally
+        existing_repo = await engine.find_one(Repository, Repository.url == repo_data.url)
+        
+        if existing_repo:
+            # Repository exists, just associate with user
+            existing_user_repo = await engine.find_one(
+                UserRepository,
+                UserRepository.user_id == current_user.id,
+                UserRepository.repository_id == existing_repo.id
+            )
+            
+            if existing_user_repo:
+                # Already associated
+                if not force_reanalyze:
+                    repo_dict = existing_repo.dict()
+                    repo_dict['access_type'] = existing_user_repo.access_type
+                    return convert_objectids_to_strings(repo_dict)
+                else:
+                    # Force re-analysis
+                    await repository_service.update_repository_status(str(existing_repo.id), "analyzing")
+                    background_tasks.add_task(
+                        analyze_repository_background,
+                        repo_data.url,
+                        repo_data.branch or "main",
+                        100,
+                        20,
+                        repo_data.model_id,
+                    )
+            else:
+                # Create user association
+                user_repo = UserRepository(
+                    user_id=current_user.id,
+                    repository_id=existing_repo.id,
+                    access_type="owner"
+                )
+                await engine.save(user_repo)
+                
+                # Update repository stats
+                existing_repo.unique_users += 1
+                if force_reanalyze:
+                    existing_repo.analysis_count += 1
+                await engine.save(existing_repo)
+        else:
+            # Create new repository
+            repo_name = repo_data.url.rstrip("/\n").split("/")[-1].replace(".git", "")
+            
+            repository = Repository(
+                url=repo_data.url,
+                name=repo_name,
+                default_branch=repo_data.branch or "main",
+                is_public=not repo_data.is_private,
+                created_by_user=current_user.id,
+                tags=repo_data.tags,
+                description=repo_data.description,
+                unique_users=1,
+                analysis_count=1
+            )
+            
+            await engine.save(repository)
+            
+            # Create user association
+            user_repo = UserRepository(
+                user_id=current_user.id,
+                repository_id=repository.id,
+                access_type="owner"
+            )
+            await engine.save(user_repo)
+            
+            existing_repo = repository
+            
+            # Start analysis
+            background_tasks.add_task(
+                analyze_repository_background,
+                repo_data.url,
+                repo_data.branch or "main",
+                100,
+                20,
+                repo_data.model_id,
+            )
+        
+        # Get user's API keys for analysis
+        user_api_keys = {}
+        for provider in ['openai', 'anthropic', 'gemini']:
+            api_key = await get_user_api_key(str(current_user.id), provider)
+            if api_key:
+                user_api_keys[provider] = api_key
+        
+        # Store API keys in session or pass to background task somehow
+        # This might need additional implementation based on your background task structure
+        
+        result = existing_repo.dict()
+        result['user_api_keys_available'] = list(user_api_keys.keys())
+        return convert_objectids_to_strings(result)
+        
+    except Exception as e:
+        logger.error(f"Failed to add repository to user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to add repository to user")
+
+
+@router.delete("/user/repositories/{repo_id}")
+async def remove_repository_from_user(
+    repo_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Remove repository association from current user"""
+    try:
+        engine = await get_engine()
+        
+        # Find user's association with the repository
+        user_repo = await engine.find_one(
+            UserRepository,
+            UserRepository.user_id == current_user.id,
+            UserRepository.repository_id == ObjectId(repo_id)
+        )
+        
+        if not user_repo:
+            raise HTTPException(status_code=404, detail="Repository not found in user's collection")
+        
+        # Remove the association
+        await engine.delete(user_repo)
+        
+        # Update repository stats
+        try:
+            repo = await engine.get(Repository, repo_id)
+            if repo and repo.unique_users > 0:
+                repo.unique_users -= 1
+                await engine.save(repo)
+        except Exception as e:
+            logger.warning(f"Could not update repository stats: {e}")
+        
+        return {"message": "Repository removed from user's collection"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to remove repository from user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to remove repository from user")
+
+
+@router.get("/global", response_model=List[Dict[str, Any]])
+async def get_global_repositories(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    tag: Optional[str] = Query(None, description="Filter by tag"),
+    language: Optional[str] = Query(None, description="Filter by primary language"),
+    current_user: Optional[User] = Depends(get_current_user)
+):
+    """Get publicly available repositories (global repository table)"""
+    try:
+        engine = await get_engine()
+        
+        # Build query filters - handle missing fields gracefully
+        filters = []
+        # For is_public, check both None (missing field) and True values
+        # This allows old repositories (None) and new public repositories (True)
+        filters.append(
+            (Repository.is_public == True) | (Repository.is_public == None)
+        )
+        if tag:
+            # Only filter by tags if the field exists and contains the tag
+            filters.append(Repository.tags.contains(tag))
+        if language:
+            filters.append(Repository.primary_language == language)
+        
+        # Get repositories with pagination
+        repositories = await engine.find(
+            Repository,
+            *filters,
+            limit=limit,
+            skip=offset,
+            sort=Repository.analysis_count.desc()  # Sort by popularity
+        )
+        
+        # Convert to dict and add user association info if user is logged in
+        result = []
+        for repo in repositories:
+            repo_dict = repo.dict()
+            
+            if current_user:
+                # Check if user already has this repository
+                user_repo = await engine.find_one(
+                    UserRepository,
+                    UserRepository.user_id == current_user.id,
+                    UserRepository.repository_id == repo.id
+                )
+                repo_dict['user_has_repository'] = user_repo is not None
+                repo_dict['user_access_type'] = user_repo.access_type if user_repo else None
+            else:
+                repo_dict['user_has_repository'] = False
+                repo_dict['user_access_type'] = None
+            
+            result.append(repo_dict)
+        
+        return convert_objectids_to_strings(result)
+        
+    except Exception as e:
+        logger.error(f"Failed to get global repositories: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get global repositories")
+
+
+@router.get("/global/popular", response_model=List[Dict[str, Any]])
+async def get_popular_repositories(limit: int = Query(10, ge=1, le=50)):
+    """Get most popular repositories (most analyzed)"""
+    try:
+        engine = await get_engine()
+        
+        repositories = await engine.find(
+            Repository,
+            # Handle both None (old repos) and True (new public repos)
+            (Repository.is_public == True) | (Repository.is_public == None),
+            limit=limit,
+            # Sort by analysis_count, treating None as 0
+            sort=Repository.analysis_count.desc()
+        )
+        
+        return convert_objectids_to_strings([repo.dict() for repo in repositories])
+        
+    except Exception as e:
+        logger.error(f"Failed to get popular repositories: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get popular repositories")
+
+
+@router.get("/global/recent", response_model=List[Dict[str, Any]])  
+async def get_recent_repositories(limit: int = Query(10, ge=1, le=50)):
+    """Get recently added repositories"""
+    try:
+        engine = await get_engine()
+        
+        repositories = await engine.find(
+            Repository,
+            # Handle both None (old repos) and True (new public repos)
+            (Repository.is_public == True) | (Repository.is_public == None),
+            limit=limit,
+            sort=Repository.created_at.desc()
+        )
+        
+        return convert_objectids_to_strings([repo.dict() for repo in repositories])
+        
+    except Exception as e:
+        logger.error(f"Failed to get recent repositories: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get recent repositories")

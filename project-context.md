@@ -1,6 +1,6 @@
 # Code Evolution Tracker - Current Project Status and Project Context
 
-**Last Updated**: May 31, 2025
+**Last Updated**: 2025-09-02
 
 ## CURRENT STATE OVERVIEW
 
@@ -43,10 +43,12 @@
 
 **✅ Working Model Integration:**
 
-- **Local Models**: CodeLlama 7B, Devstral, CodeGemma 7B fully functional
-- **Model Selection**: Frontend successfully displays and selects available Ollama models
+- **Local Models**: CodeLlama 7B, Devstral, CodeGemma 7B fully functional (discovery enhancement applied)
+- **Model Selection**: Frontend successfully displays and selects available Ollama models; backend now matches Ollama model entries by full and base names
 - **Analysis Pipeline**: End-to-end code analysis working with local models
 - **API Integration**: Completed model availability hook and Dashboard component data transformation
+
+Notes: The Ollama discovery logic was made more robust to accept both 'codellama:7b' and 'codellama' responses from the Ollama /api/models endpoint. Tests executed: 1 passed, 3 skipped due to async test setup.
 
 **🔄 Configuration Required for Cloud Models:**
 

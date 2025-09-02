@@ -23,6 +23,9 @@ from app.models.repository import (
     AIAnalysisResultSQL,
     ModelComparisonSQL,
     ModelBenchmarkSQL,
+    UserSQL,
+    APIKeySQL,
+    UserRepositorySQL,
 )
 from app.core.database import (
     create_tables,
@@ -81,7 +84,10 @@ def track_background_task(task):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle with proper task cleanup"""
-    logger.info("🚀 [LIFESPAN] Starting Code Evolution Tracker Backend... (PID: %s)", str(os.getpid()))
+    logger.info(
+        "🚀 [LIFESPAN] Starting Code Evolution Tracker Backend... (PID: %s)",
+        str(os.getpid()),
+    )
     startup_time = datetime.utcnow().isoformat()
     logger.info(f"[LIFESPAN] Startup initiated at {startup_time}")
 
@@ -103,8 +109,11 @@ async def lifespan(app: FastAPI):
         logger.info("[LIFESPAN] Initializing enhanced MongoDB system...")
         try:
             from app.core.database import initialize_enhanced_database
+
             mongo_result = await initialize_enhanced_database()
-            logger.info(f"🍃 MongoDB initialized: {mongo_result.get('mongodb_connected', False)}")
+            logger.info(
+                f"🍃 MongoDB initialized: {mongo_result.get('mongodb_connected', False)}"
+            )
         except Exception as e:
             logger.error(f"[LIFESPAN] ❌ Error initializing MongoDB: {e}")
             logger.error(traceback.format_exc())
@@ -115,6 +124,7 @@ async def lifespan(app: FastAPI):
         logger.info("[LIFESPAN] Initializing AIService...")
         try:
             from app.core.service_manager import get_ai_service
+
             ai_service = get_ai_service()
             ai_status = ai_service.get_status()
             logger.info(f"🤖 AI Service Status: {ai_status}")
@@ -125,19 +135,22 @@ async def lifespan(app: FastAPI):
 
         yield
 
-
     except Exception as e:
         logger.error(f"[LIFESPAN] ❌ Startup failed: {str(e)}")
         logger.error(traceback.format_exc())
         raise
     finally:
         shutdown_time = datetime.utcnow().isoformat()
-        logger.info(f"[LIFESPAN] 🔄 Shutting down Code Evolution Tracker Backend... (PID: %s)", str(os.getpid()))
+        logger.info(
+            f"[LIFESPAN] 🔄 Shutting down Code Evolution Tracker Backend... (PID: %s)",
+            str(os.getpid()),
+        )
         logger.info(f"[LIFESPAN] Shutdown initiated at {shutdown_time}")
 
         # Close enhanced database connections
         try:
             from app.core.database import close_enhanced_connections
+
             await close_enhanced_connections()
             logger.info("[LIFESPAN] ✅ Database connections closed")
         except Exception as e:
@@ -146,7 +159,9 @@ async def lifespan(app: FastAPI):
 
         # Cancel all background tasks
         if background_tasks:
-            logger.info(f"[LIFESPAN] ⏹️  Cancelling {len(background_tasks)} background tasks...")
+            logger.info(
+                f"[LIFESPAN] ⏹️  Cancelling {len(background_tasks)} background tasks..."
+            )
             for task in background_tasks.copy():
                 if not task.done():
                     task.cancel()
@@ -158,9 +173,13 @@ async def lifespan(app: FastAPI):
                         asyncio.gather(*background_tasks, return_exceptions=True),
                         timeout=10.0,
                     )
-                    logger.info("[LIFESPAN] ✅ All background tasks cancelled successfully")
+                    logger.info(
+                        "[LIFESPAN] ✅ All background tasks cancelled successfully"
+                    )
                 except asyncio.TimeoutError:
-                    logger.warning("[LIFESPAN] ⚠️  Some background tasks didn't cancel within timeout")
+                    logger.warning(
+                        "[LIFESPAN] ⚠️  Some background tasks didn't cancel within timeout"
+                    )
                 except Exception as e:
                     logger.warning(f"[LIFESPAN] ⚠️  Error during task cancellation: {e}")
                     logger.warning(traceback.format_exc())
@@ -169,13 +188,16 @@ async def lifespan(app: FastAPI):
 
 
 # Create FastAPI app with enhanced configuration
+disable_openapi = os.getenv("DISABLE_OPENAPI", "0") in ("1", "true", "True")
+
 app = FastAPI(
     title="Code Evolution Tracker API",
     description="AI-powered repository analysis and pattern detection",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if disable_openapi else "/docs",
+    redoc_url=None if disable_openapi else "/redoc",
+    openapi_url=None if disable_openapi else "/openapi.json",
 )
 
 # Configure middleware in correct order
@@ -200,7 +222,7 @@ async def global_exception_handler(request: Request, exc: Exception):
             "path": str(request.url),
             "method": request.method,
             # Include error details in development
-            **({"error": str(exc)} if getattr(settings, 'DEBUG', False) else {}),
+            **({"error": str(exc)} if getattr(settings, "DEBUG", False) else {}),
         },
     )
 

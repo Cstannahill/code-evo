@@ -1,5 +1,4 @@
 services:
-  # Redis for caching (re-enabled!)
   redis:
     image: redis:7-alpine
     ports:
@@ -8,34 +7,48 @@ services:
     volumes:
       - redis_data:/data
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-  # ChromaDB for vector storage (re-enabled!)
+
   chromadb:
     image: chromadb/chroma:latest
     ports:
-      - "8001:8000"
+      - "8000:8000"
     volumes:
       - chroma_data:/chroma/chroma
     environment:
       - CHROMA_SERVER_HOST=0.0.0.0
       - CHROMA_SERVER_HTTP_PORT=8000
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - OLLAMA_HOST=ollama
+      - OLLAMA_PORT=11434
+      - DISABLE_OPENAPI=1
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - /tmp/code_evolution.db:/app/code_evolution.db
+    depends_on:
+      - redis
+      - chromadb
+    restart: unless-stopped
 
 volumes:
   redis_data:
     driver: local
   chroma_data:
     driver: local
-# Note:
-# - SQLite database is file-based (./code_evolution.db)
-# - Ollama runs locally (not in Docker)
-# - No PostgreSQL needed anymore
