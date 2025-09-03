@@ -133,6 +133,35 @@ async def lifespan(app: FastAPI):
             logger.error(traceback.format_exc())
             raise
 
+        # Schedule non-blocking Ollama discovery unless explicitly disabled
+        try:
+            # Disable Ollama discovery by default in environments where Ollama
+            # is not available (CI, simple dev runs). Set DISABLE_OLLAMA_DISCOVERY=0
+            # or 'false' to enable discovery explicitly.
+            disable_ollama = os.getenv("DISABLE_OLLAMA_DISCOVERY", "1").lower() in (
+                "1",
+                "true",
+                "yes",
+            )
+            if not disable_ollama:
+                from app.core.service_manager import get_multi_model_service
+
+                multi_service = get_multi_model_service()
+
+                # Run Ollama discovery in background to avoid blocking startup
+                task = asyncio.create_task(
+                    multi_service.init_ollama_models_background()
+                )
+                track_background_task(task)
+                logger.info(
+                    "🔁 Scheduled background Ollama discovery task (non-blocking startup)"
+                )
+            else:
+                logger.info("🔕 Ollama discovery disabled via DISABLE_OLLAMA_DISCOVERY")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not schedule Ollama discovery: {e}")
+            logger.debug(traceback.format_exc())
+
         yield
 
     except Exception as e:

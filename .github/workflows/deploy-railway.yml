@@ -1,0 +1,52 @@
+name: Deploy to Railway (after GHCR publish)
+
+on:
+  workflow_run:
+    workflows: ["Publish Backend Image to GHCR"]
+    types: [completed]
+
+jobs:
+  deploy-railway:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image variables
+        id: vars
+        run: |
+          IMAGE_LATEST=ghcr.io/${{ github.repository_owner }}/code-evo-backend:latest
+          IMAGE_SHA=ghcr.io/${{ github.repository_owner }}/code-evo-backend:${{ github.event.workflow_run.head_sha }}
+          echo "IMAGE_LATEST=$IMAGE_LATEST" >> $GITHUB_OUTPUT
+          echo "IMAGE_SHA=$IMAGE_SHA" >> $GITHUB_OUTPUT
+
+      - name: Decide deploy path
+        env:
+          RAILWAY_API_KEY: ${{ secrets.RAILWAY_API_KEY }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+          IMAGE: ${{ steps.vars.outputs.IMAGE_SHA }}
+        run: |
+          echo "Publish workflow completed successfully. Image available: $IMAGE"
+
+          if [ -z "$RAILWAY_API_KEY" ] || [ -z "$RAILWAY_PROJECT_ID" ] || [ -z "$RAILWAY_SERVICE_ID" ]; then
+            echo "One or more Railway secrets not set: RAILWAY_API_KEY, RAILWAY_PROJECT_ID, RAILWAY_SERVICE_ID"
+            echo "Skipping automated deploy. To enable automated deploy, add those secrets and re-run this workflow."
+            echo "Manual deploy instructions:"
+            echo "  - In Railway console, update the service image to: $IMAGE_LATEST (or use the SHA tag shown above)."
+            echo "  - Or use Railway CLI to set the service image and trigger a deploy."
+            exit 0
+          fi
+
+          echo "Railway secrets present — preparing for automated deploy."
+          echo "Note: the workflow currently prints the deploy command for safety. Replace the echo below with actual CLI/API calls if desired."
+
+          echo "Deploy command (example, replace with your preferred method):"
+          echo "  # railway CLI (install required)"
+          echo "  # railway login --apiKey \"$RAILWAY_API_KEY\""
+          echo "  # railway services update $RAILWAY_SERVICE_ID --project $RAILWAY_PROJECT_ID --image $IMAGE"
+          echo "Alternatively, call Railway API to update the service image and trigger a deployment."
+
+          echo "If you want me to wire the CLI/API call in this workflow (risky for unknown environments), tell me and I will implement it."

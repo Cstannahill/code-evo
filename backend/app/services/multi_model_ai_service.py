@@ -269,6 +269,21 @@ class MultiModelAIService:
             except Exception as e:
                 logger.warning(f"❌ {display_name} not available: {e}")
 
+    async def init_ollama_models_background(self) -> None:
+        """Async wrapper to run the blocking Ollama discovery in a thread
+        so it can be scheduled as a background task during FastAPI startup.
+        """
+        import asyncio
+        from functools import partial
+
+        loop = asyncio.get_running_loop()
+        try:
+            await loop.run_in_executor(None, partial(self._init_ollama_models))
+        except asyncio.CancelledError:
+            logger.info("🔁 Ollama discovery background task cancelled")
+        except Exception as e:
+            logger.warning(f"⚠️ Ollama discovery background task failed: {e}")
+
     def _init_openai_models(self):
         """Initialize OpenAI API models"""
         if not os.getenv("OPENAI_API_KEY"):
