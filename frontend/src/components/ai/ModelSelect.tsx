@@ -2,6 +2,7 @@ import React from "react";
 import { Brain, ChevronDown } from "lucide-react";
 import * as Select from "@radix-ui/react-select";
 import type { AIModel } from "../../types/ai";
+import { useLocalOllama } from "../../hooks/useLocalOllama";
 
 /**
  * ModelSelect - Dropdown for selecting an AI model
@@ -16,6 +17,47 @@ export const ModelSelect: React.FC<{
     onModelChange: (id: string) => void;
     disabled?: boolean;
 }> = ({ models, selectedModelId, onModelChange, disabled }) => {
+    const { status } = useLocalOllama();
+
+    // Build size map from local Ollama for fallback
+    const localSizeMap = React.useMemo(() => {
+        const map: Record<string, number> = {};
+        for (const m of status.models) {
+            map[m.name] = m.size;
+        }
+        return map;
+    }, [status.models]);
+
+    const formatCloudPrice = (val: number): string => {
+        // Display two decimals. If current values are per-100 tokens, multiply by 10.
+        // Heuristic: if val < 0.01 and > 0, show (val*10). Otherwise show val.
+        if (val > 0 && val < 0.01) {
+            return (val * 10).toFixed(2);
+        }
+        return val.toFixed(2);
+    };
+
+    const formatGB = (bytes: number | undefined): string | null => {
+        if (!bytes || bytes <= 0) return null;
+        const gb = bytes / (1024 * 1024 * 1024);
+        return `${gb.toFixed(1)} GB`;
+    };
+
+    const getSizeDisplay = (model: AIModel): string | null => {
+        // Prefer backend-provided size_gb if available
+        if (model.size_gb !== undefined && model.size_gb > 0) {
+            return `${model.size_gb.toFixed(1)} GB`;
+        }
+
+        // Fall back to local Ollama hook for size bytes
+        if (model.provider.includes("llama") || model.provider.includes("Ollama")) {
+            const localSize = localSizeMap[model.name];
+            return formatGB(localSize);
+        }
+
+        return null;
+    };
+
     return (
         <Select.Root
             value={selectedModelId}
@@ -55,7 +97,17 @@ export const ModelSelect: React.FC<{
                                     >
                                         <Select.ItemText>
                                             <div className="flex items-center justify-between w-full">
-                                                <span>{model.display_name}</span>
+                                                <span>
+                                                    {model.display_name}
+                                                    {(() => {
+                                                        const sizeDisplay = getSizeDisplay(model);
+                                                        return sizeDisplay ? (
+                                                            <span className="ml-2 opacity-70 text-xs">
+                                                                - {sizeDisplay}
+                                                            </span>
+                                                        ) : null;
+                                                    })()}
+                                                </span>
                                                 {!model.is_available && (
                                                     <span className="text-xs ml-2">
                                                         (Not Available)
@@ -89,7 +141,7 @@ export const ModelSelect: React.FC<{
                                             <div className="flex items-center justify-between w-full">
                                                 <span>{model.display_name}</span>
                                                 <span className="text-xs text-ctan-amber">
-                                                    ${model.cost_per_1k_tokens}/1k
+                                                    ${formatCloudPrice(model.cost_per_1k_tokens)}/1k
                                                 </span>
                                             </div>
                                         </Select.ItemText>

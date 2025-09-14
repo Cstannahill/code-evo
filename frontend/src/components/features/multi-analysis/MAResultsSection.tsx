@@ -2,6 +2,8 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Loader2, X, Github } from "lucide-react";
 import { AnalysisDashboard } from "../AnalysisDashboard";
+import { ModelSelector } from "../../shared/ModelSelector";
+import { apiClient } from "../../../api/client";
 
 /**
  * MAResultsSection - Handles display of analysis results, loading, and errors
@@ -18,7 +20,7 @@ export interface MAResultsSectionProps {
     selectedRepoId: string | null;
     selectedRepo?: { status: string };
     selectedModel?: { display_name: string };
-    comparisonResults?: any;
+    comparisonResults?: unknown;
 }
 
 
@@ -33,6 +35,33 @@ export const MAResultsSection: React.FC<MAResultsSectionProps> = ({
     // Always render AnalysisDashboard, but control its rendering with props
     const shouldShowAnalysisDashboard =
         selectedRepoId && selectedRepo && analysisMode === "single" && selectedRepo.status === "completed";
+
+    const [modelOverride, setModelOverride] = React.useState<string | null>(null);
+    const [_byModel, setByModel] = React.useState<unknown | null>(null);
+    const [loadingModel, setLoadingModel] = React.useState(false);
+    const [modelError, setModelError] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            if (!selectedRepoId) return;
+            if (!modelOverride) {
+                setByModel(null);
+                return;
+            }
+            try {
+                setLoadingModel(true);
+                setModelError(null);
+                const data = await apiClient.getRepositoryAnalysisByModel(selectedRepoId, modelOverride);
+                if (!cancelled) setByModel(data);
+            } catch {
+                if (!cancelled) setModelError("Failed to load model-specific analysis");
+            } finally {
+                if (!cancelled) setLoadingModel(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [selectedRepoId, modelOverride]);
 
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="dark:text-[#ffd700]">
@@ -55,7 +84,26 @@ export const MAResultsSection: React.FC<MAResultsSectionProps> = ({
                             </div>
                         </div>
                     ) : shouldShowAnalysisDashboard ? (
-                        <AnalysisDashboard repositoryId={selectedRepoId} />
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm text-muted-foreground">
+                                    {selectedModel ? `Using ${selectedModel.display_name}` : "Default model"}
+                                    {modelOverride ? ` · Override: ${modelOverride}` : ""}
+                                    {loadingModel ? " · Loading…" : ""}
+                                    {modelError ? ` · ${modelError}` : ""}
+                                </div>
+                                <ModelSelector
+                                    repositoryId={selectedRepoId}
+                                    selectedModel={modelOverride}
+                                    onChange={setModelOverride}
+                                />
+                            </div>
+                            {/* Pass through repositoryId. The dashboard already calls hooks that fetch base/enhanced.
+                                                    If a model override is chosen, child sections that rely on pattern/quality could be
+                                                    optionally adapted to accept overrides; for now, we keep base rendering and show the
+                                                    selected model context in the header. */}
+                            <AnalysisDashboard repositoryId={selectedRepoId} />
+                        </div>
                     ) : (
                         <div className="text-center py-20 ctan-card rounded-lg">
                             <X className="w-12 h-12 mx-auto mb-4 text-destructive" />

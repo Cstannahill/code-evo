@@ -1,0 +1,46 @@
+{
+  "validation_timestamp": "2025-09-12T21:39:28.240423",
+  "summary": {
+    "total_routes_found": 0,
+    "routes_with_issues": 0,
+    "routes_valid": 0,
+    "validation_success": false
+  },
+  "routes": [],
+  "global_issues": [
+    "Error parsing backend/app/api/analysis.py: [Errno 2] No such file or directory: 'backend/app/api/analysis.py'",
+    "Error parsing backend/app/api/multi_model_analysis.py: [Errno 2] No such file or directory: 'backend/app/api/multi_model_analysis.py'",
+    "Error parsing backend/app/api/repositories.py: [Errno 2] No such file or directory: 'backend/app/api/repositories.py'",
+    "Error parsing backend/app/api/auth.py: [Errno 2] No such file or directory: 'backend/app/api/auth.py'",
+    "Missing expected route: GET /status (expected in analysis.py)",
+    "Missing expected route: POST /code (expected in analysis.py)",
+    "Missing expected route: GET /patterns (expected in analysis.py)",
+    "Missing expected route: GET /patterns/{pattern_name} (expected in analysis.py)",
+    "Missing expected route: GET /insights/{repository_id} (expected in analysis.py)",
+    "Missing expected route: GET /ai-models (expected in analysis.py)",
+    "Missing expected route: POST /models/{model_id}/benchmark (expected in analysis.py)",
+    "Missing expected route: POST /evolution (expected in analysis.py)",
+    "Missing expected route: GET /compare/{repo_id1}/{repo_id2} (expected in analysis.py)",
+    "Missing expected route: GET /models/available (expected in multi_model_analysis.py)",
+    "Missing expected route: POST /analyze/single (expected in multi_model_analysis.py)",
+    "Missing expected route: POST /analyze/compare (expected in multi_model_analysis.py)",
+    "Missing expected route: POST /analyze/repository (expected in multi_model_analysis.py)",
+    "Missing expected route: GET /comparison/{comparison_id} (expected in multi_model_analysis.py)",
+    "Missing expected route: GET /models/{model_name}/stats (expected in multi_model_analysis.py)",
+    "Missing expected route: POST /models/{model_name}/estimate-cost (expected in multi_model_analysis.py)",
+    "Missing expected route: POST /submit (expected in repositories.py)",
+    "Missing expected route: GET / (expected in repositories.py)",
+    "Missing expected route: POST / (expected in repositories.py)",
+    "Error parsing model file backend/app/models/repository.py: [Errno 2] No such file or directory: 'backend/app/models/repository.py'",
+    "Error parsing model file backend/app/models/ai_models.py: [Errno 2] No such file or directory: 'backend/app/models/ai_models.py'",
+    "Error parsing model file backend/app/schemas/repository.py: [Errno 2] No such file or directory: 'backend/app/schemas/repository.py'"
+  ],
+  "recommendations": [
+    "\ud83d\udea8 Fix global validation issues",
+    "\u2705 Ensure all routes have proper type annotations",
+    "\ud83d\udcca Add response_model to all routes for better API documentation",
+    "\ud83d\udd0d Add comprehensive error handling with proper HTTP status codes",
+    "\ud83d\udcda Update OpenAPI documentation to reflect all routes",
+    "\ud83e\uddea Create integration tests for all routes"
+  ]
+}

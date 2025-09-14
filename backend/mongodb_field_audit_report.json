@@ -1,0 +1,279 @@
+{
+  "audit_timestamp": "2025-09-12T21:36:30.003228",
+  "summary": {
+    "total_models_audited": 6,
+    "total_missing_fields": 0,
+    "total_extra_fields": 27,
+    "models_with_missing_fields": 0,
+    "models_with_extra_fields": 6
+  },
+  "missing_fields": {},
+  "extra_fields": {
+    "Repository": [
+      "updated_at",
+      "is_public",
+      "created_by_user",
+      "analysis_count",
+      "unique_users",
+      "tags",
+      "description",
+      "primary_language"
+    ],
+    "Commit": [
+      "analysis",
+      "short_hash",
+      "quality_indicators"
+    ],
+    "Pattern": [
+      "usage_count",
+      "last_detected"
+    ],
+    "PatternOccurrence": [
+      "code_snippet",
+      "ai_model_used",
+      "model_confidence",
+      "processing_time_ms",
+      "token_usage",
+      "ai_analysis_metadata"
+    ],
+    "Technology": [
+      "files",
+      "confidence",
+      "last_detected"
+    ],
+    "AnalysisSession": [
+      "analysis_config",
+      "performance_metrics",
+      "error_details",
+      "security_violations",
+      "incremental_efficiency"
+    ]
+  },
+  "detailed_comparisons": [
+    {
+      "model": "Repository",
+      "field": "updated_at",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "DateTime",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Repository",
+      "field": "is_public",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Boolean (optional)",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Repository",
+      "field": "created_by_user",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "ObjectId (optional)",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Repository",
+      "field": "analysis_count",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Integer (optional)",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Repository",
+      "field": "unique_users",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Integer (optional)",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Repository",
+      "field": "tags",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "List[String] (optional)",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Repository",
+      "field": "description",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "String (optional)",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Repository",
+      "field": "primary_language",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "String (optional)",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Commit",
+      "field": "analysis",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Dict (enhanced)",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Commit",
+      "field": "short_hash",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "String",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Commit",
+      "field": "quality_indicators",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Dict",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Pattern",
+      "field": "usage_count",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Integer",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Pattern",
+      "field": "last_detected",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "DateTime",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "PatternOccurrence",
+      "field": "code_snippet",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "String",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "PatternOccurrence",
+      "field": "ai_model_used",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "String",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "PatternOccurrence",
+      "field": "model_confidence",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Float",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "PatternOccurrence",
+      "field": "processing_time_ms",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Integer",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "PatternOccurrence",
+      "field": "token_usage",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Dict",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "PatternOccurrence",
+      "field": "ai_analysis_metadata",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Dict",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Technology",
+      "field": "files",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "List[String]",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Technology",
+      "field": "confidence",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Float",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "Technology",
+      "field": "last_detected",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "DateTime",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "AnalysisSession",
+      "field": "analysis_config",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Dict",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "AnalysisSession",
+      "field": "performance_metrics",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Dict",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "AnalysisSession",
+      "field": "error_details",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Dict",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "AnalysisSession",
+      "field": "security_violations",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "List[Dict]",
+      "notes": "Enhanced field in MongoDB model"
+    },
+    {
+      "model": "AnalysisSession",
+      "field": "incremental_efficiency",
+      "sql_type": "N/A",
+      "mongodb_exists": true,
+      "mongodb_type": "Float",
+      "notes": "Enhanced field in MongoDB model"
+    }
+  ],
+  "recommendations": [
+    "\u2728 MongoDB models have enhanced fields not in SQL",
+    "\ud83d\udd0d Review enhanced fields for backward compatibility",
+    "\ud83d\udcca Consider migrating enhanced fields to SQL models",
+    "\ud83d\udee1\ufe0f Add field validation using Pydantic validators",
+    "\ud83d\udcc8 Add database indexes for new queryable fields",
+    "\ud83e\uddea Create unit tests for model field validation",
+    "\ud83d\udcda Update API documentation to reflect new fields"
+  ]
+}

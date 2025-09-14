@@ -9,9 +9,9 @@ const ModelDebugTest: React.FC = () => {
     const fetchModels = async () => {
       try {
         console.log("Fetching models...");
-        const response = await fetch(
-          "http://localhost:8080/api/multi-model/models/available"
-        );
+      const response = await fetch(
+        "http://localhost:8080/api/analysis/models/available"
+      );
         console.log("Response status:", response.status);
 
         if (!response.ok) {

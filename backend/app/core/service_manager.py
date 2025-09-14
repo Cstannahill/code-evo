@@ -55,11 +55,7 @@ def get_ai_service():
     return get_service_instance(AIService, "AIService")
 
 
-def get_multi_model_service():
-    """Get singleton MultiModelAIService instance"""
-    from app.services.multi_model_ai_service import MultiModelAIService
-
-    return get_service_instance(MultiModelAIService, "MultiModelAIService")
+# Multi-model service removed - using single model analysis only
 
 
 def get_git_service():

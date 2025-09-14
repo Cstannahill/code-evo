@@ -50,60 +50,56 @@ export const TechnologyEvolutionChart: React.FC<
   }, [timeline]);
 
   const data = React.useMemo(() => {
-    console.log("TechnologyEvolutionChart: Processing data with", { 
+    console.log("TechnologyEvolutionChart: Processing data with", {
       technologies: technologies,
-      technologiesKeys: Object.keys(technologies || {}), 
+      technologiesKeys: Object.keys(technologies || {}),
       timelineLength: normalizedTimeline?.length,
       timeline: normalizedTimeline
     });
 
     // Get all unique technologies from the technologies object
-    const allTechs = React.useMemo(() => {
-      if (!technologies || typeof technologies !== 'object') {
-        return [];
-      }
-      
-      const techNames: string[] = [];
-      
+    const allTechs: string[] = [];
+
+    if (technologies && typeof technologies === 'object') {
       // Handle different technology categories
       Object.entries(technologies).forEach(([category, items]) => {
         if (category === 'languages' && typeof items === 'object' && items !== null) {
           // Languages are key-value pairs: {"JavaScript": 5, "Python": 3}
           Object.keys(items).forEach(lang => {
             if (lang && typeof lang === 'string' && lang.length > 0) {
-              techNames.push(lang);
+              allTechs.push(lang);
             }
           });
         } else if (Array.isArray(items)) {
           // Frameworks, libraries, tools are arrays: ["React", "Express.js"]
           items.forEach(item => {
             if (typeof item === 'string' && item.length > 0) {
-              techNames.push(item);
-            } else if (item && typeof item === 'object' && item.name) {
-              techNames.push(item.name);
+              allTechs.push(item);
+            } else if (item && typeof item === 'object' && (item as { name?: string }).name) {
+              allTechs.push((item as { name: string }).name);
             }
           });
         }
       });
-      
-      // Remove duplicates and limit to top 8 for readability
-      return [...new Set(techNames)].slice(0, 8);
-    }, [technologies]);
+    }
 
-    if (!normalizedTimeline || normalizedTimeline.length === 0 || allTechs.length === 0) {
+    // Remove duplicates and limit to top 8 for readability
+    const uniqueTechs = [...new Set(allTechs)].slice(0, 8);
+
+    if (!normalizedTimeline || normalizedTimeline.length === 0 || uniqueTechs.length === 0) {
       // Generate realistic technology adoption data based on actual detected technologies
-      if (allTechs.length > 0) {
+      if (uniqueTechs.length > 0) {
         const currentDate = new Date();
         return Array.from({ length: 8 }, (_, i) => {
           const date = new Date(currentDate);
           date.setMonth(date.getMonth() - (7 - i));
 
-          const dataPoint: any = {
+          const dataPoint: Record<string, string | number> = {
             month: date.toISOString().slice(0, 7),
           };
 
           // Simulate realistic technology adoption curves
-          allTechs.forEach((techName, techIndex) => {
+          uniqueTechs.forEach((techName, techIndex) => {
             const safeTechName = techName || `tech_${techIndex}`;
             const baseAdoption = 20 + (techIndex * 10); // Different starting points
             const growthRate = 1 + (techIndex * 0.3); // Different growth rates
@@ -117,31 +113,31 @@ export const TechnologyEvolutionChart: React.FC<
           return dataPoint;
         });
       }
-      
+
       // Fallback empty state
       return [];
     }
 
     // Transform timeline data to include technology adoption over time
-    return normalizedTimeline.map((point: any, index: number) => {
-      const dataPoint: any = {
+    return normalizedTimeline.map((point: { date?: string; month?: string; patterns?: Record<string, number>; technologies?: Record<string, number> }, index: number) => {
+      const dataPoint: Record<string, string | number> = {
         month: point.date || point.month || `Month ${index + 1}`,
       };
 
       // Add technology adoption data based on patterns or direct tech data
-      allTechs.forEach((techName, techIndex) => {
+      uniqueTechs.forEach((techName, techIndex) => {
         const safeTechName = techName || `tech_${techIndex}`;
         // Look for technology-related patterns or direct mentions
         const patterns = point.patterns || {};
         let adoptionValue = 0;
-        
+
         if (techName && typeof techName === 'string') {
           // Check if technology appears in patterns
-          const techPatterns = Object.keys(patterns).filter(pattern => 
+          const techPatterns = Object.keys(patterns).filter(pattern =>
             pattern.toLowerCase().includes(techName.toLowerCase()) ||
             techName.toLowerCase().includes(pattern.toLowerCase())
           );
-          
+
           if (techPatterns.length > 0) {
             adoptionValue = techPatterns.reduce((sum, pattern) => sum + (patterns[pattern] || 0), 0);
           } else {
@@ -153,7 +149,7 @@ export const TechnologyEvolutionChart: React.FC<
           // Fallback for invalid tech names
           adoptionValue = Math.min(100, 20 + (index * 10) + (Math.random() * 15));
         }
-        
+
         dataPoint[safeTechName] = Math.round(adoptionValue);
       });
 
@@ -170,15 +166,15 @@ export const TechnologyEvolutionChart: React.FC<
       return [];
     }
 
-    const techs: Array<{name: string, [key: string]: any}> = [];
-    
+    const techs: Array<{ name: string, category?: string, usage_count?: number }> = [];
+
     // Handle different technology categories
     Object.entries(technologies).forEach(([category, items]) => {
       if (category === 'languages' && typeof items === 'object' && items !== null) {
         // Languages are key-value pairs: {"JavaScript": 5, "Python": 3}
         Object.entries(items).forEach(([lang, count]) => {
           if (lang && typeof lang === 'string' && lang.length > 0) {
-            techs.push({ name: lang, usage_count: count, category: 'language' });
+            techs.push({ name: lang, usage_count: count as number, category: 'language' });
           }
         });
       } else if (Array.isArray(items)) {
@@ -186,23 +182,23 @@ export const TechnologyEvolutionChart: React.FC<
         items.forEach(item => {
           if (typeof item === 'string' && item.length > 0) {
             techs.push({ name: item, category });
-          } else if (item && typeof item === 'object' && item.name) {
-            techs.push({ name: item.name, category, ...item });
+          } else if (item && typeof item === 'object' && 'name' in item) {
+            techs.push({ name: item.name as string, category, ...item });
           }
         });
       }
     });
-    
+
     // Remove duplicates by name and limit to top 8 for readability
-    const uniqueTechs = techs.filter((tech, index, self) => 
+    const uniqueTechs = techs.filter((tech, index, self) =>
       self.findIndex(t => t.name === tech.name) === index
     ).slice(0, 8);
-    
+
     console.log("TechnologyEvolutionChart: Displaying technologies", uniqueTechs);
     return uniqueTechs;
   }, [technologies]);
 
-  // Show empty state if no data
+  // Show empty state if no data - AFTER all hooks are called
   if (!data || data.length === 0 || displayTechs.length === 0) {
     return (
       <motion.div

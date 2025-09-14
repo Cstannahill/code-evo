@@ -348,7 +348,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ repository
                 icon={Calendar}
               >
                 <PatternTimeline
-                  data={analysis.pattern_timeline?.timeline || []}
+                  data={analysis.pattern_timeline || {}}
                   height={250}
                   topPatterns={topPatternNames}
                 />
@@ -363,7 +363,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ repository
                 </DashboardCard>
                 <DashboardCard title="Pattern Timeline" icon={LineChart}>
                   <PatternTimeline
-                    data={analysis.pattern_timeline?.timeline || []}
+                    data={analysis.pattern_timeline || {}}
                     height={300}
                     topPatterns={topPatternNames}
                   />

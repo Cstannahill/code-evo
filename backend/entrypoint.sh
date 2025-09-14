@@ -10,6 +10,10 @@ REDIS_PORT="${REDIS_PORT:-6379}"
 CHROMA_HOST="${CHROMA_HOST:-chromadb}"
 CHROMA_PORT="${CHROMA_PORT:-8000}"
 
+# Check if we're in Railway or single container mode
+IS_RAILWAY="${RAILWAY_ENVIRONMENT:-}"
+PORT_ENV="${PORT:-}"
+
 # Run waiting checks (reuse existing script)
 if [ -x "/app/backend/wait_for_services.sh" ]; then
   /app/backend/wait_for_services.sh &

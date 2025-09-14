@@ -88,8 +88,16 @@ class GuestAPIKeys(BaseModel):
 
 
 # Import models and database
-from app.core.database import get_engine
-from app.models.repository import User, APIKey, UserRepository
+from app.core.database import get_engine, SessionLocal
+from app.models.repository import (
+    User,
+    APIKey,
+    UserRepository,
+    UserSQL,
+    APIKeySQL,
+    UserRepositorySQL,
+)
+
 
 # Utility functions
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -115,9 +123,36 @@ def decrypt_api_key(encrypted_key: str) -> str:
 async def get_user_by_username(username: str) -> Optional[User]:
     """Get user by username from database"""
     try:
-        engine = await get_engine()
-        user = await engine.find_one(User, User.username == username)
-        return user
+        # Try MongoDB first, fallback to SQLite
+        try:
+            engine = await get_engine()
+            if engine:
+                user = await engine.find_one(User, User.username == username)
+                return user
+        except Exception:
+            pass
+
+        # Fallback to SQLite
+        db = SessionLocal()
+        try:
+            user_sql = db.query(UserSQL).filter(UserSQL.username == username).first()
+            if user_sql:
+                # Convert SQLAlchemy model to ODMantic model
+                # Set id field to match the SQLAlchemy model's id
+                return User(
+                    id=str(user_sql.id),  # Convert to string for ObjectId compatibility
+                    username=user_sql.username,
+                    email=user_sql.email,
+                    full_name=user_sql.full_name,
+                    hashed_password=user_sql.hashed_password,
+                    is_active=user_sql.is_active,
+                    is_guest=user_sql.is_guest,
+                    created_at=user_sql.created_at,
+                    last_login=user_sql.last_login,
+                )
+            return None
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error getting user by username: {e}")
         return None
@@ -126,9 +161,38 @@ async def get_user_by_username(username: str) -> Optional[User]:
 async def get_user_by_id(user_id: str) -> Optional[User]:
     """Get user by ID from database"""
     try:
-        engine = await get_engine()
-        user = await engine.get(User, user_id)
-        return user
+        # Try MongoDB first, fallback to SQLite
+        try:
+            engine = await get_engine()
+            if engine:
+                from bson import ObjectId
+
+                user = await engine.find_one(User, User.id == ObjectId(user_id))
+                return user
+        except Exception:
+            pass
+
+        # Fallback to SQLite
+        db = SessionLocal()
+        try:
+            user_sql = db.query(UserSQL).filter(UserSQL.id == user_id).first()
+            if user_sql:
+                # Convert SQLAlchemy model to ODMantic model
+                # Note: Don't set id field as ODMantic will auto-generate ObjectId
+                return User(
+                    id=str(user_sql.id),  # type: ignore
+                    username=user_sql.username,  # type: ignore
+                    email=user_sql.email,  # type: ignore
+                    full_name=user_sql.full_name,  # type: ignore
+                    hashed_password=user_sql.hashed_password,  # type: ignore
+                    is_active=user_sql.is_active,  # type: ignore
+                    is_guest=user_sql.is_guest,  # type: ignore
+                    created_at=user_sql.created_at,  # type: ignore
+                    last_login=user_sql.last_login,  # type: ignore
+                )
+            return None
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Error getting user by ID: {e}")
         return None
@@ -137,30 +201,89 @@ async def get_user_by_id(user_id: str) -> Optional[User]:
 async def create_user(user_data: UserCreate) -> User:
     """Create a new user"""
     try:
-        engine = await get_engine()
-        
-        # Check if user already exists
-        existing_user = await engine.find_one(User, User.username == user_data.username)
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Username already exists")
-        
-        existing_email = await engine.find_one(User, User.email == user_data.email)
-        if existing_email:
-            raise HTTPException(status_code=400, detail="Email already exists")
-        
-        # Create new user
-        hashed_password = get_password_hash(user_data.password)
-        user = User(
-            username=user_data.username,
-            email=user_data.email,
-            full_name=user_data.full_name,
-            hashed_password=hashed_password,
-            is_active=True,
-            is_guest=False
-        )
-        
-        await engine.save(user)
-        return user
+        # Try MongoDB first, fallback to SQLite
+        engine = None
+        try:
+            engine = await get_engine()
+        except Exception:
+            pass
+
+        if not engine:
+            # Use SQLite fallback
+            db = SessionLocal()
+            try:
+                # Check if user already exists
+                existing_user = (
+                    db.query(UserSQL)
+                    .filter(UserSQL.username == user_data.username)
+                    .first()
+                )
+                if existing_user:
+                    raise HTTPException(
+                        status_code=400, detail="Username already exists"
+                    )
+
+                existing_email = (
+                    db.query(UserSQL).filter(UserSQL.email == user_data.email).first()
+                )
+                if existing_email:
+                    raise HTTPException(status_code=400, detail="Email already exists")
+
+                # Create new user
+                hashed_password = get_password_hash(user_data.password)
+                user_sql = UserSQL(
+                    username=user_data.username,
+                    email=user_data.email,
+                    full_name=user_data.full_name,
+                    hashed_password=hashed_password,
+                    is_active=True,
+                    is_guest=False,
+                )
+
+                db.add(user_sql)
+                db.commit()
+                db.refresh(user_sql)
+
+                # Convert SQLAlchemy model to ODMantic model
+                # Note: Don't set id field as ODMantic will auto-generate ObjectId
+                return User(
+                    username=user_sql.username,
+                    email=user_sql.email,
+                    full_name=user_sql.full_name,
+                    hashed_password=user_sql.hashed_password,
+                    is_active=user_sql.is_active,
+                    is_guest=user_sql.is_guest,
+                    created_at=user_sql.created_at,
+                    last_login=user_sql.last_login,
+                )
+            finally:
+                db.close()
+        else:
+            # Use MongoDB
+            # Check if user already exists
+            existing_user = await engine.find_one(
+                User, User.username == user_data.username
+            )
+            if existing_user:
+                raise HTTPException(status_code=400, detail="Username already exists")
+
+            existing_email = await engine.find_one(User, User.email == user_data.email)
+            if existing_email:
+                raise HTTPException(status_code=400, detail="Email already exists")
+
+            # Create new user
+            hashed_password = get_password_hash(user_data.password)
+            user = User(
+                username=user_data.username,
+                email=user_data.email,
+                full_name=user_data.full_name,
+                hashed_password=hashed_password,
+                is_active=True,
+                is_guest=False,
+            )
+
+            await engine.save(user)
+            return user
     except HTTPException:
         raise
     except Exception as e:
@@ -171,23 +294,65 @@ async def create_user(user_data: UserCreate) -> User:
 async def create_guest_user() -> User:
     """Create a temporary guest user"""
     try:
-        engine = await get_engine()
-        
-        # Generate unique guest username
-        guest_number = datetime.utcnow().timestamp()
-        username = f"guest_{int(guest_number)}"
-        
-        user = User(
-            username=username,
-            email=f"{username}@guest.temp",
-            full_name="Guest User",
-            hashed_password="",  # No password for guests
-            is_active=True,
-            is_guest=True
-        )
-        
-        await engine.save(user)
-        return user
+        # Try MongoDB first, fallback to SQLite
+        engine = None
+        try:
+            engine = await get_engine()
+        except Exception:
+            pass
+
+        if not engine:
+            # Use SQLite fallback
+            db = SessionLocal()
+            try:
+                # Generate unique guest username
+                guest_number = datetime.utcnow().timestamp()
+                username = f"guest_{int(guest_number)}"
+
+                user_sql = UserSQL(
+                    username=username,
+                    email=f"{username}@guest.temp",
+                    full_name="Guest User",
+                    hashed_password="",  # No password for guests
+                    is_active=True,
+                    is_guest=True,
+                )
+
+                db.add(user_sql)
+                db.commit()
+                db.refresh(user_sql)
+
+                # Convert SQLAlchemy model to ODMantic model
+                # Note: Don't set id field as ODMantic will auto-generate ObjectId
+                return User(
+                    username=user_sql.username,
+                    email=user_sql.email,
+                    full_name=user_sql.full_name,
+                    hashed_password=user_sql.hashed_password,
+                    is_active=user_sql.is_active,
+                    is_guest=user_sql.is_guest,
+                    created_at=user_sql.created_at,
+                    last_login=user_sql.last_login,
+                )
+            finally:
+                db.close()
+        else:
+            # Use MongoDB
+            # Generate unique guest username
+            guest_number = datetime.utcnow().timestamp()
+            username = f"guest_{int(guest_number)}"
+
+            user = User(
+                username=username,
+                email=f"{username}@guest.temp",
+                full_name="Guest User",
+                hashed_password="",  # No password for guests
+                is_active=True,
+                is_guest=True,
+            )
+
+            await engine.save(user)
+            return user
     except Exception as e:
         logger.error(f"Error creating guest user: {e}")
         raise HTTPException(status_code=500, detail="Failed to create guest user")
@@ -199,16 +364,50 @@ async def authenticate_user(username: str, password: str) -> Optional[User]:
         user = await get_user_by_username(username)
         if not user or not user.is_active:
             return None
-        
+
         if not verify_password(password, user.hashed_password):
             return None
-        
+
         # Update last login
         user.last_login = datetime.utcnow()
-        engine = await get_engine()
-        await engine.save(user)
-        
-        return user
+
+        # Try MongoDB first, fallback to SQLite
+        engine = None
+        try:
+            engine = await get_engine()
+        except Exception:
+            pass
+
+        if not engine:
+            # Use SQLite fallback - update the user's last login directly in SQLite
+            db = SessionLocal()
+            try:
+                # Find the user by username since we can't use the ODMantic user.id
+                user_sql = (
+                    db.query(UserSQL).filter(UserSQL.username == username).first()
+                )
+                if user_sql:
+                    user_sql.last_login = datetime.utcnow()
+                    db.commit()
+                    # Return the updated user with the correct SQLite ID
+                    return User(
+                        id=user_sql.id,
+                        username=user_sql.username,
+                        email=user_sql.email,
+                        full_name=user_sql.full_name,
+                        hashed_password=user_sql.hashed_password,
+                        is_active=user_sql.is_active,
+                        is_guest=user_sql.is_guest,
+                        created_at=user_sql.created_at,
+                        last_login=user_sql.last_login,
+                    )
+                return None
+            finally:
+                db.close()
+        else:
+            # Use MongoDB
+            await engine.save(user)
+            return user
     except Exception as e:
         logger.error(f"Error authenticating user: {e}")
         return None
@@ -222,6 +421,29 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+
+async def verify_token(token: str) -> User:
+    """Verify a JWT token and return the user"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        user_id: str = payload.get("user_id")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username, user_id=user_id)
+    except jwt.PyJWTError:
+        raise credentials_exception
+
+    user = await get_user_by_username(token_data.username)
+    if user is None:
+        raise credentials_exception
+    return user
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
@@ -240,7 +462,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
         token_data = TokenData(username=username, user_id=user_id)
     except jwt.PyJWTError:
         raise credentials_exception
-    
+
     user = await get_user_by_username(token_data.username)
     if user is None or not user.is_active:
         raise credentials_exception
@@ -261,7 +483,7 @@ async def register_user(user_data: UserCreate):
             is_active=user.is_active,
             is_guest=user.is_guest,
             created_at=user.created_at,
-            last_login=user.last_login
+            last_login=user.last_login,
         )
     except Exception as e:
         logger.error(f"Registration failed: {e}")
@@ -278,17 +500,16 @@ async def login_user(user_data: UserLogin):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
         )
-    
-    access_token = create_access_token(data={
-        "sub": user.username, 
-        "user_id": str(user.id)
-    })
+
+    access_token = create_access_token(
+        data={"sub": user.username, "user_id": str(user.id)}
+    )
     return Token(
         access_token=access_token,
         token_type="bearer",
         user_id=str(user.id),
         username=user.username,
-        is_guest=user.is_guest
+        is_guest=user.is_guest,
     )
 
 
@@ -303,16 +524,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token = create_access_token(data={
-        "sub": user.username,
-        "user_id": str(user.id)
-    })
+    access_token = create_access_token(
+        data={"sub": user.username, "user_id": str(user.id)}
+    )
     return Token(
         access_token=access_token,
         token_type="bearer",
         user_id=str(user.id),
         username=user.username,
-        is_guest=user.is_guest
+        is_guest=user.is_guest,
     )
 
 
@@ -321,16 +541,15 @@ async def create_guest_session():
     """Create a guest user session"""
     try:
         user = await create_guest_user()
-        access_token = create_access_token(data={
-            "sub": user.username,
-            "user_id": str(user.id)
-        })
+        access_token = create_access_token(
+            data={"sub": user.username, "user_id": str(user.id)}
+        )
         return Token(
             access_token=access_token,
             token_type="bearer",
             user_id=str(user.id),
             username=user.username,
-            is_guest=True
+            is_guest=True,
         )
     except Exception as e:
         logger.error(f"Guest session creation failed: {e}")
@@ -348,31 +567,30 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         is_active=current_user.is_active,
         is_guest=current_user.is_guest,
         created_at=current_user.created_at,
-        last_login=current_user.last_login
+        last_login=current_user.last_login,
     )
 
 
 # API Key management endpoints
 @router.post("/api-keys", response_model=APIKeyResponse)
 async def create_api_key(
-    api_key_data: APIKeyCreate,
-    current_user: User = Depends(get_current_user)
+    api_key_data: APIKeyCreate, current_user: User = Depends(get_current_user)
 ):
     """Create/update an API key for the current user"""
     try:
         engine = await get_engine()
-        
+
         # Encrypt the API key
         encrypted_key = encrypt_api_key(api_key_data.api_key)
-        
+
         # Check if key already exists for this provider
         existing_key = await engine.find_one(
             APIKey,
             APIKey.user_id == current_user.id,
             APIKey.provider == api_key_data.provider,
-            APIKey.key_name == api_key_data.key_name
+            APIKey.key_name == api_key_data.key_name,
         )
-        
+
         if existing_key:
             # Update existing key
             existing_key.encrypted_key = encrypted_key
@@ -386,10 +604,10 @@ async def create_api_key(
                 provider=api_key_data.provider,
                 key_name=api_key_data.key_name,
                 encrypted_key=encrypted_key,
-                is_active=True
+                is_active=True,
             )
             await engine.save(api_key_obj)
-        
+
         return APIKeyResponse(
             id=str(api_key_obj.id),
             provider=api_key_obj.provider,
@@ -397,7 +615,7 @@ async def create_api_key(
             created_at=api_key_obj.created_at,
             last_used=api_key_obj.last_used,
             is_active=api_key_obj.is_active,
-            usage_count=api_key_obj.usage_count
+            usage_count=api_key_obj.usage_count,
         )
     except Exception as e:
         logger.error(f"Error creating API key: {e}")
@@ -410,7 +628,7 @@ async def get_user_api_keys(current_user: User = Depends(get_current_user)):
     try:
         engine = await get_engine()
         api_keys = await engine.find(APIKey, APIKey.user_id == current_user.id)
-        
+
         return [
             APIKeyResponse(
                 id=str(key.id),
@@ -419,7 +637,7 @@ async def get_user_api_keys(current_user: User = Depends(get_current_user)):
                 created_at=key.created_at,
                 last_used=key.last_used,
                 is_active=key.is_active,
-                usage_count=key.usage_count
+                usage_count=key.usage_count,
             )
             for key in api_keys
         ]
@@ -429,18 +647,15 @@ async def get_user_api_keys(current_user: User = Depends(get_current_user)):
 
 
 @router.delete("/api-keys/{key_id}")
-async def delete_api_key(
-    key_id: str,
-    current_user: User = Depends(get_current_user)
-):
+async def delete_api_key(key_id: str, current_user: User = Depends(get_current_user)):
     """Delete an API key"""
     try:
         engine = await get_engine()
         api_key = await engine.get(APIKey, key_id)
-        
+
         if not api_key or api_key.user_id != current_user.id:
             raise HTTPException(status_code=404, detail="API key not found")
-        
+
         await engine.delete(api_key)
         return {"message": "API key deleted successfully"}
     except HTTPException:
@@ -459,17 +674,17 @@ async def get_user_api_key(user_id: str, provider: str) -> Optional[str]:
             APIKey,
             APIKey.user_id == user_id,
             APIKey.provider == provider,
-            APIKey.is_active == True
+            APIKey.is_active == True,
         )
-        
+
         if not api_key:
             return None
-        
+
         # Update usage
         api_key.last_used = datetime.utcnow()
         api_key.usage_count += 1
         await engine.save(api_key)
-        
+
         return decrypt_api_key(api_key.encrypted_key)
     except Exception as e:
         logger.error(f"Error getting user API key: {e}")
@@ -479,36 +694,36 @@ async def get_user_api_key(user_id: str, provider: str) -> Optional[str]:
 # Guest API key handling
 @router.post("/guest/api-keys")
 async def set_guest_api_keys(
-    api_keys: GuestAPIKeys,
-    current_user: User = Depends(get_current_user)
+    api_keys: GuestAPIKeys, current_user: User = Depends(get_current_user)
 ):
     """Set API keys for guest session (temporary, not stored)"""
     if not current_user.is_guest:
         raise HTTPException(status_code=403, detail="Only available for guest users")
-    
+
     try:
         # For guests, we'll store the API keys in session or cache temporarily
         # This is a simplified implementation - you might want to use Redis or session storage
         from app.core.database import cache_service
-        
+
         session_key = f"guest_api_keys:{current_user.id}"
         api_key_data = {}
-        
+
         if api_keys.openai_key:
-            api_key_data['openai'] = encrypt_api_key(api_keys.openai_key)
+            api_key_data["openai"] = encrypt_api_key(api_keys.openai_key)
         if api_keys.anthropic_key:
-            api_key_data['anthropic'] = encrypt_api_key(api_keys.anthropic_key)
+            api_key_data["anthropic"] = encrypt_api_key(api_keys.anthropic_key)
         if api_keys.gemini_key:
-            api_key_data['gemini'] = encrypt_api_key(api_keys.gemini_key)
-        
+            api_key_data["gemini"] = encrypt_api_key(api_keys.gemini_key)
+
         # Store in cache with 24-hour TTL for guest sessions
         import json
+
         await cache_service.set(session_key, json.dumps(api_key_data), ttl=86400)
-        
+
         return {
             "message": "API keys set for guest session",
             "providers_set": list(api_key_data.keys()),
-            "expires_in": "24 hours"
+            "expires_in": "24 hours",
         }
     except Exception as e:
         logger.error(f"Error setting guest API keys: {e}")
@@ -520,25 +735,22 @@ async def get_guest_api_keys(current_user: User = Depends(get_current_user)):
     """Get available API key providers for guest session"""
     if not current_user.is_guest:
         raise HTTPException(status_code=403, detail="Only available for guest users")
-    
+
     try:
         from app.core.database import cache_service
         import json
-        
+
         session_key = f"guest_api_keys:{current_user.id}"
         cached_data = await cache_service.get(session_key)
-        
+
         if cached_data:
             api_key_data = json.loads(cached_data)
             return {
                 "providers_available": list(api_key_data.keys()),
-                "total_providers": len(api_key_data)
+                "total_providers": len(api_key_data),
             }
         else:
-            return {
-                "providers_available": [],
-                "total_providers": 0
-            }
+            return {"providers_available": [], "total_providers": 0}
     except Exception as e:
         logger.error(f"Error getting guest API keys: {e}")
         return {"providers_available": [], "total_providers": 0}
@@ -549,16 +761,16 @@ async def get_guest_api_key(user_id: str, provider: str) -> Optional[str]:
     try:
         from app.core.database import cache_service
         import json
-        
+
         session_key = f"guest_api_keys:{user_id}"
         cached_data = await cache_service.get(session_key)
-        
+
         if cached_data:
             api_key_data = json.loads(cached_data)
             encrypted_key = api_key_data.get(provider)
             if encrypted_key:
                 return decrypt_api_key(encrypted_key)
-        
+
         return None
     except Exception as e:
         logger.error(f"Error getting guest API key: {e}")

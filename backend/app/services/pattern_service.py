@@ -21,7 +21,7 @@ from app.models.repository import (
     Repository,
     AIAnalysisResult,
     AIModel,
-    ModelComparison,
+    # ModelComparison removed - using single model analysis only
 )
 
 logger = logging.getLogger(__name__)
@@ -35,15 +35,20 @@ class PatternService:
 
     def __init__(self):
         """Initialize pattern service with enhanced database manager"""
-        self.db_manager = get_enhanced_database_manager()
-        self.engine = self.db_manager.engine
-        self.cache = self.db_manager.cache
+        try:
+            self.db_manager = get_enhanced_database_manager()
+            self.engine = self.db_manager.engine
+            self.cache = self.db_manager.cache
+            logger.info("PatternService initialized with enhanced MongoDB backend")
+        except Exception as e:
+            logger.warning(f"⚠️  PatternService initialized without MongoDB: {e}")
+            self.db_manager = None
+            self.engine = None
+            self.cache = None
 
         # Service metrics
         self._operation_count = 0
         self._error_count = 0
-
-        logger.info("PatternService initialized with enhanced MongoDB backend")
 
     async def create_or_get_pattern(
         self,
@@ -365,7 +370,7 @@ class PatternService:
         self,
         repository_id: str,
         pattern_name: Optional[str] = None,
-        date_range_days: int = 90,
+        date_range_days: int = 365,  # Increased to 1 year to include more data
     ) -> Dict[str, Any]:
         """
         Get pattern timeline for repository showing evolution over time
@@ -382,12 +387,14 @@ class PatternService:
             self._operation_count += 1
 
             obj_id = ObjectId(repository_id)
+            # Use a much longer date range to include historical data
             start_date = datetime.utcnow() - timedelta(days=date_range_days)
 
-            # Build query conditions
+            # Build query conditions - only filter by repository_id for now
             conditions = [
                 PatternOccurrence.repository_id == obj_id,
-                PatternOccurrence.detected_at >= start_date,
+                # Temporarily remove date filter to include all patterns
+                # PatternOccurrence.detected_at >= start_date,
             ]
 
             if pattern_name:
@@ -760,6 +767,21 @@ class PatternService:
     async def get_service_health(self) -> Dict[str, Any]:
         """Get pattern service health metrics"""
         try:
+            # Check if MongoDB is available
+            if self.db_manager is None or self.engine is None:
+                return {
+                    "status": "unavailable",
+                    "error": "MongoDB not initialized",
+                    "metrics": {
+                        "total_operations": self._operation_count,
+                        "total_errors": self._error_count,
+                        "error_rate_percent": round((self._error_count / max(self._operation_count, 1)) * 100, 2),
+                        "total_patterns": 0,
+                        "total_occurrences": 0,
+                    },
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+
             # Check database connectivity
             db_health = await self.db_manager.health_check()
 

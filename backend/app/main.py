@@ -21,7 +21,6 @@ from app.models.repository import (
     AnalysisSessionSQL,
     AIModelSQL,
     AIAnalysisResultSQL,
-    ModelComparisonSQL,
     ModelBenchmarkSQL,
     UserSQL,
     APIKeySQL,
@@ -38,9 +37,8 @@ from app.core.middleware import (
     ConnectionLoggingMiddleware,
     RequestValidationMiddleware,
 )
-from app.api import auth, repositories, analysis
+from app.api import auth, repositories, analysis, ollama_tunnel
 from app.core.config import settings
-from app.api.multi_model_analysis import router as multi_model_router
 
 # Configure logging with more detail
 logging.basicConfig(
@@ -104,7 +102,7 @@ async def lifespan(app: FastAPI):
             logger.error(traceback.format_exc())
             raise
 
-        # Initialize enhanced MongoDB system
+        # Initialize enhanced MongoDB system (optional)
 
         logger.info("[LIFESPAN] Initializing enhanced MongoDB system...")
         try:
@@ -115,9 +113,11 @@ async def lifespan(app: FastAPI):
                 f"🍃 MongoDB initialized: {mongo_result.get('mongodb_connected', False)}"
             )
         except Exception as e:
-            logger.error(f"[LIFESPAN] ❌ Error initializing MongoDB: {e}")
-            logger.error(traceback.format_exc())
-            raise
+            logger.warning(f"[LIFESPAN] ⚠️  MongoDB initialization failed: {e}")
+            logger.warning(
+                "⚠️  The application will continue with SQLite only. Some features may be limited."
+            )
+            # Don't raise the exception - continue with SQLite only
 
         # Test all external connections
 
@@ -144,15 +144,8 @@ async def lifespan(app: FastAPI):
                 "yes",
             )
             if not disable_ollama:
-                from app.core.service_manager import get_multi_model_service
-
-                multi_service = get_multi_model_service()
-
-                # Run Ollama discovery in background to avoid blocking startup
-                task = asyncio.create_task(
-                    multi_service.init_ollama_models_background()
-                )
-                track_background_task(task)
+                # Note: Multi-model service removed - using single model analysis only
+                pass
                 logger.info(
                     "🔁 Scheduled background Ollama discovery task (non-blocking startup)"
                 )
@@ -227,12 +220,72 @@ app = FastAPI(
     docs_url=None if disable_openapi else "/docs",
     redoc_url=None if disable_openapi else "/redoc",
     openapi_url=None if disable_openapi else "/openapi.json",
+    # Disable automatic trailing slash redirects for consistency
+    redirect_slashes=False,
 )
+
+# Set custom JSON encoder for ObjectId handling
+import uvicorn
+from fastapi.responses import JSONResponse
+
+
+# Override the default JSON encoder to handle ObjectId
+@app.middleware("http")
+async def add_json_encoder(request, call_next):
+    response = await call_next(request)
+    return response
+
+
+# Set the custom JSON encoder
+import fastapi
+
+fastapi.jsonable_encoder = custom_jsonable_encoder
 
 # Configure middleware in correct order
 app.add_middleware(ConnectionLoggingMiddleware)
 app.add_middleware(RequestValidationMiddleware)
 EnhancedCORSMiddleware.configure(app)
+
+
+# Manual CORS handler for additional safety
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    # Handle preflight OPTIONS requests
+    if request.method == "OPTIONS":
+        response = JSONResponse(content={})
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = (
+            "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        )
+        response.headers["Access-Control-Allow-Headers"] = (
+            "Accept, Accept-Language, Content-Language, Content-Type, Authorization, X-Requested-With, Origin, Access-Control-Request-Method, Access-Control-Request-Headers"
+        )
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Max-Age"] = "86400"
+        return response
+
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        # Handle errors and still add CORS headers
+        logger.error(f"CORS middleware caught error: {e}")
+        response = JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error", "error": str(e)},
+        )
+
+    # Add CORS headers to all responses (including error responses)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = (
+        "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    )
+    response.headers["Access-Control-Allow-Headers"] = (
+        "Accept, Accept-Language, Content-Language, Content-Type, Authorization, X-Requested-With, Origin, Access-Control-Request-Method, Access-Control-Request-Headers"
+    )
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Expose-Headers"] = "*"
+
+    return response
 
 
 # Global exception handler with detailed error info
@@ -270,23 +323,35 @@ async def health_check():
         # Check enhanced MongoDB database
         try:
             db_manager = get_enhanced_database_manager()
-            mongo_health = await db_manager.health_check()
-            mongodb_status = {
-                "connected": mongo_health.get("mongodb", {}).get("connected", False),
-                "response_time": mongo_health.get("mongodb", {}).get(
-                    "response_time", 0
-                ),
-                "collections": mongo_health.get("mongodb", {}).get("collections", 0),
-            }
+            if db_manager:
+                mongo_health = await db_manager.health_check()
+                mongodb_status = {
+                    "connected": mongo_health.get("is_connected", False),
+                    "response_time": mongo_health.get("response_time_ms", 0),
+                    "collections": mongo_health.get("collections_count", 0),
+                }
+            else:
+                mongodb_status = {
+                    "connected": False,
+                    "available": False,
+                    "reason": "Not initialized",
+                }
         except Exception as e:
             logger.warning(f"MongoDB health check failed: {e}")
-            mongodb_status = {"connected": False, "error": str(e)}
+            mongodb_status = {"connected": False, "error": str(e), "available": False}
 
         # Check AI service
         from app.core.service_manager import get_ai_service
 
         ai_service = get_ai_service()
         ai_status = ai_service.get_status()
+
+        # In Railway environment, don't require Ollama to be available
+        is_railway = os.getenv("RAILWAY_ENVIRONMENT")
+        if is_railway and not ai_status.get("ollama_available", False):
+            logger.info(
+                "⚠️  Railway environment: Ollama not available, continuing without it"
+            )
 
         return {
             "status": "healthy",
@@ -342,11 +407,34 @@ async def connection_test(request: Request):
     }
 
 
+# IP detection endpoint for Railway
+@app.get("/api/ip-check")
+async def ip_check():
+    """Get the outbound IP address for Railway deployment"""
+    import requests
+
+    try:
+        # Use a service to get the outbound IP
+        response = requests.get("https://api.ipify.org?format=json", timeout=10)
+        if response.status_code == 200:
+            ip_data = response.json()
+            return {
+                "outbound_ip": ip_data.get("ip"),
+                "service": "ipify.org",
+                "timestamp": datetime.utcnow().isoformat(),
+                "message": "Use this IP in MongoDB Atlas Network Access",
+            }
+        else:
+            return {"error": "Failed to get IP", "status_code": response.status_code}
+    except Exception as e:
+        return {"error": str(e), "message": "Failed to detect outbound IP"}
+
+
 # Include routers
 app.include_router(auth.router)
 app.include_router(repositories.router)
 app.include_router(analysis.router)
-app.include_router(multi_model_router)
+app.include_router(ollama_tunnel.router)
 
 
 # Root endpoint

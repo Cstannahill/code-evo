@@ -140,9 +140,7 @@ class RepositorySQL(Base):
         back_populates="repository",
         cascade="all, delete-orphan",
     )
-    model_comparisons = relationship(
-        "ModelComparisonSQL", back_populates="repository", cascade="all, delete-orphan"
-    )
+    # Model comparisons removed - using single model analysis only
 
 
 class CommitSQL(Base):
@@ -364,41 +362,7 @@ class AIAnalysisResultSQL(Base):
     )
 
 
-class ModelComparisonSQL(Base):
-    __tablename__ = "model_comparisons"
-
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    repository_id = Column(String, ForeignKey("repositories.id", ondelete="CASCADE"))
-
-    # Comparison details
-    models_compared = Column(JSON, nullable=False)  # List of model names
-    analysis_type = Column(
-        String, default="comparison"
-    )  # comparison, benchmark, evaluation
-
-    # Comparison results
-    consensus_patterns = Column(JSON)  # Patterns all models agreed on
-    disputed_patterns = Column(JSON)  # Patterns with disagreement
-    agreement_score = Column(Float)  # Overall agreement score (0-1)
-    diversity_score = Column(Float)  # How diverse the analyses were
-    consistency_score = Column(Float)  # How consistent models were
-
-    # Performance comparison
-    performance_metrics = Column(JSON)  # Processing times, costs, etc.
-
-    # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    configuration = Column(JSON)  # Analysis configuration used
-
-    # Relationships
-    repository = relationship("RepositorySQL", back_populates="model_comparisons")
-
-    __table_args__ = (
-        Index("idx_model_comparison_repo", "repository_id"),
-        Index("idx_model_comparison_created", "created_at"),
-        Index("idx_model_comparison_models", "models_compared"),
-    )
+# ModelComparisonSQL removed - using single model analysis only
 
 
 class ModelBenchmarkSQL(Base):
@@ -744,33 +708,7 @@ class AIAnalysisResult(Model):
         return v
 
 
-class ModelComparison(Model):
-    """Model comparison results for MongoDB"""
-
-    repository_id: ObjectId = Field(index=True)
-    models_compared: List[str] = Field(index=True)
-    analysis_type: str = "comparison"
-    consensus_patterns: List[str] = []
-    disputed_patterns: Optional[Dict[str, Any]] = None
-    agreement_score: Optional[float] = None
-    diversity_score: Optional[float] = None
-    consistency_score: Optional[float] = None
-    performance_metrics: Optional[Dict[str, Any]] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-    configuration: Optional[Dict[str, Any]] = None
-
-    model_config = {"collection": "model_comparisons"}
-
-    @validator("repository_id", pre=True)
-    def validate_repository_id(cls, v):
-        if isinstance(v, str):
-            return ObjectId(v)
-        return v
-
-    @validator("updated_at", pre=True, always=True)
-    def set_updated_at(cls, v):
-        return datetime.utcnow()
+# ModelComparison removed - using single model analysis only
 
 
 class ModelBenchmark(Model):
@@ -903,13 +841,7 @@ async def get_available_ai_models(engine) -> List[AIModel]:
     return await engine.find(AIModel, AIModel.is_available == True)
 
 
-async def get_model_comparisons_by_repository(
-    engine, repository_id: ObjectId, limit: int = 10
-) -> List[ModelComparison]:
-    """Get model comparisons for a repository"""
-    return await engine.find(
-        ModelComparison, ModelComparison.repository_id == repository_id, limit=limit
-    )
+# get_model_comparisons_by_repository removed - using single model analysis only
 
 
 async def create_custom_indexes(engine):

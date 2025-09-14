@@ -1,6 +1,6 @@
-# Minimal production requirements - trimmed for runtime
+# Optimized production requirements for Railway deployment
 fastapi==0.115.9
-uvicorn==0.34.3
+uvicorn[standard]==0.34.3
 pydantic==2.11.5
 pydantic-settings==2.7.0
 SQLAlchemy==2.0.36
@@ -9,22 +9,22 @@ chromadb==1.0.15
 requests==2.32.3
 python-dotenv==1.0.1
 httpx==0.28.1
-orjson==3.11.1
-uvloop==0.21.0
 cryptography==45.0.5
 motor==3.6.0
 pymongo==4.9.2
 odmantic==1.0.2
-passlib==1.7.4
+passlib[bcrypt]==1.7.4
 alembic==1.14.0
 PyJWT==2.10.1
 openai==1.58.1
-langchain==0.3.25
-langchain-community==0.3.24
 email-validator==2.2.0
-# Note: langchain-ollama is intentionally omitted here due to dependency
-# conflicts with newer langchain-core releases. If you need the Ollama
-# adapter, install a compatible version separately or pin matching
-# langchain/langchain-core versions in your deployment.
 python-multipart==0.0.18
 GitPython==3.1.44
+
+langchain==0.3.25
+langchain-core==0.3.63
+langchain-community==0.3.24
+# Removed heavy dependencies that cause build issues:
+
+# - orjson (optional optimization)
+# - uvloop (not needed on Railway)

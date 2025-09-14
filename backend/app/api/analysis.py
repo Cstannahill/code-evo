@@ -4,22 +4,47 @@ import logging
 
 from app.core.service_manager import (
     get_ai_service,
-    get_pattern_service, 
+    get_pattern_service,
     get_ai_analysis_service,
-    get_repository_service
+    get_repository_service,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/analysis", tags=["Analysis"])
 
+
 def get_services():
     """Get service instances using centralized service manager"""
+    try:
+        ai_service = get_ai_service()
+    except Exception as e:
+        logger.warning(f"AI service initialization failed: {e}")
+        ai_service = None
+
+    try:
+        pattern_service = get_pattern_service()
+    except Exception as e:
+        logger.warning(f"Pattern service initialization failed: {e}")
+        pattern_service = None
+
+    try:
+        ai_analysis_service = get_ai_analysis_service()
+    except Exception as e:
+        logger.warning(f"AI analysis service initialization failed: {e}")
+        ai_analysis_service = None
+
+    try:
+        repository_service = get_repository_service()
+    except Exception as e:
+        logger.warning(f"Repository service initialization failed: {e}")
+        repository_service = None
+
     return (
-        get_ai_service(),
-        get_pattern_service(), 
-        get_ai_analysis_service(),
-        get_repository_service()
+        ai_service,
+        pattern_service,
+        ai_analysis_service,
+        repository_service,
     )
 
 
@@ -27,16 +52,178 @@ def get_services():
 async def get_ai_status():
     """Get AI service status with MongoDB integration"""
     logger.info("AI status requested")
-    ai_service, pattern_service, ai_analysis_service, _ = get_services()
-    status = ai_service.get_status()
 
     try:
-        pattern_health = await pattern_service.get_service_health()
-        ai_analysis_health = await ai_analysis_service.get_service_health()
+        ai_service, pattern_service, ai_analysis_service, _ = get_services()
+
+        # Get AI service status, with fallback if service is None
+        if ai_service is not None:
+            status = ai_service.get_status()
+        else:
+            status = {
+                "ollama_available": False,
+                "ollama_model": None,
+                "embeddings_available": False,
+                "embeddings_model": None,
+                "vector_db_available": False,
+                "preferred_model": None,
+                "multi_model_service_available": False,
+                "timestamp": "2025-09-12T23:37:23.516925",
+                "available_models_count": 0,
+                "openai_models_available": False,
+            }
+    except Exception as e:
+        logger.error(f"Failed to get AI service: {e}")
+        status = {
+            "ollama_available": False,
+            "ollama_model": None,
+            "embeddings_available": False,
+            "embeddings_model": None,
+            "vector_db_available": False,
+            "preferred_model": None,
+            "multi_model_service_available": False,
+            "timestamp": "2025-09-12T23:37:23.516925",
+            "available_models_count": 0,
+            "openai_models_available": False,
+        }
+        # Initialize services to None if they failed to initialize
+        pattern_service = None
+        ai_analysis_service = None
+
+    # Return the status wrapped in the expected structure for frontend
+    return {
+        "ai_service": status,
+        "pattern_service": {
+            "available": pattern_service is not None,
+            "patterns_count": (
+                0
+                if pattern_service is None
+                else (
+                    len(await pattern_service.get_all_patterns())
+                    if hasattr(pattern_service, "get_all_patterns")
+                    else 0
+                )
+            ),
+        },
+        "analysis_service": {"available": ai_analysis_service is not None},
+    }
+
+
+@router.get("/models/available")
+async def get_available_models():
+    """Get available AI models for frontend dropdown"""
+    logger.info("Available models requested")
+
+    try:
+        ai_service, _, _, _ = get_services()
+        status = ai_service.get_status()
+
+        # Get Ollama model sizes from backend service
+        from app.services.ollama_size_service import get_ollama_size_service
+
+        ollama_sizes = await get_ollama_size_service().get_model_sizes()
+
+        # Build available models response
+        available_models = {}
+
+        # Add Ollama models
+        if status.get("ollama_available", False):
+            try:
+                import requests
+
+                response = requests.get("http://localhost:11434/api/tags", timeout=5)
+                if response.status_code == 200:
+                    models_data = response.json()
+                    models = models_data.get("models", [])
+
+                    for model in models:
+                        model_name = model.get("name", "")
+                        # Get size from backend service
+                        size_info = ollama_sizes.get(model_name, {})
+                        size_gb = size_info.get("size_gb")
+
+                        available_models[model_name] = {
+                            "name": model_name,
+                            "display_name": model_name,
+                            "provider": "ollama",
+                            "available": True,
+                            "context_window": 4096,  # Default
+                            "cost_per_1k_tokens": 0,
+                            "strengths": ["code", "general"],
+                            "size_gb": size_gb,  # Add backend-provided size
+                        }
+            except Exception as e:
+                logger.warning(f"Failed to fetch Ollama models: {e}")
+
+        # Add OpenAI models if available
+        if status.get("openai_models_available", False):
+            openai_models = {
+                "gpt-5": {
+                    "name": "gpt-5",
+                    "display_name": "GPT-5",
+                    "provider": "openai",
+                    "available": True,
+                    "context_window": 128000,
+                    "cost_per_1k_tokens": 0.015,
+                    "strengths": ["reasoning", "code", "analysis", "advanced"],
+                },
+                "gpt-5-mini": {
+                    "name": "gpt-5-mini",
+                    "display_name": "GPT-5 Mini",
+                    "provider": "openai",
+                    "available": True,
+                    "context_window": 128000,
+                    "cost_per_1k_tokens": 0.00015,
+                    "strengths": ["code", "general", "fast", "efficient"],
+                },
+                "gpt-5-nano": {
+                    "name": "gpt-5-nano",
+                    "display_name": "GPT-5 Nano",
+                    "provider": "openai",
+                    "available": True,
+                    "context_window": 128000,
+                    "cost_per_1k_tokens": 0.0001,
+                    "strengths": ["code", "general", "ultra-fast", "cost-effective"],
+                },
+            }
+            available_models.update(openai_models)
+
+        return {
+            "available_models": available_models,
+            "total_count": len(available_models),
+            "ollama_available": status.get("ollama_available", False),
+            "openai_available": status.get("openai_models_available", False),
+            "timestamp": status.get("timestamp", ""),
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get available models: {e}")
+        return {
+            "available_models": {},
+            "total_count": 0,
+            "ollama_available": False,
+            "openai_available": False,
+            "timestamp": "",
+            "error": str(e),
+        }
+
+    try:
+        if pattern_service and ai_analysis_service:
+            pattern_health = await pattern_service.get_service_health()
+            ai_analysis_health = await ai_analysis_service.get_service_health()
+        else:
+            pattern_health = {
+                "status": "unavailable",
+                "error": "Services not initialized",
+            }
+            ai_analysis_health = {
+                "status": "unavailable",
+                "error": "Services not initialized",
+            }
     except Exception as e:
         logger.warning(f"Failed to get MongoDB service health: {e}")
-        pattern_health = {"status": "unknown"}
-        ai_analysis_health = {"status": "unknown"}
+        pattern_health = {"status": "unavailable", "error": str(e)}
+        ai_analysis_health = {"status": "unavailable", "error": str(e)}
 
     return {
         "ai_service": status,
@@ -47,10 +234,10 @@ async def get_ai_status():
         "recommendations": {
             "ollama_missing": (
                 "Run 'ollama serve' and 'ollama pull codellama:7b'"
-                if not status["ollama_available"]
+                if not status.get("ollama_available", False)
                 else None
             ),
-            "ready_for_analysis": status["ollama_available"],
+            "ready_for_analysis": status.get("ollama_available", False),
         },
     }
 

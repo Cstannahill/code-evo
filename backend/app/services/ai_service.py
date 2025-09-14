@@ -6,9 +6,10 @@ import datetime
 from typing import Any, Dict, List, Optional
 
 try:
-    from langchain_ollama import OllamaLLM, OllamaEmbeddings
+    from langchain_community.llms import Ollama as OllamaLLM
+    from langchain_community.embeddings import OllamaEmbeddings
 except Exception:
-    # Optional dependency: allow the app to start even when langchain_ollama
+    # Optional dependency: allow the app to start even when langchain_community
     # is not installed (docker/dev environments may not include it).
     OllamaLLM = None
     OllamaEmbeddings = None
@@ -17,6 +18,7 @@ from langchain.prompts import PromptTemplate
 from langchain.output_parsers import PydanticOutputParser, OutputFixingParser
 from langchain.chains import LLMChain
 from pydantic import BaseModel, Field
+from app.models.ai_models import PatternAnalysis, CodeQualityAnalysis, EvolutionAnalysis
 
 from app.core.database import get_enhanced_database_manager, get_collection
 from app.core.service_manager import (
@@ -24,36 +26,16 @@ from app.core.service_manager import (
     get_architectural_analyzer,
     get_performance_analyzer,
 )
+from app.services.enhanced_technology_detector import EnhancedTechnologyDetector
+from app.services.enhanced_pattern_detector import EnhancedPatternDetector
+from app.services.enhanced_insights_generator import EnhancedInsightsGenerator
+from app.services.enhanced_code_quality_analyzer import EnhancedCodeQualityAnalyzer
 from app.services.cache_service import cache_analysis_result
 
 logger = logging.getLogger(__name__)
 
 
-class PatternAnalysis(BaseModel):
-    patterns: List[str] = Field(description="List of detected pattern names")
-    complexity_score: float = Field(description="Complexity score from 1-10")
-    evolution_stage: str = Field(
-        description="Developer skill level: beginner, intermediate, advanced"
-    )
-    suggestions: List[str] = Field(description="Improvement suggestions")
-
-
-class CodeQualityAnalysis(BaseModel):
-    quality_score: float = Field(description="Overall quality score 1-100")
-    readability: str = Field(description="Code readability assessment")
-    issues: List[str] = Field(description="Identified issues")
-    improvements: List[str] = Field(description="Suggested improvements")
-
-
-class EvolutionAnalysis(BaseModel):
-    complexity_change: str = Field(
-        description="How complexity changed: increased, decreased, stable"
-    )
-    new_patterns: List[str] = Field(description="New patterns in recent code")
-    improvements: List[str] = Field(description="Improvements observed")
-    learning_insights: str = Field(
-        description="What this evolution suggests about learning"
-    )
+# AI analysis models are now imported from app.models.ai_models
 
 
 class AIService:
@@ -95,14 +77,21 @@ class AIService:
         self.embeddings: Any = None
         self.collection = None
         self.ollama_available: bool = False
+        self.ollama_model: str = None
         self.security_analyzer = get_security_analyzer()
         self.architectural_analyzer = get_architectural_analyzer()
         self.performance_analyzer = get_performance_analyzer()
         self.ensemble = None  # Initialize after services are ready
 
+        # Enhanced analysis services
+        self.enhanced_tech_detector = EnhancedTechnologyDetector()
+        self.enhanced_pattern_detector = EnhancedPatternDetector()
+        self.enhanced_insights_generator = EnhancedInsightsGenerator()
+        self.enhanced_quality_analyzer = EnhancedCodeQualityAnalyzer()
+
         # Model selection support
         self.preferred_model: Optional[str] = None
-        self.multi_model_service = None
+        # Multi-model service removed
 
         self._initialize_services()
 
@@ -130,11 +119,38 @@ class AIService:
                     self.llm = None
                     self.ollama_available = False
             else:
-                logger.info(
-                    "langchain_ollama not installed; skipping Ollama LLM initialization"
-                )
-                self.llm = None
-                self.ollama_available = False
+                logger.info("langchain_ollama not installed; checking Ollama directly")
+                # Try direct Ollama detection without langchain
+                self._check_ollama_directly()
+
+            # Check for OpenAI API key
+            self.openai_available = False
+            try:
+                from app.core.config import settings
+
+                if hasattr(settings, "OPENAI_API_KEY") and settings.OPENAI_API_KEY:
+                    self.openai_available = True
+                    logger.info("✅ OpenAI API key detected")
+                else:
+                    logger.debug("OpenAI API key not configured")
+            except Exception as e:
+                logger.debug(f"Could not check OpenAI API key: {e}")
+
+            # Check for Anthropic API key
+            self.anthropic_available = False
+            try:
+                from app.core.config import settings
+
+                if (
+                    hasattr(settings, "ANTHROPIC_API_KEY")
+                    and settings.ANTHROPIC_API_KEY
+                ):
+                    self.anthropic_available = True
+                    logger.info("✅ Anthropic API key detected")
+                else:
+                    logger.debug("Anthropic API key not configured")
+            except Exception as e:
+                logger.debug(f"Could not check Anthropic API key: {e}")
 
             # Initialize embeddings only if available
             if OllamaEmbeddings is not None:
@@ -165,15 +181,44 @@ class AIService:
             self.ensemble = get_ai_ensemble(self)
             logger.info("AI Ensemble initialized")
 
-            # Initialize multi-model service for model selection
-            from app.services.multi_model_ai_service import MultiModelAIService
-
-            self.multi_model_service = MultiModelAIService()
-            logger.info("Multi-model AI service initialized")
+            # Multi-model service removed - using single model analysis only
 
         except Exception as e:
             logger.error(f"Error initializing AI services: {e}")
             self.ollama_available = False
+
+    def _check_ollama_directly(self) -> None:
+        """Check for Ollama availability directly via HTTP API - equivalent to 'ollama list'"""
+        try:
+            import requests
+
+            # Call Ollama API equivalent to 'ollama list' on localhost:11434
+            response = requests.get("http://localhost:11434/api/tags", timeout=5)
+            if response.status_code == 200:
+                models_data = response.json()
+                models = models_data.get("models", [])
+
+                if models:
+                    self.ollama_available = True
+                    self.ollama_model = models[0]["name"]  # Use first model as default
+                    logger.info(
+                        f"✅ Ollama detected with {len(models)} models on localhost:11434"
+                    )
+                else:
+                    self.ollama_available = False
+                    logger.info("Ollama running but no models found")
+            else:
+                self.ollama_available = False
+                logger.debug(f"Ollama not responding: HTTP {response.status_code}")
+
+        except requests.exceptions.ConnectionError:
+            self.ollama_available = False
+            logger.debug("Ollama not running on localhost:11434")
+        except Exception as e:
+            self.ollama_available = False
+            logger.debug(f"Error checking Ollama: {e}")
+        finally:
+            self.llm = None  # We don't have langchain integration
 
     def _get_timestamp(self) -> str:
         """Get current timestamp - utility method to avoid import issues"""
@@ -184,37 +229,78 @@ class AIService:
         self.preferred_model = model_id
         logger.info(f"🤖 Set preferred model to: {model_id}")
 
-        # Validate model is available
-        if self.multi_model_service:
-            available_models = self.multi_model_service.get_available_models()
-            if model_id not in available_models:
-                logger.warning(
-                    f"⚠️  Model {model_id} not available. Available models: {list(available_models.keys())}"
+        # Update the LLM instance to use the new model
+        if self.ollama_available and model_id:
+            try:
+                from langchain_community.llms import Ollama
+
+                old_model = (
+                    getattr(self.llm, "model", "unknown") if self.llm else "none"
                 )
-            else:
-                logger.info(f"✅ Model {model_id} is available and selected")
+                self.llm = Ollama(model=model_id, temperature=0.1)
+                logger.info(f"✅ Updated LLM from {old_model} to {model_id}")
+
+                # Test the new model
+                try:
+                    test_response = self.llm.invoke("Hello")
+                    logger.info(f"🧪 Model {model_id} test successful")
+                except Exception as test_error:
+                    logger.error(f"❌ Model {model_id} test failed: {test_error}")
+                    # Fallback to codellama if the selected model fails
+                    self.llm = Ollama(model="codellama:7b", temperature=0.1)
+                    logger.warning(f"⚠️ Falling back to codellama:7b")
+
+            except Exception as e:
+                logger.error(f"❌ Failed to set model {model_id}: {e}")
+        else:
+            logger.warning(f"⚠️ Cannot set model {model_id} - Ollama not available")
+
+        logger.info(f"✅ Model {model_id} selected for analysis")
 
     def get_status(self) -> Dict[str, Any]:
         """Get AI service status"""
         logger.info(f"Fetching AI service status: {self}")
+
+        # Count available models
+        available_models_count = 0
+        openai_models_available = False
+
+        # Check Ollama models - count all available models
+        if self.ollama_available:
+            try:
+                import requests
+
+                response = requests.get("http://localhost:11434/api/tags", timeout=5)
+                if response.status_code == 200:
+                    models_data = response.json()
+                    models = models_data.get("models", [])
+                    available_models_count += len(models)
+                else:
+                    available_models_count += 1  # Fallback
+            except:
+                available_models_count += 1  # Fallback
+
+        # Check OpenAI models (if API key is available)
+        if hasattr(self, "openai_available") and self.openai_available:
+            available_models_count += 3  # gpt-3.5-turbo, gpt-4, gpt-4-turbo
+            openai_models_available = True
+
+        # Check Anthropic models (if API key is available)
+        if hasattr(self, "anthropic_available") and self.anthropic_available:
+            available_models_count += 2  # claude-3-sonnet, claude-3-opus
+
         status = {
             "ollama_available": self.ollama_available,
-            "ollama_model": "codellama:7b" if self.ollama_available else None,
+            "ollama_model": self.ollama_model if self.ollama_available else None,
             "embeddings_available": self.embeddings is not None,
             "embeddings_model": "nomic-embed-text" if self.embeddings else None,
             "vector_db_available": self.collection is not None,
             "preferred_model": self.preferred_model,
-            "multi_model_service_available": self.multi_model_service is not None,
-            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "multi_model_service_available": False,  # Multi-model service removed
+            "timestamp": self._get_timestamp(),
+            "available_models_count": available_models_count,
+            "openai_models_available": openai_models_available,
         }
-
-        # Add available models info
-        if self.multi_model_service:
-            available_models = self.multi_model_service.get_available_models()
-            status["available_models_count"] = len(available_models)
-            status["openai_models_available"] = any(
-                "gpt" in model for model in available_models.keys()
-            )
 
         return status
 
@@ -226,44 +312,10 @@ class AIService:
         """
         detected_patterns = self._detect_patterns_simple(code, language)
 
-        # Use selected model if available via multi-model service
-        if self.preferred_model and self.multi_model_service:
-            try:
-                from app.services.multi_model_ai_service import AIModel
-
-                model_enum = AIModel(self.preferred_model)
-
-                logger.info(
-                    f"🤖 Using selected model {self.preferred_model} for pattern analysis"
-                )
-                # Patch: Pass correct token param for OpenAI models
-                token_param = self._get_openai_token_param(self.preferred_model, 2048)
-                result = await self.multi_model_service.analyze_with_model(
-                    code, language, model_enum, **token_param
-                )
-
-                return {
-                    "detected_patterns": detected_patterns,
-                    "ai_patterns": result.patterns,
-                    "combined_patterns": list(set(detected_patterns + result.patterns)),
-                    "complexity_score": result.complexity_score,
-                    "skill_level": result.skill_level,
-                    "suggestions": result.suggestions,
-                    "ai_powered": True,
-                    "model_used": self.preferred_model,
-                    "confidence": result.confidence,
-                    "processing_time": result.processing_time,
-                    "token_usage": result.token_usage,
-                }
-
-            except Exception as e:
-                logger.error(
-                    f"Selected model {self.preferred_model} analysis failed: {e}"
-                )
-                # Fall back to default analysis
+        # Multi-model service removed - using single model analysis only
 
         # Fallback to Ollama if available
-        if self.ollama_available:
+        if self.ollama_available and self.llm is not None:
             try:
                 parser = PydanticOutputParser(pydantic_object=PatternAnalysis)
                 fixing_parser = OutputFixingParser.from_llm(parser=parser, llm=self.llm)
@@ -384,45 +436,10 @@ class AIService:
     async def analyze_code_quality(self, code: str, language: str) -> Dict[str, Any]:
         """Analyze code quality with detailed insights"""
 
-        # Use selected model if available via multi-model service
-        if self.preferred_model and self.multi_model_service:
-            try:
-                from app.services.multi_model_ai_service import AIModel
-
-                model_enum = AIModel(self.preferred_model)
-
-                logger.info(
-                    f"🤖 Using selected model {self.preferred_model} for quality analysis"
-                )
-                # Patch: Pass correct token param for OpenAI models
-                token_param = self._get_openai_token_param(self.preferred_model, 2048)
-                result = await self.multi_model_service.analyze_with_model(
-                    code, language, model_enum, **token_param
-                )
-
-                # Convert to quality analysis format
-                return {
-                    "quality_score": min(
-                        100, result.complexity_score * 10
-                    ),  # Scale to 100
-                    "readability": result.skill_level.capitalize(),
-                    "issues": [f"Complexity: {result.complexity_score}/10"],
-                    "improvements": result.suggestions,
-                    "ai_powered": True,
-                    "model_used": self.preferred_model,
-                    "confidence": result.confidence,
-                    "processing_time": result.processing_time,
-                    "token_usage": result.token_usage,
-                }
-
-            except Exception as e:
-                logger.error(
-                    f"Selected model {self.preferred_model} quality analysis failed: {e}"
-                )
-                # Fall back to default analysis
+        # Multi-model service removed - using single model analysis only
 
         # Fallback to Ollama if available
-        if self.ollama_available:
+        if self.ollama_available and self.llm is not None:
             try:
                 parser = PydanticOutputParser(pydantic_object=CodeQualityAnalysis)
                 fixing_parser = OutputFixingParser.from_llm(parser=parser, llm=self.llm)
@@ -524,7 +541,7 @@ class AIService:
         """
         Analyze the evolution between two code versions
         """
-        if self.ollama_available:
+        if self.ollama_available and self.llm is not None:
             try:
                 from langchain.output_parsers import (
                     PydanticOutputParser,
@@ -623,7 +640,7 @@ class AIService:
                     "improvements": evolution_analysis.improvements,
                     "learning_insights": evolution_analysis.learning_insights,
                     "ai_powered": True,
-                    "timestamp": datetime.datetime.utcnow().isoformat(),
+                    "timestamp": self._get_timestamp(),
                 }
 
             except Exception as e:
@@ -637,15 +654,51 @@ class AIService:
             "improvements": ["Code structure maintained"],
             "learning_insights": "Enable Ollama for detailed evolution analysis",
             "ai_powered": False,
-            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "timestamp": self._get_timestamp(),
         }
 
     async def generate_insights(
         self, analysis_data: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
-        Generate comprehensive insights based on patterns, technologies, and AI analysis.
+        Generate comprehensive insights from analysis data using enhanced services.
         """
+        try:
+            # Use enhanced insights generator for superior analysis
+            enhanced_insights = (
+                self.enhanced_insights_generator.generate_comprehensive_insights(
+                    analysis_data
+                )
+            )
+
+            # Convert enhanced insights to legacy format for compatibility
+            legacy_insights = []
+            for insight in enhanced_insights:
+                legacy_insights.append(
+                    {
+                        "type": insight.type,
+                        "title": insight.title,
+                        "description": insight.description,
+                        "data": insight.data,
+                        "priority": insight.priority,
+                        "confidence": insight.confidence,
+                        "actionable_items": insight.actionable_items,
+                        "tags": insight.tags,
+                    }
+                )
+
+            logger.info(f"Generated {len(legacy_insights)} enhanced insights")
+            return legacy_insights
+
+        except Exception as e:
+            logger.error(f"Error generating enhanced insights: {e}")
+            # Fallback to legacy insights generation
+            return await self._generate_legacy_insights(analysis_data)
+
+    async def _generate_legacy_insights(
+        self, analysis_data: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Legacy insights generation for fallback"""
         insights: List[Dict[str, Any]] = []
 
         # Extract data from analysis
@@ -685,6 +738,176 @@ class AIService:
                 logger.warning(f"Failed to generate AI recommendations: {e}")
 
         return insights
+
+    async def enhanced_analyze_repository(
+        self, repo_path: str, file_list: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Enhanced repository analysis using all advanced services
+
+        Args:
+            repo_path: Path to the repository
+            file_list: List of file paths in the repository
+
+        Returns:
+            Comprehensive analysis results
+        """
+        try:
+            logger.info(f"🔍 Starting enhanced analysis for repository at {repo_path}")
+
+            # 1. Enhanced Technology Detection
+            logger.info("🔧 Detecting technologies...")
+            technologies = self.enhanced_tech_detector.detect_technologies(
+                repo_path, file_list
+            )
+
+            # 2. Enhanced Pattern Detection
+            logger.info("🎯 Detecting patterns...")
+            patterns = self.enhanced_pattern_detector.detect_patterns(
+                repo_path, file_list
+            )
+
+            # 3. Enhanced Code Quality Analysis
+            logger.info("📊 Analyzing code quality...")
+            quality_report = self.enhanced_quality_analyzer.analyze_code_quality(
+                repo_path, file_list
+            )
+
+            # 4. Convert patterns to legacy format for compatibility
+            legacy_patterns = self._convert_patterns_to_legacy(patterns)
+
+            # 5. Convert technologies to legacy format
+            legacy_technologies = self._convert_technologies_to_legacy(technologies)
+
+            # 6. Generate enhanced insights
+            logger.info("💡 Generating insights...")
+            analysis_data = {
+                "patterns": legacy_patterns,
+                "technologies": legacy_technologies,
+                "quality_report": quality_report,
+                "commits": len(file_list),  # Approximate
+            }
+
+            enhanced_insights = (
+                self.enhanced_insights_generator.generate_comprehensive_insights(
+                    analysis_data
+                )
+            )
+
+            # 7. Compile comprehensive results
+            results = {
+                "technologies": legacy_technologies,
+                "patterns": legacy_patterns,
+                "quality_metrics": {
+                    "overall_score": quality_report.overall_score,
+                    "technical_debt_score": quality_report.technical_debt_score,
+                    "maintainability_index": quality_report.maintainability_index,
+                    "testability_score": quality_report.testability_score,
+                    "summary": quality_report.summary,
+                },
+                "insights": [
+                    {
+                        "type": insight.type,
+                        "title": insight.title,
+                        "description": insight.description,
+                        "data": insight.data,
+                        "priority": insight.priority,
+                        "confidence": insight.confidence,
+                        "actionable_items": insight.actionable_items,
+                        "tags": insight.tags,
+                    }
+                    for insight in enhanced_insights
+                ],
+                "enhanced_analysis": True,
+                "timestamp": self._get_timestamp(),
+            }
+
+            logger.info(
+                f"✅ Enhanced analysis completed: {len(technologies)} tech categories, {len(patterns)} pattern categories, {len(enhanced_insights)} insights"
+            )
+            return results
+
+        except Exception as e:
+            logger.error(f"❌ Enhanced analysis failed: {e}")
+            # Return minimal results on error
+            return {
+                "technologies": {},
+                "patterns": {},
+                "quality_metrics": {"overall_score": 0, "error": str(e)},
+                "insights": [],
+                "enhanced_analysis": False,
+                "error": str(e),
+                "timestamp": self._get_timestamp(),
+            }
+
+    def _convert_patterns_to_legacy(self, patterns: Dict[str, List]) -> Dict[str, Any]:
+        """Convert enhanced pattern detection results to legacy format"""
+        legacy_patterns = {}
+
+        for category, pattern_matches in patterns.items():
+            for match in pattern_matches:
+                pattern_name = match.pattern_name.lower().replace(" ", "_")
+
+                if pattern_name not in legacy_patterns:
+                    legacy_patterns[pattern_name] = {
+                        "name": match.pattern_name,
+                        "category": match.category,
+                        "occurrences": 0,
+                        "confidence": match.confidence,
+                        "description": match.description,
+                        "severity": match.severity,
+                        "files": set(),
+                        "complexity_level": "intermediate",
+                    }
+
+                legacy_patterns[pattern_name]["occurrences"] += 1
+                legacy_patterns[pattern_name]["files"].add(match.file_path)
+
+        # Convert sets to lists for JSON serialization
+        for pattern_data in legacy_patterns.values():
+            pattern_data["files"] = list(pattern_data["files"])
+
+        return legacy_patterns
+
+    def _convert_technologies_to_legacy(
+        self, technologies: Dict[str, List]
+    ) -> Dict[str, Any]:
+        """Convert enhanced technology detection results to legacy format"""
+        legacy_technologies = {
+            "languages": {},
+            "frameworks": [],
+            "libraries": [],
+            "tools": [],
+        }
+
+        for category, tech_list in technologies.items():
+            for tech_info in tech_list:
+                if category == "frontend_frameworks":
+                    legacy_technologies["frameworks"].append(tech_info.name)
+                elif category == "backend_frameworks":
+                    legacy_technologies["frameworks"].append(tech_info.name)
+                elif category == "build_tools":
+                    legacy_technologies["tools"].append(tech_info.name)
+                elif category == "testing_frameworks":
+                    legacy_technologies["tools"].append(tech_info.name)
+                elif category == "development_tools":
+                    legacy_technologies["tools"].append(tech_info.name)
+                else:
+                    # Add to appropriate category based on name
+                    if any(
+                        lib in tech_info.name.lower()
+                        for lib in ["library", "lib", "util"]
+                    ):
+                        legacy_technologies["libraries"].append(tech_info.name)
+                    else:
+                        legacy_technologies["tools"].append(tech_info.name)
+
+        # Remove duplicates
+        legacy_technologies["frameworks"] = list(set(legacy_technologies["frameworks"]))
+        legacy_technologies["libraries"] = list(set(legacy_technologies["libraries"]))
+        legacy_technologies["tools"] = list(set(legacy_technologies["tools"]))
+
+        return legacy_technologies
 
     def _analyze_patterns(self, patterns: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Analyze pattern usage and generate insights."""
@@ -983,7 +1206,7 @@ class AIService:
             metadata.update(
                 {
                     "patterns": json.dumps(patterns),
-                    "timestamp": datetime.datetime.utcnow().isoformat(),
+                    "timestamp": self._get_timestamp(),
                     "code_preview": code[:200],
                 }
             )
@@ -992,7 +1215,9 @@ class AIService:
                 embeddings=[embedding],
                 documents=[code[:1000]],
                 metadatas=[metadata],
-                ids=[f"code_{datetime.datetime.utcnow().timestamp()}_{hash(code)}"],
+                ids=[
+                    f"code_{int(self._get_timestamp().replace('-', '').replace(':', '').replace('T', '').replace('.', '')[:14])}_{hash(code)}"
+                ],
             )
 
             logger.info(f"✅ Stored embedding for {len(patterns)} patterns")
@@ -1384,7 +1609,7 @@ class AIService:
                 "file_path": file_path,
                 "language": language
                 or self.security_analyzer._detect_language(file_path),
-                "timestamp": datetime.datetime.utcnow().isoformat(),
+                "timestamp": self._get_timestamp(),
             }
 
             logger.info(
@@ -1402,7 +1627,7 @@ class AIService:
                 "recommendations": [
                     "Security analysis failed - manual review recommended"
                 ],
-                "timestamp": datetime.datetime.utcnow().isoformat(),
+                "timestamp": self._get_timestamp(),
             }
 
     async def analyze_architecture(
@@ -1434,7 +1659,7 @@ class AIService:
                 "analyzer_version": "1.0.0",
                 "repository_path": repository_path,
                 "files_analyzed": len(file_list) if file_list else 0,
-                "timestamp": datetime.datetime.utcnow().isoformat(),
+                "timestamp": self._get_timestamp(),
             }
 
             logger.info(
@@ -1463,7 +1688,7 @@ class AIService:
                 "recommendations": [
                     "Architecture analysis failed - manual review recommended"
                 ],
-                "timestamp": datetime.datetime.utcnow().isoformat(),
+                "timestamp": self._get_timestamp(),
             }
 
     @cache_analysis_result("performance", ttl_seconds=1800)  # 30 minute cache
@@ -1509,7 +1734,7 @@ class AIService:
             # Add metadata
             performance_report["analysis_metadata"] = {
                 "analyzer_version": "1.0.0",
-                "patterns_checked": len(self.performance_analyzer.patterns),
+                "patterns_checked": len(self.performance_analyzer.performance_patterns),
                 "file_path": file_path,
                 "language": language
                 or self.performance_analyzer._detect_language(file_path),
@@ -1612,7 +1837,7 @@ class AIService:
             else:
                 return {
                     "error": f"Analysis failed: {e}",
-                    "timestamp": datetime.datetime.utcnow().isoformat(),
+                    "timestamp": self._get_timestamp(),
                 }
 
     def get_ensemble_status(self) -> Dict[str, Any]:

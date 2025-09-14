@@ -116,7 +116,8 @@ export interface RepositoryAnalysisResponse {
 }
 
 // Enhanced analysis response with new backend data
-export interface EnhancedRepositoryAnalysisResponse extends RepositoryAnalysisResponse {
+export interface EnhancedRepositoryAnalysisResponse
+  extends RepositoryAnalysisResponse {
   // New analysis types from enhanced backend
   pattern_analyses?: PatternAnalysisResult[];
   quality_analyses?: QualityAnalysisResult[];
@@ -124,11 +125,11 @@ export interface EnhancedRepositoryAnalysisResponse extends RepositoryAnalysisRe
   performance_analyses?: PerformanceAnalysisResult[];
   architecture_analysis?: ArchitecturalAnalysisResult;
   evolution_analyses?: EvolutionAnalysisResult[];
-  
+
   // Ensemble and incremental metadata
   ensemble_metadata?: EnsembleMetadata;
   incremental_analysis?: IncrementalAnalysisMetadata;
-  
+
   // Additional metadata
   analysis_duration?: number;
   total_candidates?: number;
@@ -147,7 +148,7 @@ export interface SecurityAnalysisResult {
   vulnerabilities: SecurityVulnerability[];
   recommendations: string[];
   owasp_coverage: Record<string, number>;
-  analysis_metadata: Record<string, any>;
+  analysis_metadata: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -172,7 +173,7 @@ export interface PerformanceAnalysisResult {
   metrics: PerformanceMetrics;
   optimizations: string[];
   bottlenecks: string[];
-  analysis_metadata: Record<string, any>;
+  analysis_metadata: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -197,14 +198,14 @@ export interface PerformanceMetrics {
 }
 
 export interface ArchitecturalAnalysisResult {
-  architectural_style: Record<string, any>;
+  architectural_style: Record<string, unknown>;
   design_patterns: DesignPattern[];
   quality_metrics: ArchitecturalQualityMetrics;
-  component_analysis: Record<string, any>;
-  dependency_analysis: Record<string, any>;
+  component_analysis: Record<string, unknown>;
+  dependency_analysis: Record<string, unknown>;
   recommendations: string[];
   architecture_smells: string[];
-  analysis_metadata: Record<string, any>;
+  analysis_metadata: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -244,7 +245,7 @@ export interface QualityAnalysisResult {
   readability: string;
   issues: string[];
   improvements: string[];
-  metrics: Record<string, any>;
+  metrics: Record<string, unknown>;
   ai_powered: boolean;
   timestamp: string;
 }
@@ -280,6 +281,16 @@ export interface IncrementalAnalysisMetadata {
 
 // This is the main interface that components will use
 export type RepositoryAnalysis = RepositoryAnalysisResponse;
+
+// Analysis filtered by model response
+export interface RepositoryAnalysisByModelResponse {
+  repository_id: string;
+  model: string;
+  pattern_analysis?: PatternAnalysisResult | null;
+  quality_analysis?: QualityAnalysisResult | null;
+  timestamp: string;
+  error?: string;
+}
 
 export interface Insight {
   type:

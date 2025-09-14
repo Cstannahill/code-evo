@@ -1,17 +1,51 @@
 // src/api/client.ts - Enhanced with model selection and analytics
+import { getApiBaseUrl } from "../config/environment";
+
 interface CreateRepositoryRequest {
   url: string;
   branch?: string;
   model_id?: string; // Add model selection support
 }
 
-
 // Enhanced API client with model selection
 export class ApiClient {
   private baseUrl: string;
 
-  constructor(baseUrl: string = "http://localhost:8080") {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl?: string) {
+    this.baseUrl = baseUrl || getApiBaseUrl();
+  }
+
+  // Helper method to get auth headers
+  private getAuthHeaders(): Record<string, string> {
+    const token = localStorage.getItem("auth_token");
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    return headers;
+  }
+
+  // Helper method for authenticated requests
+  private async authenticatedFetch(
+    url: string,
+    options: RequestInit = {}
+  ): Promise<Response> {
+    const headers = this.getAuthHeaders();
+
+    // Merge with any existing headers
+    const mergedHeaders = {
+      ...headers,
+      ...options.headers,
+    };
+
+    return fetch(url, {
+      ...options,
+      headers: mergedHeaders,
+    });
   }
 
   // Existing methods...
@@ -30,13 +64,13 @@ export class ApiClient {
     // Track analytics
     this.trackModelSelection(data.model_id);
 
-    const response = await fetch(`${this.baseUrl}/api/repositories`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/repositories`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to create repository: ${response.statusText}`);
@@ -53,7 +87,7 @@ export class ApiClient {
   // Get available AI models
   async getAvailableModels() {
     const response = await fetch(
-      `${this.baseUrl}/api/multi-model/models/available`
+      `${this.baseUrl}/api/analysis/models/available`
     );
     if (!response.ok) {
       throw new Error("Failed to fetch available models");
@@ -114,10 +148,68 @@ export class ApiClient {
     }
   }
 
-
   // Existing methods...
   async getRepositories() {
     const response = await fetch(`${this.baseUrl}/api/repositories`);
+    return response.json();
+  }
+
+  async getUserRepositories() {
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/repositories/user/my-repositories`
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch user repositories: ${response.statusText}`
+      );
+    }
+    return response.json();
+  }
+
+  async getUserRelevantRepositories(limit: number = 20) {
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/repositories/user/relevant?limit=${limit}`
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch user relevant repositories: ${response.statusText}`
+      );
+    }
+    return response.json();
+  }
+
+  async addRepositoryToUser(data: CreateRepositoryRequest) {
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/repositories/user/add-repository`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to add repository to user: ${response.statusText}`
+      );
+    }
+
+    return response.json();
+  }
+
+  async removeRepositoryFromUser(repoId: string) {
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/repositories/user/repositories/${repoId}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to remove repository from user: ${response.statusText}`
+      );
+    }
+
     return response.json();
   }
 
@@ -131,7 +223,9 @@ export class ApiClient {
       `${this.baseUrl}/api/repositories/${id}/analysis`
     );
     if (!response.ok) {
-      throw new Error(`Failed to fetch repository analysis: ${response.statusText}`);
+      throw new Error(
+        `Failed to fetch repository analysis: ${response.statusText}`
+      );
     }
     return response.json();
   }
@@ -142,7 +236,39 @@ export class ApiClient {
       `${this.baseUrl}/api/repositories/${id}/analysis/enhanced`
     );
     if (!response.ok) {
-      throw new Error(`Failed to fetch enhanced analysis: ${response.statusText}`);
+      throw new Error(
+        `Failed to fetch enhanced analysis: ${response.statusText}`
+      );
+    }
+    return response.json();
+  }
+
+  // List available analyses grouped by model for a repository
+  async getRepositoryModels(id: string) {
+    const response = await fetch(
+      `${this.baseUrl}/api/repositories/${id}/analyses/models`
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch repository models: ${response.statusText}`
+      );
+    }
+    return response.json();
+  }
+
+  // Fetch latest analyses for a repository filtered by model identifier
+  async getRepositoryAnalysisByModel(id: string, model: string) {
+    const response = await fetch(
+      `${
+        this.baseUrl
+      }/api/repositories/${id}/analysis/by-model?model=${encodeURIComponent(
+        model
+      )}`
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch repository analysis by model: ${response.statusText}`
+      );
     }
     return response.json();
   }
@@ -153,7 +279,9 @@ export class ApiClient {
       `${this.baseUrl}/api/repositories/${id}/security`
     );
     if (!response.ok) {
-      throw new Error(`Failed to fetch security analysis: ${response.statusText}`);
+      throw new Error(
+        `Failed to fetch security analysis: ${response.statusText}`
+      );
     }
     return response.json();
   }
@@ -164,7 +292,9 @@ export class ApiClient {
       `${this.baseUrl}/api/repositories/${id}/performance`
     );
     if (!response.ok) {
-      throw new Error(`Failed to fetch performance analysis: ${response.statusText}`);
+      throw new Error(
+        `Failed to fetch performance analysis: ${response.statusText}`
+      );
     }
     return response.json();
   }
@@ -175,7 +305,9 @@ export class ApiClient {
       `${this.baseUrl}/api/repositories/${id}/architecture`
     );
     if (!response.ok) {
-      throw new Error(`Failed to fetch architectural analysis: ${response.statusText}`);
+      throw new Error(
+        `Failed to fetch architectural analysis: ${response.statusText}`
+      );
     }
     return response.json();
   }
@@ -187,10 +319,111 @@ export class ApiClient {
     return response.json();
   }
 
-  async getInsights(repositoryId: string) {
-    const response = await fetch(
-      `${this.baseUrl}/api/repositories/${repositoryId}/insights`
+  // Authentication methods
+  async login(credentials: { username: string; password: string }) {
+    const response = await fetch(`${this.baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(credentials),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Login failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async register(userData: {
+    username: string;
+    email: string;
+    password: string;
+    full_name?: string;
+  }) {
+    const response = await fetch(`${this.baseUrl}/api/auth/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(userData),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Registration failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async createGuestSession() {
+    const response = await fetch(`${this.baseUrl}/api/auth/guest`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Guest session creation failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getCurrentUser() {
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/auth/me`
     );
+    if (!response.ok) {
+      throw new Error(`Failed to get current user: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async getUserApiKeys() {
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/auth/api-keys`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to get API keys: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async createApiKey(apiKeyData: {
+    provider: string;
+    key_name?: string;
+    api_key: string;
+  }) {
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/auth/api-keys`,
+      {
+        method: "POST",
+        body: JSON.stringify(apiKeyData),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to create API key: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async deleteApiKey(keyId: string) {
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/auth/api-keys/${keyId}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete API key: ${response.statusText}`);
+    }
+
     return response.json();
   }
 }
@@ -200,6 +433,14 @@ export const apiClient = new ApiClient();
 
 // Type declarations for gtag (add to src/types/global.d.ts)
 declare global {
-  function gtag(command: string, targetId: string, config?: any): void;
-  function gtag(command: string, action: string, parameters?: any): void;
+  function gtag(
+    command: string,
+    targetId: string,
+    config?: Record<string, unknown>
+  ): void;
+  function gtag(
+    command: string,
+    action: string,
+    parameters?: Record<string, unknown>
+  ): void;
 }

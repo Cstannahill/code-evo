@@ -26,13 +26,13 @@ from app.models.repository import (
     AnalysisSession,
     AIModel,
     AIAnalysisResult,
-    ModelComparison,
+    # ModelComparison removed - using single model analysis only
     ModelBenchmark,
     get_repositories_with_stats,
     get_technologies_by_repository,
     get_analysis_sessions_by_repository,
     get_available_ai_models,
-    get_model_comparisons_by_repository,
+    # get_model_comparisons_by_repository removed - using single model analysis only
 )
 
 logger = logging.getLogger(__name__)
@@ -47,14 +47,22 @@ class RepositoryService:
     def __init__(self):
         """Initialize repository service with enhanced database manager"""
         self.db_manager = get_enhanced_database_manager()
-        self.engine = self.db_manager.engine
-        self.cache = self.db_manager.cache
+
+        # Handle case where MongoDB is not available
+        if self.db_manager is None:
+            self.engine = None
+            self.cache = None
+            logger.warning(
+                "⚠️  RepositoryService initialized without MongoDB - using fallback mode"
+            )
+        else:
+            self.engine = self.db_manager.engine
+            self.cache = self.db_manager.cache
+            logger.info("RepositoryService initialized with enhanced MongoDB backend")
 
         # Service metrics
         self._operation_count = 0
         self._error_count = 0
-
-        logger.info("RepositoryService initialized with enhanced MongoDB backend")
 
     async def create_repository(
         self,
@@ -86,6 +94,15 @@ class RepositoryService:
             if not url or not name:
                 raise ValueError("Repository URL and name are required")
 
+            # Check if MongoDB is available
+            if self.engine is None:
+                logger.warning(
+                    "⚠️  MongoDB not available, using SQLite fallback for repository creation"
+                )
+                return await self._create_repository_sqlite_fallback(
+                    url, name, description, branch
+                )
+
             # Check if repository already exists
             existing = await self.engine.find_one(Repository, Repository.url == url)
             if existing:
@@ -109,16 +126,19 @@ class RepositoryService:
             await self._create_initial_analysis_session(saved_repo.id)
 
             # Cache repository data (convert ObjectIds to strings for serialization)
-            cache_key = f"repository:{saved_repo.id}"
-            repo_dict = saved_repo.dict()
-            # Convert ObjectId to string for cache serialization
-            if 'id' in repo_dict:
-                repo_dict['id'] = str(repo_dict['id'])
-            # Ensure updated_at is set for new repositories
-            if repo_dict.get('updated_at') is None:
-                repo_dict['updated_at'] = datetime.utcnow().isoformat()
-            # Serialize to JSON string for cache storage
-            await self.cache.set(cache_key, json.dumps(repo_dict, default=str), ttl=3600)
+            if self.cache:
+                cache_key = f"repository:{saved_repo.id}"
+                repo_dict = saved_repo.dict()
+                # Convert ObjectId to string for cache serialization
+                if "id" in repo_dict:
+                    repo_dict["id"] = str(repo_dict["id"])
+                # Ensure updated_at is set for new repositories
+                if repo_dict.get("updated_at") is None:
+                    repo_dict["updated_at"] = datetime.utcnow().isoformat()
+                # Serialize to JSON string for cache storage
+                await self.cache.set(
+                    cache_key, json.dumps(repo_dict, default=str), ttl=3600
+                )
 
             logger.info(f"✅ Created repository: {name} (ID: {saved_repo.id})")
             return saved_repo
@@ -131,6 +151,62 @@ class RepositoryService:
             logger.error(f"❌ Failed to create repository {name}: {e}")
             raise
 
+    async def _create_repository_sqlite_fallback(
+        self,
+        url: str,
+        name: str,
+        description: Optional[str] = None,
+        branch: str = "main",
+    ) -> Repository:
+        """Create repository using SQLite fallback when MongoDB is not available"""
+        try:
+            from app.core.database import SessionLocal
+            from app.models.repository import RepositorySQL
+
+            # Check if repository already exists in SQLite
+            with SessionLocal() as db:
+                existing = (
+                    db.query(RepositorySQL).filter(RepositorySQL.url == url).first()
+                )
+                if existing:
+                    raise ValueError(f"Repository with URL {url} already exists")
+
+                # Create new repository in SQLite
+                repo_sql = RepositorySQL(
+                    url=url,
+                    name=name,
+                    description=description,
+                    default_branch=branch,
+                    status="created",
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow(),
+                )
+
+                db.add(repo_sql)
+                db.commit()
+                db.refresh(repo_sql)
+
+                # Convert SQLite model to MongoDB model for consistency
+                repository = Repository(
+                    id=ObjectId(),  # Generate new ObjectId for consistency
+                    url=repo_sql.url,
+                    name=repo_sql.name,
+                    description=repo_sql.description,
+                    default_branch=repo_sql.default_branch,
+                    status=repo_sql.status,
+                    created_at=repo_sql.created_at,
+                    updated_at=repo_sql.updated_at,
+                )
+
+                logger.info(
+                    f"✅ Created repository in SQLite fallback: {name} (SQLite ID: {repo_sql.id})"
+                )
+                return repository
+
+        except Exception as e:
+            logger.error(f"❌ Failed to create repository in SQLite fallback: {e}")
+            raise
+
     async def get_or_create_repository(
         self,
         url: str,
@@ -140,13 +216,13 @@ class RepositoryService:
     ) -> Repository:
         """
         Get existing repository by URL or create a new one
-        
+
         Args:
             url: Repository URL
             name: Repository name
             description: Optional description
             branch: Default branch name
-            
+
         Returns:
             Repository: Existing or newly created repository object
         """
@@ -196,12 +272,14 @@ class RepositoryService:
             if repository:
                 # Cache for future requests
                 repo_dict = repository.dict()
-                if 'id' in repo_dict:
-                    repo_dict['id'] = str(repo_dict['id'])
+                if "id" in repo_dict:
+                    repo_dict["id"] = str(repo_dict["id"])
                 # Handle None updated_at for existing repositories
-                if repo_dict.get('updated_at') is None:
-                    repo_dict['updated_at'] = datetime.utcnow().isoformat()
-                await self.cache.set(cache_key, json.dumps(repo_dict, default=str), ttl=3600)
+                if repo_dict.get("updated_at") is None:
+                    repo_dict["updated_at"] = datetime.utcnow().isoformat()
+                await self.cache.set(
+                    cache_key, json.dumps(repo_dict, default=str), ttl=3600
+                )
                 logger.debug(f"📊 Retrieved repository {repository_id} from database")
 
             return repository
@@ -227,6 +305,20 @@ class RepositoryService:
         """
         try:
             self._operation_count += 1
+
+            # Check if MongoDB is available
+            if self.engine is None:
+                logger.warning(
+                    "⚠️  MongoDB not available, returning empty repository list"
+                )
+                return {
+                    "repositories": [],
+                    "total_count": 0,
+                    "limit": limit,
+                    "offset": offset,
+                    "has_more": False,
+                    "error": "MongoDB not initialized",
+                }
 
             # Build query conditions
             conditions = {}
@@ -303,12 +395,14 @@ class RepositoryService:
             # Update cache
             cache_key = f"repository:{repository_id}"
             repo_dict = repository.dict()
-            if 'id' in repo_dict:
-                repo_dict['id'] = str(repo_dict['id'])
-            # Handle None updated_at for existing repositories  
-            if repo_dict.get('updated_at') is None:
-                repo_dict['updated_at'] = datetime.utcnow().isoformat()
-            await self.cache.set(cache_key, json.dumps(repo_dict, default=str), ttl=3600)
+            if "id" in repo_dict:
+                repo_dict["id"] = str(repo_dict["id"])
+            # Handle None updated_at for existing repositories
+            if repo_dict.get("updated_at") is None:
+                repo_dict["updated_at"] = datetime.utcnow().isoformat()
+            await self.cache.set(
+                cache_key, json.dumps(repo_dict, default=str), ttl=3600
+            )
 
             logger.info(f"✅ Updated repository {repository_id} status to {status}")
             return True
@@ -572,12 +666,14 @@ class RepositoryService:
                 # Update cache
                 cache_key = f"repository:{repository_id}"
                 repo_dict = repository.dict()
-                if 'id' in repo_dict:
-                    repo_dict['id'] = str(repo_dict['id'])
+                if "id" in repo_dict:
+                    repo_dict["id"] = str(repo_dict["id"])
                 # Handle None updated_at for existing repositories
-                if repo_dict.get('updated_at') is None:
-                    repo_dict['updated_at'] = datetime.utcnow().isoformat()
-                await self.cache.set(cache_key, json.dumps(repo_dict, default=str), ttl=3600)
+                if repo_dict.get("updated_at") is None:
+                    repo_dict["updated_at"] = datetime.utcnow().isoformat()
+                await self.cache.set(
+                    cache_key, json.dumps(repo_dict, default=str), ttl=3600
+                )
 
         except Exception as e:
             logger.error(f"❌ Failed to update repository stats: {e}")
@@ -708,6 +804,162 @@ class RepositoryService:
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
+    async def track_user_repository_access(
+        self, user_id: str, repository_id: str, access_type: str = "owner"
+    ) -> None:
+        """
+        Track user access to a repository for personalized dashboards.
+        Creates or updates user-repository association in both SQL and MongoDB.
+
+        Args:
+            user_id: The user's ID
+            repository_id: The repository's ID
+            access_type: Type of access (owner, viewer, contributor)
+        """
+        try:
+            logger.info(
+                f"👤 Tracking user {user_id} access to repository {repository_id}"
+            )
+
+            # Track in MongoDB if available
+            if self.db_manager and hasattr(self.db_manager, "engine"):
+                try:
+                    from app.models.repository import UserRepository
+                    from bson import ObjectId
+
+                    # Check if association already exists
+                    existing = await self.db_manager.engine.find_one(
+                        UserRepository,
+                        {
+                            "user_id": ObjectId(user_id),
+                            "repository_id": ObjectId(repository_id),
+                        },
+                    )
+
+                    if existing:
+                        # Update last accessed time
+                        await self.db_manager.engine.save(
+                            UserRepository(
+                                id=existing.id,
+                                user_id=ObjectId(user_id),
+                                repository_id=ObjectId(repository_id),
+                                access_type=access_type,
+                                created_at=existing.created_at,
+                                last_accessed=datetime.utcnow(),
+                            )
+                        )
+                        logger.info(
+                            f"📅 Updated user-repository access time for user {user_id}"
+                        )
+                    else:
+                        # Create new association
+                        user_repo = UserRepository(
+                            user_id=ObjectId(user_id),
+                            repository_id=ObjectId(repository_id),
+                            access_type=access_type,
+                            created_at=datetime.utcnow(),
+                            last_accessed=datetime.utcnow(),
+                        )
+                        await self.db_manager.engine.save(user_repo)
+                        logger.info(
+                            f"✅ Created user-repository association for user {user_id}"
+                        )
+
+                        # Update repository stats for user tracking
+                        repo = await self.get_repository(repository_id)
+                        if repo:
+                            # Increment analysis count and unique users
+                            analysis_count = repo.get_analysis_count() + 1
+                            unique_users = repo.get_unique_users() + 1
+
+                            updated_repo = Repository(
+                                id=repo.id,
+                                url=repo.url,
+                                name=repo.name,
+                                default_branch=repo.default_branch,
+                                status=repo.status,
+                                total_commits=repo.total_commits,
+                                created_at=repo.created_at,
+                                updated_at=datetime.utcnow(),
+                                last_analyzed=repo.last_analyzed,
+                                error_message=repo.error_message,
+                                is_public=repo.is_public,
+                                created_by_user=repo.created_by_user
+                                or ObjectId(user_id),
+                                analysis_count=analysis_count,
+                                unique_users=unique_users,
+                                tags=repo.tags,
+                                description=repo.description,
+                                primary_language=repo.primary_language,
+                            )
+                            await self.db_manager.engine.save(updated_repo)
+                            logger.info(
+                                f"📊 Updated repository stats: {analysis_count} analyses, {unique_users} unique users"
+                            )
+
+                except Exception as e:
+                    logger.warning(
+                        f"⚠️ MongoDB user tracking failed, falling back to SQL: {e}"
+                    )
+                    # Fall back to SQL tracking if MongoDB fails
+
+            # Fallback to SQL tracking
+            try:
+                from app.models.repository import UserRepositorySQL, UserSQL
+                from app.core.database import get_engine
+                from sqlalchemy.orm import sessionmaker
+                from sqlalchemy import update
+
+                engine = get_engine()
+                SessionLocal = sessionmaker(
+                    autocommit=False, autoflush=False, bind=engine
+                )
+
+                with SessionLocal() as session:
+                    # Check if association exists
+                    existing = (
+                        session.query(UserRepositorySQL)
+                        .filter(
+                            UserRepositorySQL.user_id == user_id,
+                            UserRepositorySQL.repository_id == repository_id,
+                        )
+                        .first()
+                    )
+
+                    if existing:
+                        # Update last accessed time
+                        session.execute(
+                            update(UserRepositorySQL)
+                            .where(UserRepositorySQL.id == existing.id)
+                            .values(last_accessed=datetime.utcnow())
+                        )
+                        logger.info(
+                            f"📅 Updated SQL user-repository access time for user {user_id}"
+                        )
+                    else:
+                        # Create new association
+                        user_repo = UserRepositorySQL(
+                            user_id=user_id,
+                            repository_id=repository_id,
+                            access_type=access_type,
+                            created_at=datetime.utcnow(),
+                            last_accessed=datetime.utcnow(),
+                        )
+                        session.add(user_repo)
+                        logger.info(
+                            f"✅ Created SQL user-repository association for user {user_id}"
+                        )
+
+                    session.commit()
+
+            except Exception as e:
+                logger.error(f"❌ Failed to track user-repository access: {e}")
+                # Don't raise exception - user tracking is not critical for repository creation
+
+        except Exception as e:
+            logger.error(f"❌ User repository tracking failed: {e}")
+            # Don't raise - this is not critical for repository creation
+
 
 # Async context manager for service lifecycle
 class RepositoryServiceManager:
@@ -718,6 +970,7 @@ class RepositoryServiceManager:
 
     async def __aenter__(self) -> RepositoryService:
         from app.core.service_manager import get_repository_service
+
         self.service = get_repository_service()
         logger.info("🚀 Repository service started")
         return self.service
@@ -735,4 +988,5 @@ class RepositoryServiceManager:
 async def get_repository_service() -> RepositoryService:
     """Get repository service instance"""
     from app.core.service_manager import get_repository_service as get_singleton
+
     return get_singleton()

@@ -124,7 +124,7 @@ class InsightResponse(BaseModel):
     severity: str = "info"
 
 
-# New schemas for multi-model AI features
+# Multi-model AI features removed - using single model analysis only
 
 
 class AIModelResponse(BaseModel):
@@ -176,28 +176,7 @@ class AIAnalysisResultResponse(BaseModel):
         return v
 
 
-class ModelComparisonResponse(BaseModel):
-    id: str = Field(alias="_id")
-    repository_id: str
-    models_compared: List[str]
-    analysis_type: str
-    consensus_patterns: List[str]
-    disputed_patterns: Optional[Dict[str, Any]] = None
-    agreement_score: Optional[float] = None
-    diversity_score: Optional[float] = None
-    consistency_score: Optional[float] = None
-    performance_metrics: Optional[Dict[str, Any]] = None
-    created_at: datetime
-
-    class Config:
-        populate_by_name = True
-        json_encoders = {ObjectId: str}
-
-    @validator("id", "repository_id", pre=True)
-    def convert_objectid_to_str(cls, v):
-        if isinstance(v, ObjectId):
-            return str(v)
-        return v
+# ModelComparisonResponse removed - using single model analysis only
 
 
 class AnalysisSessionResponse(BaseModel):
@@ -235,10 +214,7 @@ class AIModelCreate(BaseModel):
     strengths: List[str] = []
 
 
-class ModelComparisonCreate(BaseModel):
-    repository_id: str
-    models_compared: List[str]
-    analysis_type: str = "comparison"
+# ModelComparisonCreate removed - using single model analysis only
     configuration: Optional[Dict[str, Any]] = None
 
 
@@ -268,7 +244,7 @@ class ComprehensiveAnalysisResponse(BaseModel):
     technologies: List[TechnologyResponse]
     patterns: List[PatternOccurrenceResponse]
     ai_results: List[AIAnalysisResultResponse]
-    model_comparisons: List[ModelComparisonResponse]
+    # model_comparisons removed - using single model analysis only
     insights: List[InsightResponse]
     timeline: List[Dict[str, Any]]
 

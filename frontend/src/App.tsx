@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "./api/client";
-import { AlertCircle, CheckCircle2, LogIn } from "lucide-react";
+import { LogIn } from "lucide-react";
 import ErrorBoundary from "./components/ErrorBoundary";
 // import LoggingDemo from "./components/LoggingDemo";
 import { useLogger } from "./hooks/useLogger";
@@ -12,6 +12,7 @@ import { UserMenu } from "./components/auth/UserMenu";
 // Main App Content Component
 function AppContent() {
   const logger = useLogger("App");
+  const { mount, unmount, info, error } = logger;
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -27,19 +28,17 @@ function AppContent() {
   >(undefined);
 
   useEffect(() => {
-    logger.mount();
+    mount();
 
     const checkAuth = async () => {
       const token = localStorage.getItem('auth_token');
       if (token) {
         try {
-          const response = await fetch('/api/auth/me', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          setIsAuthenticated(response.ok);
-        } catch (error) {
+          await apiClient.getCurrentUser();
+          setIsAuthenticated(true);
+        } catch {
+          // Invalid/expired token; clear it and treat as unauthenticated
+          localStorage.removeItem('auth_token');
           setIsAuthenticated(false);
         }
       }
@@ -47,23 +46,39 @@ function AppContent() {
     };
 
     const doCheck = async () => {
-      logger.info("Checking backend status");
+      info("Checking backend status");
 
       try {
         const health = await apiClient.checkHealth();
         setBackendStatus(health.status === "healthy" ? "online" : "offline");
-        logger.info("Backend health check completed");
+        info("Backend health check completed");
 
         const aiStat = await apiClient.getAnalysisStatus();
-        logger.info("AI status check started", { aiStat });
-        setAiStatus({
-          available: aiStat.ai_service.ollama_available,
-          model: aiStat?.ai_service?.ollama_model,
-        });
-        logger.info("AI status check completed");
+        info("AI status check started", { aiStat });
+
+        // Add null safety checks for aiStat and ai_service
+        if (aiStat && aiStat.ai_service) {
+          setAiStatus({
+            available: aiStat.ai_service.ollama_available,
+            model: aiStat.ai_service.ollama_model,
+          });
+          info("AI status check completed");
+        } else {
+          // Fallback for when AI service is not available
+          setAiStatus({
+            available: false,
+            model: undefined,
+          });
+          info("AI service not available - using fallback status");
+        }
       } catch (err) {
-        logger.error("Error checking backend status", err as Error);
+        error("Error checking backend status", err as Error);
         setBackendStatus("offline");
+        // Set AI status to unavailable on error
+        setAiStatus({
+          available: false,
+          model: undefined,
+        });
       }
     };
 
@@ -71,9 +86,9 @@ function AppContent() {
     doCheck();
 
     return () => {
-      logger.unmount();
+      unmount();
     };
-  }, []);
+  }, [mount, unmount, info, error]);
 
   if (authLoading) {
     return (
@@ -93,28 +108,16 @@ function AppContent() {
         <div className="container mx-auto px-4 py-2">
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                {backendStatus === "online" ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-red-500" />
-                )}
-                <span className="text-stone-400/40">
-                  Backend: {backendStatus}
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span>
+                  Backend: {backendStatus === "checking" ? "…" : backendStatus}
+                </span>
+                <span className="hidden sm:inline">|</span>
+                <span>
+                  AI: {aiStatus ? (aiStatus.available ? (aiStatus.model || "available") : "unavailable") : "…"}
                 </span>
               </div>
-              {aiStatus && (
-                <div className="flex items-center gap-2">
-                  {aiStatus.available ? (
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-orange-500" />
-                  )}
-                  <span className="text-stone-400/40">
-                    AI: {aiStatus.available ? `Active` : "Not Available"}
-                  </span>
-                </div>
-              )}
+
             </div>
             <div className="flex items-center gap-4">
               <SimpleThemeToggle />
@@ -130,13 +133,6 @@ function AppContent() {
                   <LogIn className="w-3 h-3" />
                   Login / Register
                 </button>
-              )}
-
-              {backendStatus === "offline" && (
-                <span className="text-destructive">
-                  Start backend: cd backend && python -m uvicorn app.main:app
-                  --reload
-                </span>
               )}
             </div>
           </div>

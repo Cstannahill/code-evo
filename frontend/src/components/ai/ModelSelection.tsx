@@ -62,7 +62,7 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
   const fetchAvailableModels = async () => {
     try {
       const response = await fetch(
-        "http://localhost:8080/api/multi-model/models/available"
+        "http://localhost:8080/api/analysis/models/available"
       );
       const data = await response.json();
       console.log("ModelSelection: Raw API data:", data);
@@ -74,26 +74,17 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
 
       setAvailableModels(data.available_models);
 
-      // Fetch stats for each model
-      const statsPromises = Object.keys(data.available_models).map(
-        async (modelName) => {
-          try {
-            const statsResponse = await fetch(
-              `http://localhost:8080/api/multi-model/models/${modelName}/stats`
-            );
-            const statsData = await statsResponse.json();
-            return { [modelName]: statsData };
-          } catch {
-            return { [modelName]: null };
-          }
-        }
-      );
-
-      const allStats = await Promise.all(statsPromises);
-      const statsObject = allStats.reduce(
-        (acc, stat) => ({ ...acc, ...stat }),
-        {}
-      );
+      // Initialize empty stats since we don't have stats endpoint anymore
+      const statsObject: Record<string, ModelStats> = {};
+      Object.keys(data.available_models || {}).forEach((modelName: string) => {
+        statsObject[modelName] = {
+          usage_stats: {
+            avg_processing_time: 0,
+            total_analyses: 0,
+            avg_confidence: 0,
+          },
+        };
+      });
       setModelStats(statsObject);
     } catch (error) {
       console.error("Error fetching models:", error);

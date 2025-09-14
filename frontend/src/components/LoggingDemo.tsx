@@ -15,24 +15,27 @@ const LoggingDemo: React.FC = () => {
   );
   const { trackApiCall } = useApiLogger("LoggingDemo");
 
-  useEffect(() => {
-    logger.mount({ initialCount: count });
-
-    return () => {
-      logger.unmount();
-    };
-  }, [logger, count]);
+  // Destructure logger functions to avoid dependency issues
+  const { mount, unmount, effect, userAction, info, error: logError } = logger;
 
   useEffect(() => {
-    logger.effect("count-change", "run", { newCount: count });
+    mount({ initialCount: count });
 
     return () => {
-      logger.effect("count-change", "cleanup", { count });
+      unmount();
     };
-  }, [count, logger]);
+  }, [mount, unmount, count]);
+
+  useEffect(() => {
+    effect("count-change", "run", { newCount: count });
+
+    return () => {
+      effect("count-change", "cleanup", { count });
+    };
+  }, [count, effect]);
 
   const handleIncrement = () => {
-    logger.userAction("increment", "button", { currentCount: count });
+    userAction("increment", "button", { currentCount: count });
     setCount((prev) => prev + 1);
   };
 
@@ -49,7 +52,7 @@ const LoggingDemo: React.FC = () => {
       itemsProcessed: count * 10,
     });
 
-    logger.info("Expensive operation completed", {
+    info("Expensive operation completed", {
       itemsProcessed: count * 10,
       duration: "measured-above",
     });
@@ -70,7 +73,7 @@ const LoggingDemo: React.FC = () => {
 
       logger.info("API test completed successfully");
     } catch (error) {
-      logger.error(
+      logError(
         "API test failed",
         error instanceof Error ? error : new Error(String(error))
       );
@@ -80,7 +83,7 @@ const LoggingDemo: React.FC = () => {
   const handleError = () => {
     const testError = new Error("This is a test error for logging");
     setError(testError);
-    logger.error("Test error triggered", testError, {
+    logError("Test error triggered", testError, {
       userTriggered: true,
       errorType: "manual",
     });

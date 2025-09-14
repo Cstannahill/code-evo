@@ -7,8 +7,8 @@ import { TabsContent } from "../ui/tabs";
 import {
   useCreateRepository,
   useRepository,
-  useRepositories,
 } from "../../hooks/useRepository";
+import { useUserRepositories, useGlobalRepositories, useUserRelevantRepositories } from "../../hooks/useRepositoryScoped";
 import { ModelSelection } from "../ai/ModelSelection";
 // import type { AIModel } from "../../types/ai";
 import type { RepositoryCreateRequest } from "../../types/api";
@@ -24,7 +24,7 @@ import { MAHeader } from "./multi-analysis/MAHeader";
 import { MAAnalysisModeTabs } from "./multi-analysis/MAAnalysisModeTabs";
 import { MASingleAnalysisSection } from "./multi-analysis/MASingleAnalysisSection";
 import { MACompareAnalysisSection } from "./multi-analysis/MACompareAnalysisSection";
-import { MARepositoryList } from "./multi-analysis/MARepositoryList";
+import { MARepositoryTabs, type RepositoryScope } from "./multi-analysis/MARepositoryTabs";
 import { MAResultsSection } from "./multi-analysis/MAResultsSection";
 
 
@@ -34,13 +34,19 @@ export const MultiAnalysisDashboard: React.FC = () => {
   const [selectedModelId, setSelectedModelId] = useState<string | undefined>(undefined);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [analysisMode, setAnalysisMode] = useState<"single" | "compare">("single");
-  const [comparisonResults, setComparisonResults] = useState<any>(null);
+  const [comparisonResults, setComparisonResults] = useState<unknown>(null);
   const [isComparing, setIsComparing] = useState(false);
   const [analysisStarted, setAnalysisStarted] = useState(false);
+  const [repositoryScope, setRepositoryScope] = useState<RepositoryScope>("user");
 
   const createRepo = useCreateRepository();
   const { data: selectedRepo } = useRepository(selectedRepoId);
-  const { data: repositories = [] } = useRepositories();
+
+  // Use scoped repository hooks
+  const { data: userRepositories = [], isLoading: isLoadingUser } = useUserRepositories();
+  const { data: globalRepositories = [], isLoading: isLoadingGlobal } = useGlobalRepositories();
+  const { data: relevantRepositories = [], isLoading: isLoadingRelevant } = useUserRelevantRepositories();
+
   const availableModels = useModelAvailability();
   console.log("Available Models:", availableModels);
 
@@ -66,22 +72,30 @@ export const MultiAnalysisDashboard: React.FC = () => {
   // Handle single analysis
   const handleSingleAnalysis = async () => {
     if (!repoUrl.trim() || !selectedModelId) {
-      toast.error("Please enter a repository URL and select an AI model");
+      toast.error("⚠️ Missing required fields - Please enter a repository URL and select an AI model to begin analysis");
       return;
     }
 
     setAnalysisStarted(true); // Immediately show analyzing state
     try {
-      const modelName = availableModels.find((m) => m.id === selectedModelId)?.name;
+      const selectedModel = availableModels.find((m) => m.id === selectedModelId);
+      const modelName = selectedModel?.name;
+
+      console.log("🤖 Selected Model ID:", selectedModelId);
+      console.log("🤖 Selected Model Name:", modelName);
+      console.log("🤖 Selected Model Object:", selectedModel);
+
       const repoPayload: RepositoryCreateRequest = {
         url: repoUrl,
         model_id: modelName, // Pass the model name, not ID
       };
 
+      console.log("🚀 Repository Payload:", repoPayload);
+
       const repo = await createRepo.mutateAsync(repoPayload);
       setSelectedRepoId(repo.id);
       setRepoUrl("");
-      toast.success("Analysis started!");
+      toast.success(`🚀 Analysis started successfully! Processing repository with ${selectedModel?.display_name || selectedModel?.name || 'selected model'}`);
     } catch (error) {
       setAnalysisStarted(false); // Reset if error
       console.error("Failed to create repository for analysis:", error);
@@ -91,7 +105,7 @@ export const MultiAnalysisDashboard: React.FC = () => {
   // Handle comparison analysis
   const handleComparisonAnalysis = async () => {
     if (!repoUrl.trim() || selectedModels.length < 2) {
-      toast.error("Please enter a repository URL and select at least 2 models");
+      toast.error("⚠️ Comparison requires multiple models - Please select at least 2 different AI models to compare results");
       return;
     }
 
@@ -146,10 +160,38 @@ export const MultiAnalysisDashboard: React.FC = () => {
       <Toaster
         position="top-right"
         toastOptions={{
+          duration: 4000,
           style: {
-            background: "var(--ctan-dark-card)",
-            color: "var(--ctan-text-primary)",
-            border: "1px solid var(--ctan-dark-border)",
+            background: "linear-gradient(145deg, #383b44, #181818)",
+            color: "#ffb700",
+            border: "1px solid rgba(255, 183, 0, 0.3)",
+            borderRadius: "8px",
+            boxShadow: "0 4px 12px rgba(255, 183, 0, 0.1)",
+            backdropFilter: "blur(10px)",
+            fontSize: "14px",
+            fontWeight: "500",
+          },
+          success: {
+            iconTheme: {
+              primary: "#ffb700",
+              secondary: "#181818",
+            },
+            style: {
+              background: "linear-gradient(145deg, #2d3d2f, #1a1a1a)",
+              border: "1px solid rgba(34, 197, 94, 0.3)",
+              color: "#22c55e",
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: "#ff4444",
+              secondary: "#181818",
+            },
+            style: {
+              background: "linear-gradient(145deg, #3d2d2d, #1a1a1a)",
+              border: "1px solid rgba(239, 68, 68, 0.3)",
+              color: "#ef4444",
+            },
           },
         }}
       />
@@ -212,14 +254,19 @@ export const MultiAnalysisDashboard: React.FC = () => {
               </MAAnalysisModeTabs>
             </div>
 
-            {/* Repository List */}
-            {repositories.length > 0 && (
-              <MARepositoryList
-                repositories={repositories}
-                selectedRepoId={selectedRepoId}
-                setSelectedRepoId={setSelectedRepoId}
-              />
-            )}
+            {/* Repository Tabs */}
+            <MARepositoryTabs
+              userRepositories={userRepositories}
+              globalRepositories={globalRepositories}
+              relevantRepositories={relevantRepositories}
+              selectedRepoId={selectedRepoId}
+              setSelectedRepoId={setSelectedRepoId}
+              isLoadingUser={isLoadingUser}
+              isLoadingGlobal={isLoadingGlobal}
+              isLoadingRelevant={isLoadingRelevant}
+              currentScope={repositoryScope}
+              onScopeChange={setRepositoryScope}
+            />
           </motion.div>
 
           {/* Analysis Results */}

@@ -24,9 +24,19 @@ REDIS_PORT="${REDIS_PORT:-6379}"
 CHROMA_HOST="${CHROMA_HOST:-chromadb}"
 CHROMA_PORT="${CHROMA_PORT:-8000}"
 
-# Wait for Redis and Chroma
+# Check if we're in Railway or single container mode
+IS_RAILWAY="${RAILWAY_ENVIRONMENT:-}"
+PORT_ENV="${PORT:-}"
+
+# Wait for Redis
 wait_for_host "$REDIS_HOST" "$REDIS_PORT"
-wait_for_host "$CHROMA_HOST" "$CHROMA_PORT"
+
+# Only wait for external Chroma if not in Railway/single container mode
+if [ -z "$IS_RAILWAY" ] && [ -z "$PORT_ENV" ] && [ "$CHROMA_HOST" != "localhost" ]; then
+    wait_for_host "$CHROMA_HOST" "$CHROMA_PORT"
+else
+    echo "Using embedded ChromaDB (Railway/single container mode)"
+fi
 
 # Optionally check Ollama if configured
 if [ -n "${OLLAMA_HOST:-}" ]; then

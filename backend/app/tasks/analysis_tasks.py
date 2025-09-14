@@ -230,3 +230,151 @@ async def cancel_analysis(repository_id: str) -> bool:
     except Exception as e:
         logger.error(f"Error cancelling analysis: {e}")
         return False
+
+
+async def analyze_repository_incremental_background(
+    repo_url: str,
+    branch: str,
+    commit_limit: int,
+    candidate_limit: int,
+    model_id: Optional[str] = None,
+    include_security_scan: bool = True,
+    include_performance_scan: bool = True,
+    include_architectural_scan: bool = True,
+):
+    """Enhanced background task for incremental repository analysis with deep commit analysis"""
+    
+    db_manager = None
+    analysis_session = None
+    repo = None
+    try:
+        # Get enhanced database manager
+        db_manager = get_enhanced_database_manager()
+
+        # Initialize analysis service
+        from app.core.service_manager import get_analysis_service
+        analysis_service = get_analysis_service()
+
+        # Use specific model if provided
+        if model_id:
+            logger.info(f"🤖 Using selected model: {model_id}")
+            analysis_service.set_preferred_model(model_id)
+
+        # Find the repository using MongoDB service
+        engine = get_repository_service().engine
+        repo = await get_repository_by_url(engine, repo_url)
+        if not repo:
+            logger.error(f"❌ Repository not found: {repo_url}")
+            return
+        repo_id_str = str(repo.id)
+
+        logger.info(f"🚀 Starting incremental analysis for {repo.name}")
+
+        # Create analysis session with enhanced configuration
+        session_data = {
+            "repository_id": str(repo.id),
+            "status": "running",
+            "commits_analyzed": 0,
+            "patterns_found": 0,
+            "started_at": datetime.utcnow(),
+            "configuration": {
+                "commit_limit": commit_limit,
+                "candidate_limit": candidate_limit,
+                "branch": branch,
+                "analysis_type": "incremental",
+                "include_security_scan": include_security_scan,
+                "include_performance_scan": include_performance_scan,
+                "include_architectural_scan": include_architectural_scan,
+                "model_id": model_id,
+            },
+        }
+
+        analysis_session = await get_ai_analysis_service().create_analysis_session(
+            repo_id_str, session_data.get("configuration", {})
+        )
+        logger.info(f"📊 Analysis session created: {analysis_session.id}")
+
+        # Run incremental analysis with enhanced commit analysis
+        try:
+            logger.info(f"🔍 Cloning repository {repo_url}...")
+            logger.info(f"🤖 Running incremental AI analysis with {commit_limit} commits limit...")
+
+            # Run the incremental analysis - this will automatically persist to MongoDB
+            result = await analysis_service.analyze_repository_incremental(
+                repo_url, branch, commit_limit, candidate_limit
+            )
+
+        except asyncio.CancelledError:
+            logger.info(f"⏹️  Incremental analysis cancelled for {repo.name}")
+            await get_ai_analysis_service().update_analysis_session(
+                str(analysis_session.id), status="cancelled"
+            )
+            await get_repository_service().update_repository_status(repo_id_str, "pending")
+            return
+        except Exception as e:
+            logger.error(f"💥 Incremental analysis failed: {e}")
+            if analysis_session:
+                await get_ai_analysis_service().update_analysis_session(
+                    str(analysis_session.id), status="failed", error_message=str(e)
+                )
+            if repo:
+                await get_repository_service().update_repository_status(repo_id_str, "failed")
+            return
+
+        if "error" in result:
+            error_msg = result["error"]
+            logger.error(f"❌ Incremental analysis failed: {error_msg}")
+            await get_ai_analysis_service().update_analysis_session(
+                str(analysis_session.id), status="failed", error_message=error_msg
+            )
+            await get_repository_service().update_repository_status(repo_id_str, "failed")
+            return
+
+        # Analysis completed successfully - data is already persisted by AnalysisService
+        # Update repository status
+        await get_repository_service().update_repository_status(repo_id_str, "completed")
+
+        # Update analysis session with enhanced metrics
+        patterns_found = len(result.get("pattern_analyses", []))
+        commits_analyzed = len(result.get("commits", []))
+        
+        # Calculate enhanced metrics
+        incremental_data = result.get("incremental_analysis", {})
+        changes_detected = incremental_data.get("changes_detected", 0)
+        
+        await get_ai_analysis_service().update_analysis_session(
+            str(analysis_session.id),
+            status="completed",
+            commits_analyzed=commits_analyzed,
+            patterns_found=patterns_found,
+            configuration={
+                **session_data["configuration"],
+                "changes_detected": changes_detected,
+                "incremental_efficiency": f"{changes_detected}/{commits_analyzed}" if commits_analyzed > 0 else "0/0"
+            }
+        )
+        
+        logger.info(f"✅ Incremental analysis completed for {repo.name}")
+        logger.info(f"📈 Found {patterns_found} patterns in {commits_analyzed} commits")
+        logger.info(f"🔄 Detected {changes_detected} changes for incremental processing")
+
+    except asyncio.CancelledError:
+        logger.info(f"⏹️  Background incremental task cancelled for {repo_url}")
+        if analysis_session:
+            await get_ai_analysis_service().update_analysis_session(
+                str(analysis_session.id), status="cancelled"
+            )
+        if repo:
+            repo_id_str = str(repo.id)
+            await get_repository_service().update_repository_status(repo_id_str, "pending")
+        return
+    except Exception as e:
+        logger.error(f"💥 Background incremental analysis failed: {e}")
+
+        if analysis_session:
+            await get_ai_analysis_service().update_analysis_session(
+                str(analysis_session.id), status="failed", error_message=str(e)
+            )
+        if repo:
+            repo_id_str = str(repo.id)
+            await get_repository_service().update_repository_status(repo_id_str, "failed")

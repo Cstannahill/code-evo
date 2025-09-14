@@ -78,21 +78,42 @@ except Exception as e:
     logger.warning(f"⚠️  Redis not available: {e}")
     redis_client = None
 
-# ChromaDB setup (vector database) - Updated for v1.0.15
+# ChromaDB setup (vector database) - Updated for Railway deployment
 try:
-    chroma_db_path = os.getenv("CHROMA_DB_PATH", "./chroma_db")
+    # Check if we're in a Railway-like environment (single container)
+    is_railway = os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("PORT")
+    chroma_host = os.getenv("CHROMA_HOST", "localhost")
+    chroma_port = int(os.getenv("CHROMA_PORT", "8000"))
+    
+    if is_railway or chroma_host == "localhost":
+        # Use embedded ChromaDB for Railway/single container deployment
+        chroma_db_path = os.getenv("CHROMA_DB_PATH", "/tmp/chroma_db")
+        
+        # Ensure the directory exists
+        os.makedirs(chroma_db_path, exist_ok=True)
+        
+        # ChromaDB embedded mode for Railway
+        chroma_client = chromadb.PersistentClient(
+            path=chroma_db_path,
+            settings=ChromaSettings(
+                anonymized_telemetry=False,
+                allow_reset=True,
+                is_persistent=True,
+            ),
+        )
+        logger.info(f"✅ ChromaDB embedded mode initialized at {chroma_db_path}")
+    else:
+        # Use HTTP client for external ChromaDB service
+        chroma_client = chromadb.HttpClient(
+            host=chroma_host,
+            port=chroma_port,
+            settings=ChromaSettings(
+                anonymized_telemetry=False,
+                allow_reset=True,
+            ),
+        )
+        logger.info(f"✅ ChromaDB HTTP client connected to {chroma_host}:{chroma_port}")
 
-    # ChromaDB 1.0.15 has improved telemetry handling
-    chroma_client = chromadb.PersistentClient(
-        path=chroma_db_path,
-        settings=ChromaSettings(
-            anonymized_telemetry=False,
-            allow_reset=True,
-            is_persistent=True,
-        ),
-    )
-
-    logger.info("✅ ChromaDB v1.0.15 initialized successfully")
 except Exception as e:
     logger.warning(f"⚠️  ChromaDB not available: {e}")
     chroma_client = None
@@ -205,7 +226,6 @@ def create_tables():
             AnalysisSessionSQL,
             AIModelSQL,
             AIAnalysisResultSQL,
-            ModelComparisonSQL,
             ModelBenchmarkSQL,
         )
 
@@ -288,7 +308,11 @@ async def get_mongodb():
     """Get MongoDB database instance"""
     global mongodb_manager
     if mongodb_manager is None:
-        mongodb_manager = await initialize_mongodb()
+        try:
+            mongodb_manager = await initialize_mongodb()
+        except Exception as e:
+            logger.warning(f"⚠️  MongoDB not available: {e}")
+            return None
     return mongodb_manager.get_database()
 
 
@@ -296,7 +320,11 @@ async def get_engine():
     """Get ODMantic engine for document operations"""
     global mongodb_manager
     if mongodb_manager is None:
-        mongodb_manager = await initialize_mongodb()
+        try:
+            mongodb_manager = await initialize_mongodb()
+        except Exception as e:
+            logger.warning(f"⚠️  MongoDB not available: {e}")
+            return None
     return mongodb_manager.get_engine()
 
 
@@ -387,7 +415,17 @@ async def initialize_enhanced_database() -> Dict[str, Any]:
         error_msg = f"Enhanced database initialization failed: {e}"
         logger.error(f"❌ {error_msg}")
         initialization_result["errors"].append(error_msg)
-        raise
+        
+        # Check if this is a MongoDB connection issue that we can handle gracefully
+        if ("Empty host" in str(e) or "connection string" in str(e).lower() or 
+            "SSL" in str(e) or "TLS" in str(e) or "handshake" in str(e).lower() or
+            "connection" in str(e).lower() or "timeout" in str(e).lower()):
+            logger.warning("⚠️  MongoDB connection failed, continuing without MongoDB support")
+            logger.warning("⚠️  Application will run with SQLite only. Some features may be limited.")
+            initialization_result["mongodb_connected"] = False
+        else:
+            # For other errors, still raise the exception
+            raise
 
     return initialization_result
 

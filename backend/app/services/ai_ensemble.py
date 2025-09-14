@@ -21,7 +21,7 @@ class ModelType(Enum):
     LOCAL_LLM = "local_llm"          # Ollama local models
     OPENAI_API = "openai_api"        # OpenAI API models
     ANTHROPIC_API = "anthropic_api"  # Claude API models
-    FALLBACK = "fallback"            # Rule-based fallback
+    # Note: FALLBACK removed as it's not a real AI model for user selection
 
 
 class ConsensusMethod(Enum):
@@ -185,11 +185,8 @@ class AIEnsemble:
                 self.model_weights[local_model.model_id] = 0.8
                 logger.info("✅ Added local LLM to ensemble")
                 
-            # Always add fallback model
-            fallback_model = FallbackModel(self.ai_service)
-            self.models.append(fallback_model)
-            self.model_weights[fallback_model.model_id] = 0.3
-            logger.info("✅ Added fallback model to ensemble")
+            # Note: Fallback model removed from user selection as it's not a real AI model
+            # Fallback functionality is handled internally by the analysis service
             
             # TODO: Add OpenAI/Anthropic models when API keys are configured
             

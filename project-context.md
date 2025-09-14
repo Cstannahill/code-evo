@@ -1,10 +1,54 @@
 # Code Evolution Tracker - Current Project Status and Project Context
 
-**Last Updated**: 2025-09-02
+**Last Updated**: 2025-09-13
 
 ## CURRENT STATE OVERVIEW
 
 ### System Architecture Status
+
+✅ **Production Ready** - All core systems operational with enhanced observability
+
+## Operational Features ✅ NEW
+
+### Token Usage Tracking & Analytics
+
+**Implementation**: `backend/app/utils/token_logger.py`
+
+- **Format**: JSON Lines (JSONL) for structured analysis run logging
+- **Location**: `backend/logs/analysis_tokens.log`
+- **Metrics**: Per-run token estimation, repository size, task counts, timing
+- **Integration**: Automated logging in both full and incremental analysis pipelines
+
+**Log Entry Structure**:
+
+```json
+{
+  "timestamp": "2024-01-20T15:30:45Z",
+  "repository_path": "/path/to/repo",
+  "model_used": "gpt-4",
+  "estimated_tokens": 15420,
+  "task_count": 8,
+  "repository_size_mb": 12.5,
+  "duration_seconds": 45.2,
+  "analysis_type": "full"
+}
+```
+
+### Ollama Model Size Service ✅ NEW
+
+**Implementation**: `backend/app/services/ollama_size_service.py`
+
+- **Architecture**: Centralized backend service with Redis caching
+- **API Integration**: Fetches from Ollama `/api/tags` endpoint
+- **Caching**: 5-minute TTL with automatic refresh
+- **Exposure**: Size data available via `/api/analysis/models/available`
+
+**Features**:
+
+- Automatic size calculation in GB
+- Cache-first strategy for performance
+- Frontend integration with local fallback
+- Redis-based distributed caching
 
 #### ✅ Backend: Production-Ready Multi-Model AI System
 
@@ -64,7 +108,7 @@ The Code Evolution Tracker has evolved into a **sophisticated AI-powered code an
 
 **✅ MAJOR MILESTONE**: Frontend model integration completed - local Ollama models (CodeLlama 7B/13B, CodeGemma 7B) are now fully operational in the frontend interface.
 
-## Backend Status: ✅ FULLY OPERATIONAL & ENHANCED
+## Backend Status: ✅ FULLY OPERATIONAL & ENHANCED WITH TOKEN TRACKING
 
 ### Infrastructure Components
 
@@ -83,18 +127,33 @@ The Code Evolution Tracker has evolved into a **sophisticated AI-powered code an
    - Model comparison and consensus analysis
    - Performance benchmarking and token tracking
 
-3. **Database Architecture** (`app/core/database.py`)
+3. **Token Usage Logging** (`app/utils/token_logger.py`) ✅ NEW
+
+   - Per-run analysis token estimation and logging
+   - JSON Lines (JSONL) format for analysis runs in `backend/logs/`
+   - Tracks repository size, model used, task counts, and estimated tokens
+   - Duration tracking for performance monitoring
+
+4. **Ollama Model Size Service** (`app/services/ollama_size_service.py`) ✅ NEW
+
+   - Backend service to fetch model sizes from Ollama /api/tags
+   - Redis caching with 5-minute TTL for model size data
+   - Exposes size_gb in available models API endpoint
+   - Automatic size calculation and formatting in GB
+
+5. **Database Architecture** (`app/core/database.py`)
 
    - **Primary**: SQLite with SQLAlchemy ORM
    - **Analytics**: MongoDB integration for advanced comparisons
    - **Vector**: ChromaDB for similarity search
    - **Cache**: Redis with memory fallback
 
-4. **API Endpoints** (`app/api/`)
+6. **API Endpoints** (`app/api/`)
    - Repository management and analysis
    - Multi-model comparison endpoints
    - Authentication and authorization
    - Real-time analysis status
+   - Enhanced models endpoint with Ollama sizes ✅ UPDATED
 
 ### Working API Endpoints
 
@@ -113,6 +172,8 @@ GET  /api/repositories                 # List all repositories
 GET  /api/repositories/{id}            # Repository details
 GET  /api/repositories/{id}/analysis   # Analysis results
 GET  /api/repositories/{id}/timeline   # Technology timeline
+GET  /api/repositories/{id}/analyses/models    # List models used for analysis ✅ NEW
+GET  /api/repositories/{id}/analysis/by-model  # Get analysis by model ✅ NEW
 ```
 
 #### Multi-Model Analysis
@@ -130,9 +191,10 @@ GET  /api/multi-model/comparisons/{id}    # Comparison results
 GET  /api/analysis/patterns               # Detected patterns
 GET  /api/analysis/insights/{repo_id}     # AI insights
 POST /api/analysis/evolution              # Code evolution tracking
+GET  /api/analysis/models/available       # Available models with sizes ✅ ENHANCED
 ```
 
-## Frontend Status: ✅ MODERN REACT WITH WORKING LOCAL MODELS
+## Frontend Status: ✅ MODERN REACT WITH WORKING MODEL INTEGRATION
 
 ### Current Technology Stack
 
@@ -184,7 +246,10 @@ POST /api/analysis/evolution              # Code evolution tracking
 
 ### ✅ Completed Frontend Features
 
-1. **Model Integration**: Local Ollama models (CodeLlama 7B/13B, CodeGemma 7B) working
+1. **Model Integration**: Enhanced multi-model support with backend-provided Ollama sizes ✅
+   - Local Ollama models (CodeLlama 7B/13B, CodeGemma 7B) working
+   - Backend size service integration with local fallback
+   - Real-time model availability detection
 2. **Component System**: Radix UI primitives with custom styling
 3. **Type Safety**: Comprehensive TypeScript with strict type checking
 4. **State Management**: TanStack Query for server state synchronization
@@ -353,13 +418,15 @@ User Action → Component → Hook → API Client → Backend
 
 ### Immediate Next Steps
 
-1.  **✅ Complete Enterprise-Grade README Documentation**
+1.  **✅ Enhanced Repository Tabs Styling** (Just Completed)
 
-- ✅ Updated README to enterprise/production level standards
-- ✅ Added comprehensive feature documentation based on frontend analysis
-- ✅ Enhanced configuration sections with detailed setup instructions
-- ✅ Added detailed development workflow and component architecture documentation
-- ✅ Fixed markdown linting issues for professional presentation
+- ✅ Applied CTAN brand CSS classes to `MARepositoryTabs.tsx` component
+- ✅ Added `ctan-tab`, `ctan-button`, `ctan-card`, and `ctan-icon` classes for consistent styling
+- ✅ Enhanced repository buttons with brand styling including active states and hover effects
+- ✅ Applied icon glow animations and card hover effects from brand design system
+- ✅ Integrated yellow/gold accent colors throughout tabs interface
+
+**Next: Test enhanced repository tabs in production to validate brand styling integration**
 
 2.  **🔄 Database Migration to MongoDB** (High Priority):
 
@@ -511,6 +578,11 @@ pnpm dev                       # Development server (port 5173)
 - Background analysis, status, and cancel flows are now type-safe and consistent with backend contracts.
 - AIService now includes a utility to select the correct OpenAI token parameter (`max_completion_tokens` for new models, `max_tokens` for legacy models) with robust error handling and logging. All relevant calls to the multi-model service in `analyze_code_pattern` and `analyze_code_quality` now use this utility, ensuring compatibility with both old and new OpenAI models.
 
+Session additions:
+
+- Backend: Added enhanced analysis bundle retrieval and per-model listing/fetch endpoints.
+- Frontend: Added API client methods for models and by-model fetch; created a reusable `ModelSelector` and integrated it into `MAResultsSection` header. The selector fetches repository models and allows an override to reflect context; deeper section wiring is planned.
+
 ## Immediate Next Steps
 
 - Test backend analysis with both legacy and new OpenAI models to confirm the token parameter fix works as intended.
@@ -518,6 +590,15 @@ pnpm dev                       # Development server (port 5173)
 - If successful, propagate the utility to any other OpenAI call sites as needed.
 - Test the dashboard/timeline to confirm that real commit dates are now reflected in all graphs and events (timeline/graph accuracy fix).
 - If any timeline/graph still uses today's date, further audit frontend or API serialization for date propagation issues.
+
+  Update 2025-09-13: Fixed `PatternTimeline` rendering issue where legend labels displayed but no lines were drawn. Root cause was a mismatch between requested pattern display names (with spaces) and data keys (snake_case). Added robust series mapping (display name -> dataKey) and strengthened date parsing/formatting. Also introduced strict types (`NormalizedItem`, `ChartDatum`) and improved logging.
+
 - Verify background analysis and status/cancel flows in integration testing.
 - Add/expand automated tests for error and edge cases in background task and analysis flows.
 - Continue monitoring logs for runtime errors or contract mismatches.
+
+Next steps (selector integration):
+
+- Pass model-specific pattern/quality data down to `AnalysisDashboard` sections (PatternHeatmap, CodeQualityDashboard) when an override is selected.
+- Add hooks: `useRepositoryModels` and `useRepositoryAnalysisByModel` with TanStack Query for caching and reuse.
+- Document new endpoints: `/api/repositories/{id}/analyses/models` and `/api/repositories/{id}/analysis/by-model` in README.

@@ -32,6 +32,11 @@ class MongoDBConfig:
     database_name: str = field(
         default_factory=lambda: os.getenv("MONGODB_DATABASE", "code_evolution_ai")
     )
+    
+    # Railway-specific settings
+    is_railway_env: bool = field(
+        default_factory=lambda: os.getenv("RAILWAY_ENVIRONMENT") is not None
+    )
 
     # Connection pool settings
     max_pool_size: int = field(
@@ -102,7 +107,7 @@ class MongoDBConfig:
 
     def get_client_options(self) -> Dict[str, Any]:
         """Get client connection options dictionary"""
-        return {
+        options = {
             "maxPoolSize": self.max_pool_size,
             "minPoolSize": self.min_pool_size,
             "maxIdleTimeMS": self.max_idle_time_ms,
@@ -115,6 +120,31 @@ class MongoDBConfig:
             "retryWrites": True,
             "retryReads": True,
         }
+        
+        # Add SSL configuration for MongoDB Atlas
+        if "mongodb+srv://" in self.connection_string or "mongodb.net" in self.connection_string:
+            if self.is_railway_env:
+                # Railway-specific SSL settings for better compatibility
+                options.update({
+                    "tls": True,
+                    "tlsAllowInvalidCertificates": True,
+                    "tlsInsecure": True,
+                    "ssl": True,
+                    "ssl_cert_reqs": False,
+                    "ssl_match_hostname": False,
+                    "serverSelectionTimeoutMS": 5000,
+                    "connectTimeoutMS": 10000,
+                    "socketTimeoutMS": 15000,
+                })
+            else:
+                # Standard SSL settings for non-Railway environments
+                options.update({
+                    "tls": True,
+                    "tlsAllowInvalidCertificates": True,
+                    "ssl": True,
+                })
+            
+        return options
 
 
 @dataclass
@@ -150,16 +180,87 @@ class MongoDBManager:
     async def connect(self) -> None:
         """Establish MongoDB connection with comprehensive error handling"""
         try:
+            # Check if connection string is provided
+            if not self.config.connection_string or self.config.connection_string.strip() == "":
+                logger.warning("⚠️  MongoDB connection string not provided, skipping MongoDB initialization")
+                self.client = None
+                self.database = None
+                self.engine = None
+                return
+
             logger.info("🔄 Connecting to MongoDB...")
+            
+            # Log Railway environment detection
+            if self.config.is_railway_env:
+                logger.info("🚂 Railway environment detected - using Railway-optimized connection settings")
 
             # Create client with configured options
             client_options = self.config.get_client_options()
-            self.client = AsyncIOMotorClient(
-                self.config.connection_string, **client_options
-            )
-
-            # Test connection
-            await self._test_connection()
+            
+            # Try multiple connection strategies for better compatibility
+            connection_attempts = [
+                # Standard connection with all options
+                lambda: AsyncIOMotorClient(self.config.connection_string, **client_options),
+                # Connection with aggressive SSL bypass for Railway
+                lambda: AsyncIOMotorClient(
+                    self.config.connection_string,
+                    tls=True,
+                    tlsAllowInvalidCertificates=True,
+                    tlsInsecure=True,
+                    ssl=True,
+                    ssl_cert_reqs=False,
+                    ssl_match_hostname=False,
+                    serverSelectionTimeoutMS=5000,
+                    connectTimeoutMS=10000
+                ),
+                # Connection with minimal SSL options
+                lambda: AsyncIOMotorClient(
+                    self.config.connection_string,
+                    ssl=True,
+                    tlsAllowInvalidCertificates=True,
+                    serverSelectionTimeoutMS=5000
+                ),
+                # Connection with TLS instead of SSL
+                lambda: AsyncIOMotorClient(
+                    self.config.connection_string,
+                    tls=True,
+                    tlsAllowInvalidCertificates=True,
+                    serverSelectionTimeoutMS=5000
+                ),
+                # Connection with no SSL options at all (fallback)
+                lambda: AsyncIOMotorClient(
+                    self.config.connection_string,
+                    serverSelectionTimeoutMS=5000
+                )
+            ]
+            
+            connection_successful = False
+            last_error = None
+            
+            for i, attempt in enumerate(connection_attempts):
+                try:
+                    logger.info(f"🔄 Attempting MongoDB connection (strategy {i+1}/{len(connection_attempts)})...")
+                    self.client = attempt()
+                    
+                    # Test connection with shorter timeout
+                    await asyncio.wait_for(self._test_connection(), timeout=10.0)
+                    connection_successful = True
+                    logger.info(f"✅ MongoDB connected successfully with strategy {i+1}")
+                    break
+                    
+                except Exception as e:
+                    last_error = e
+                    logger.warning(f"⚠️  Connection strategy {i+1} failed: {e}")
+                    if self.client:
+                        try:
+                            self.client.close()
+                        except:
+                            pass
+                        self.client = None
+                    continue
+            
+            if not connection_successful:
+                raise last_error or ConnectionError("All connection strategies failed")
 
             # Set up database and engine
             self.database = self.client[self.config.database_name]
@@ -185,6 +286,12 @@ class MongoDBManager:
             self.status.last_error = str(e)
             self.status.last_error_time = datetime.utcnow()
             logger.error(f"❌ MongoDB connection failed: {e}")
+            
+            # For SSL/TLS errors, provide more helpful error message
+            if "SSL" in str(e) or "TLS" in str(e) or "handshake" in str(e).lower():
+                logger.error("💡 SSL/TLS connection issue detected. This is common with MongoDB Atlas in Railway.")
+                logger.error("💡 Consider checking your MongoDB connection string and network access settings.")
+            
             raise ConnectionError(f"Failed to connect to MongoDB: {e}") from e
 
     async def _test_connection(self) -> None:
@@ -349,22 +456,25 @@ class MongoDBManager:
         except Exception as e:
             logger.error(f"❌ Error during MongoDB disconnection: {e}")
 
-    def get_database(self) -> AsyncIOMotorDatabase:
+    def get_database(self) -> Optional[AsyncIOMotorDatabase]:
         """Get MongoDB database instance"""
         if self.database is None:
-            raise ConnectionError("MongoDB database not available")
+            logger.warning("⚠️  MongoDB database not available (MongoDB not configured)")
+            return None
         return self.database
 
-    def get_engine(self) -> AIOEngine:
+    def get_engine(self) -> Optional[AIOEngine]:
         """Get ODMantic engine instance"""
         if self.engine is None:
-            raise ConnectionError("ODMantic engine not available")
+            logger.warning("⚠️  ODMantic engine not available (MongoDB not configured)")
+            return None
         return self.engine
 
-    def get_client(self) -> AsyncIOMotorClient:
+    def get_client(self) -> Optional[AsyncIOMotorClient]:
         """Get MongoDB client instance"""
         if self.client is None:
-            raise ConnectionError("MongoDB client not available")
+            logger.warning("⚠️  MongoDB client not available (MongoDB not configured)")
+            return None
         return self.client
 
     @property

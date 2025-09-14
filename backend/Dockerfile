@@ -19,8 +19,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Ensure wait script is executable
-RUN chmod +x /app/wait_for_services.sh
+# Create directories for ChromaDB and ensure proper permissions
+RUN mkdir -p /tmp/chroma_db && \
+    chmod 755 /tmp/chroma_db
+
+# Ensure scripts are executable
+RUN chmod +x /app/wait_for_services.sh /app/docker-entrypoint.sh
+
+# Set Railway environment variable for ChromaDB detection (can be overridden)
+ENV RAILWAY_ENVIRONMENT=1
 
 # Expose port used by the FastAPI app (default 8080, can be overridden by $PORT)
 EXPOSE 8080
@@ -30,5 +37,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD sh -c 'curl -fsS http://127.0.0.1:${PORT:-8080}/health || exit 1'
 
 # Default command: wait for dependencies then start uvicorn (respect $PORT and enable proxy headers)
-ENTRYPOINT ["/app/wait_for_services.sh"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --proxy-headers"]

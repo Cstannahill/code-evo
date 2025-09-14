@@ -26,15 +26,32 @@ class EnhancedCORSMiddleware:
                 "http://localhost:3001",
                 "http://localhost:5173",  # Vite default
                 "http://127.0.0.1:3000",
+                "http://127.0.0.1:3001",
                 "http://127.0.0.1:5173",
+                "https://localhost:3000",
+                "https://localhost:3001",
+                "https://localhost:5173",
+                "https://127.0.0.1:3000",
+                "https://127.0.0.1:3001",
+                "https://127.0.0.1:5173",
             ]
 
         app.add_middleware(
             CORSMiddleware,
             allow_origins=origins,
             allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+            allow_headers=[
+                "Accept",
+                "Accept-Language",
+                "Content-Language",
+                "Content-Type",
+                "Authorization",
+                "X-Requested-With",
+                "Origin",
+                "Access-Control-Request-Method",
+                "Access-Control-Request-Headers",
+            ],
             expose_headers=["*"],
         )
         logger.info(f"✅ CORS configured for frontend connections: {origins}")

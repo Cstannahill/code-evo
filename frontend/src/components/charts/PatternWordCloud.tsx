@@ -18,11 +18,13 @@ export const PatternWordCloud: React.FC<PatternWordCloudProps> = ({
   width = 600,
 }) => {
   const [processedPatterns, setProcessedPatterns] = useState<Word[]>([]);
-  const [useReactWordCloud, setUseReactWordCloud] = useState(true);
 
   // Process and validate the data
   useEffect(() => {
+    console.log("PatternWordCloud: Received patterns:", patterns);
+    
     if (!Array.isArray(patterns) || patterns.length === 0) {
+      console.log("PatternWordCloud: No patterns or empty array");
       setProcessedPatterns([]);
       return;
     }
@@ -36,6 +38,7 @@ export const PatternWordCloud: React.FC<PatternWordCloudProps> = ({
       .sort((a, b) => b.value - a.value) // Sort by frequency
       .slice(0, 50); // Limit to top 50 patterns
 
+    console.log("PatternWordCloud: Processed patterns:", processed);
     setProcessedPatterns(processed);
   }, [patterns]);
 
@@ -97,64 +100,8 @@ export const PatternWordCloud: React.FC<PatternWordCloudProps> = ({
     );
   };
 
-  // Try to use react-wordcloud, fall back to custom implementation
-  if (useReactWordCloud && processedPatterns.length > 0) {
-    try {
-      // Dynamic import to avoid build issues
-      const ReactWordCloud = React.lazy(() => import("react-wordcloud"));
-
-      return (
-        <div
-          style={{ width, height }}
-          className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden"
-        >
-          <React.Suspense
-            fallback={<CustomWordCloud words={processedPatterns} />}
-          >
-            <ErrorBoundary
-              fallback={<CustomWordCloud words={processedPatterns} />}
-              onError={() => setUseReactWordCloud(false)}
-            >
-              <ReactWordCloud
-                words={processedPatterns}
-                options={{
-                  rotations: 2,
-                  rotationAngles: [-45, 0] as [number, number],
-                  fontSizes: [14, 64] as [number, number],
-                  fontFamily: "Inter, system-ui, sans-serif",
-                  fontWeight: "600",
-                  padding: 4,
-                  spiral: "archimedean" as const,
-                  scale: "sqrt" as const,
-                  transitionDuration: 1000,
-                  colors: [
-                    "#3B82F6",
-                    "#8B5CF6",
-                    "#10B981",
-                    "#F59E0B",
-                    "#EF4444",
-                    "#06B6D4",
-                    "#EC4899",
-                    "#84CC16",
-                  ],
-                }}
-                callbacks={{
-                  onWordClick: (word: Word) => {
-                    console.log(
-                      `Clicked pattern: ${word.text} (${word.value} occurrences)`
-                    );
-                  },
-                }}
-              />
-            </ErrorBoundary>
-          </React.Suspense>
-        </div>
-      );
-    } catch (error) {
-      console.error("Failed to load react-wordcloud:", error);
-      setUseReactWordCloud(false);
-    }
-  }
+  // Use custom implementation only - react-wordcloud is causing crashes
+  // The custom implementation is more reliable and provides better control
 
   // Use custom implementation
   return (
@@ -167,34 +114,3 @@ export const PatternWordCloud: React.FC<PatternWordCloudProps> = ({
   );
 };
 
-// Simple error boundary component
-class ErrorBoundary extends React.Component<
-  {
-    children: React.ReactNode;
-    fallback: React.ReactNode;
-    onError?: () => void;
-  },
-  { hasError: boolean }
-> {
-  constructor(props: any) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(_: Error) {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("WordCloud Error:", error, errorInfo);
-    this.props.onError?.();
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback;
-    }
-
-    return this.props.children;
-  }
-}

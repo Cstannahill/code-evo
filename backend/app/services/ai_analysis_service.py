@@ -3,7 +3,7 @@
 MongoDB AI Analysis Service for Code Evolution Tracker
 
 This service provides comprehensive AI analysis management using MongoDB.
-It handles AI model management, analysis sessions, multi-model comparisons,
+It handles AI model management, analysis sessions, and single model analysis,
 and performance tracking with comprehensive error handling and optimization.
 """
 
@@ -20,12 +20,12 @@ from app.models.repository import (
     AnalysisSession,
     AIModel,
     AIAnalysisResult,
-    ModelComparison,
+    # ModelComparison removed - using single model analysis only
     ModelBenchmark,
     Repository,
     get_available_ai_models,
     get_analysis_sessions_by_repository,
-    get_model_comparisons_by_repository,
+    # get_model_comparisons_by_repository removed - using single model analysis only
 )
 
 logger = logging.getLogger(__name__)
@@ -34,22 +34,27 @@ logger = logging.getLogger(__name__)
 class AIAnalysisService:
     """
     Comprehensive AI analysis service providing AI model management,
-    analysis session tracking, and multi-model comparison capabilities.
+    analysis session tracking, and single model analysis capabilities.
     """
 
     def __init__(self):
         """Initialize AI analysis service with enhanced database manager"""
-        self.db_manager = get_enhanced_database_manager()
-        self.engine = self.db_manager.engine
-        self.cache = self.db_manager.cache
+        try:
+            self.db_manager = get_enhanced_database_manager()
+            self.engine = self.db_manager.engine
+            self.cache = self.db_manager.cache
+            logger.info("AIAnalysisService initialized with enhanced MongoDB backend")
+        except Exception as e:
+            logger.warning(f"⚠️  AIAnalysisService initialized without MongoDB: {e}")
+            self.db_manager = None
+            self.engine = None
+            self.cache = None
 
         # Service metrics
         self._operation_count = 0
         self._error_count = 0
         self._total_analysis_time = 0.0
         self._total_token_usage = 0
-
-        logger.info("AIAnalysisService initialized with enhanced MongoDB backend")
 
     async def register_ai_model(
         self,
@@ -305,53 +310,7 @@ class AIAnalysisService:
             logger.error(f"❌ Failed to record AI analysis result: {e}")
             raise
 
-    async def compare_models(
-        self,
-        repository_id: str,
-        models: List[str],
-        analysis_data: Dict[str, Any],
-        analysis_type: str = "comparison",
-    ) -> ModelComparison:
-        """
-        Compare multiple AI models on the same analysis task
-
-        Args:
-            repository_id: Repository ID
-            models: List of model names to compare
-            analysis_data: Analysis results data
-            analysis_type: Type of comparison
-
-        Returns:
-            ModelComparison: Created model comparison
-        """
-        try:
-            self._operation_count += 1
-
-            # Create model comparison
-            comparison = ModelComparison(
-                repository_id=ObjectId(repository_id),
-                models_compared=models,
-                analysis_type=analysis_type,
-                consensus_patterns=analysis_data.get("consensus_patterns", []),
-                disputed_patterns=analysis_data.get("disputed_patterns"),
-                agreement_score=analysis_data.get("agreement_score"),
-                diversity_score=analysis_data.get("diversity_score"),
-                consistency_score=analysis_data.get("consistency_score"),
-                performance_metrics=analysis_data.get("performance_metrics"),
-                configuration=analysis_data.get("configuration", {}),
-            )
-
-            saved_comparison = await self.engine.save(comparison)
-
-            logger.info(
-                f"✅ Created model comparison for {len(models)} models on repository {repository_id}"
-            )
-            return saved_comparison
-
-        except Exception as e:
-            self._error_count += 1
-            logger.error(f"❌ Failed to create model comparison: {e}")
-            raise
+    # compare_models method removed - using single model analysis only
 
     async def get_model_performance_stats(
         self, model_name: Optional[str] = None, days_back: int = 30
@@ -739,6 +698,26 @@ class AIAnalysisService:
     async def get_service_health(self) -> Dict[str, Any]:
         """Get AI analysis service health metrics"""
         try:
+            # Check if MongoDB is available
+            if self.db_manager is None or self.engine is None:
+                return {
+                    "status": "unavailable",
+                    "error": "MongoDB not initialized",
+                    "metrics": {
+                        "total_operations": self._operation_count,
+                        "total_errors": self._error_count,
+                        "error_rate_percent": round(
+                            (self._error_count / max(self._operation_count, 1)) * 100, 2
+                        ),
+                        "total_analysis_time": round(self._total_analysis_time, 2),
+                        "total_token_usage": self._total_token_usage,
+                        "total_models": 0,
+                        "total_sessions": 0,
+                        "total_results": 0,
+                    },
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+
             # Check database connectivity
             db_health = await self.db_manager.health_check()
 
@@ -751,7 +730,12 @@ class AIAnalysisService:
             result_count = await self.engine.count(AIAnalysisResult)
 
             return {
-                "status": "healthy" if db_health.get("is_connected", False) and db_health.get("ping_success", False) else "degraded",
+                "status": (
+                    "healthy"
+                    if db_health.get("is_connected", False)
+                    and db_health.get("ping_success", False)
+                    else "degraded"
+                ),
                 "database": db_health,
                 "metrics": {
                     "total_operations": self._operation_count,
@@ -773,31 +757,233 @@ class AIAnalysisService:
                 "error": str(e),
                 "timestamp": datetime.utcnow().isoformat(),
             }
-    
-    async def get_repository_enhanced_analysis(self, repository_id: str) -> Optional[Dict[str, Any]]:
+
+    async def get_repository_enhanced_analysis(
+        self, repository_id: str
+    ) -> Optional[Dict[str, Any]]:
         """Get enhanced analysis results for a repository if available"""
         try:
             self._operation_count += 1
-            
-            # For now, return None since enhanced analysis collection doesn't exist yet
-            # In future implementations, this would query MongoDB for:
-            # - Security analysis results
-            # - Performance analysis results  
-            # - Architectural analysis results
-            # - Ensemble metadata
-            # - Incremental analysis metadata
-            
-            logger.info(f"Enhanced analysis requested for repository {repository_id}")
-            return None
-            
+            from app.models.repository import (
+                SecurityAnalysis,
+                PerformanceAnalysis,
+                ArchitecturalAnalysis,
+                EnhancedPatternAnalysis,
+                EnhancedQualityAnalysis,
+                EnsembleAnalysisResult,
+                IncrementalAnalysisSnapshot,
+            )
+
+            repo_oid = ObjectId(repository_id)
+
+            # Fetch the most recent records per analysis type
+            security = await self.engine.find_one(
+                SecurityAnalysis,
+                SecurityAnalysis.repository_id == repo_oid,
+                sort=SecurityAnalysis.created_at.desc(),
+            )
+            performance = await self.engine.find_one(
+                PerformanceAnalysis,
+                PerformanceAnalysis.repository_id == repo_oid,
+                sort=PerformanceAnalysis.created_at.desc(),
+            )
+            architecture = await self.engine.find_one(
+                ArchitecturalAnalysis,
+                ArchitecturalAnalysis.repository_id == repo_oid,
+                sort=ArchitecturalAnalysis.created_at.desc(),
+            )
+            pattern = await self.engine.find_one(
+                EnhancedPatternAnalysis,
+                EnhancedPatternAnalysis.repository_id == repo_oid,
+                sort=EnhancedPatternAnalysis.created_at.desc(),
+            )
+            quality = await self.engine.find_one(
+                EnhancedQualityAnalysis,
+                EnhancedQualityAnalysis.repository_id == repo_oid,
+                sort=EnhancedQualityAnalysis.created_at.desc(),
+            )
+            ensemble = await self.engine.find(
+                EnsembleAnalysisResult,
+                EnsembleAnalysisResult.repository_id == repo_oid,
+                limit=5,
+                sort=EnsembleAnalysisResult.created_at.desc(),
+            )
+            # Optional: last incremental snapshot
+            snapshot = await self.engine.find_one(
+                IncrementalAnalysisSnapshot,
+                IncrementalAnalysisSnapshot.repository_id == repo_oid,
+                sort=IncrementalAnalysisSnapshot.created_at.desc(),
+            )
+
+            result: Dict[str, Any] = {
+                "security_analysis": security.dict() if security else None,
+                "performance_analysis": performance.dict() if performance else None,
+                "architectural_analysis": architecture.dict() if architecture else None,
+                "pattern_analysis": pattern.dict() if pattern else None,
+                "quality_analysis": quality.dict() if quality else None,
+                "ensemble_metadata": [e.dict() for e in ensemble] if ensemble else [],
+                "incremental_analysis": snapshot.dict() if snapshot else None,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+
+            logger.info(
+                f"Enhanced analysis fetched for repository {repository_id} (keys: "
+                f"{', '.join([k for k,v in result.items() if v])})"
+            )
+            return result
+
         except Exception as e:
-            logger.error(f"Failed to get enhanced analysis for repository {repository_id}: {e}")
+            logger.error(
+                f"Failed to get enhanced analysis for repository {repository_id}: {e}"
+            )
             self._error_count += 1
             return None
+
+    async def list_repository_models(self, repository_id: str) -> Dict[str, Any]:
+        """List available analyses grouped by model for a repository"""
+        try:
+            self._operation_count += 1
+            from app.models.repository import (
+                EnhancedPatternAnalysis,
+                EnhancedQualityAnalysis,
+                PatternOccurrence,
+            )
+
+            repo_oid = ObjectId(repository_id)
+
+            patterns = await self.engine.find(
+                EnhancedPatternAnalysis,
+                EnhancedPatternAnalysis.repository_id == repo_oid,
+            )
+            qualities = await self.engine.find(
+                EnhancedQualityAnalysis,
+                EnhancedQualityAnalysis.repository_id == repo_oid,
+            )
+            occurrences = await self.engine.find(
+                PatternOccurrence,
+                PatternOccurrence.repository_id == repo_oid,
+            )
+
+            models: Dict[str, Dict[str, Any]] = {}
+            # Aggregate pattern analyses by model_used
+            for p in patterns:
+                model = p.model_used or "unknown"
+                entry = models.setdefault(
+                    model,
+                    {
+                        "model": model,
+                        "types": set(),
+                        "count": 0,
+                        "latest": None,
+                    },
+                )
+                entry["types"].add("pattern")
+                entry["count"] += 1
+                if not entry["latest"] or p.created_at > entry["latest"]:
+                    entry["latest"] = p.created_at
+
+            # Aggregate quality analyses by model_used
+            for q in qualities:
+                model = q.model_used or "unknown"
+                entry = models.setdefault(
+                    model,
+                    {
+                        "model": model,
+                        "types": set(),
+                        "count": 0,
+                        "latest": None,
+                    },
+                )
+                entry["types"].add("quality")
+                entry["count"] += 1
+                if not entry["latest"] or q.created_at > entry["latest"]:
+                    entry["latest"] = q.created_at
+
+            # Include models from raw pattern occurrences as a fallback
+            for occ in occurrences:
+                if getattr(occ, "ai_model_used", None):
+                    model = occ.ai_model_used
+                    entry = models.setdefault(
+                        model,
+                        {
+                            "model": model,
+                            "types": set(),
+                            "count": 0,
+                            "latest": None,
+                        },
+                    )
+                    entry["types"].add("occurrence")
+                    entry["count"] += 1
+                    if not entry["latest"] or occ.detected_at > entry["latest"]:
+                        entry["latest"] = occ.detected_at
+
+            # Normalize sets and datetimes
+            normalized = [
+                {
+                    "model": m,
+                    "analysis_types": sorted(list(v["types"])),
+                    "count": v["count"],
+                    "latest": (v["latest"].isoformat() if v["latest"] else None),
+                }
+                for m, v in models.items()
+            ]
+
+            # Sort by latest desc
+            normalized.sort(key=lambda x: x["latest"] or "", reverse=True)
+
+            return {
+                "repository_id": repository_id,
+                "models": normalized,
+                "total_models": len(normalized),
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        except Exception as e:
+            self._error_count += 1
+            logger.error(f"Failed to list repository models for {repository_id}: {e}")
+            return {"repository_id": repository_id, "models": [], "error": str(e)}
+
+    async def get_repository_analysis_by_model(
+        self, repository_id: str, model: str
+    ) -> Dict[str, Any]:
+        """Get latest enhanced analyses for a repository filtered by model identifier"""
+        try:
+            self._operation_count += 1
+            from app.models.repository import (
+                EnhancedPatternAnalysis,
+                EnhancedQualityAnalysis,
+            )
+
+            repo_oid = ObjectId(repository_id)
+
+            pattern = await self.engine.find_one(
+                EnhancedPatternAnalysis,
+                (EnhancedPatternAnalysis.repository_id == repo_oid)
+                & (EnhancedPatternAnalysis.model_used == model),
+                sort=EnhancedPatternAnalysis.created_at.desc(),
+            )
+            quality = await self.engine.find_one(
+                EnhancedQualityAnalysis,
+                (EnhancedQualityAnalysis.repository_id == repo_oid)
+                & (EnhancedQualityAnalysis.model_used == model),
+                sort=EnhancedQualityAnalysis.created_at.desc(),
+            )
+
+            return {
+                "repository_id": repository_id,
+                "model": model,
+                "pattern_analysis": pattern.dict() if pattern else None,
+                "quality_analysis": quality.dict() if quality else None,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        except Exception as e:
+            self._error_count += 1
+            logger.error(f"Failed to get analysis by model for {repository_id}: {e}")
+            return {"repository_id": repository_id, "model": model, "error": str(e)}
 
 
 # Convenience function for getting service instance
 async def get_ai_analysis_service() -> AIAnalysisService:
     """Get AI analysis service instance"""
     from app.core.service_manager import get_ai_analysis_service as get_singleton
+
     return get_singleton()

@@ -28,7 +28,6 @@ export function useLogger(
   const baseContext = useMemo(
     () => ({
       component: componentName,
-      renderCount: renderCountRef.current,
       ...(componentProps && { props: componentProps }),
     }),
     [componentName, componentProps]

@@ -1,4 +1,5 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext } from "react";
+import { apiClient } from "../api/client";
 
 interface User {
   id: string;
@@ -43,7 +44,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
@@ -54,7 +55,7 @@ export const useAuthProvider = (): AuthContextType => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('auth_token');
+    const savedToken = localStorage.getItem("auth_token");
     if (savedToken) {
       setToken(savedToken);
       loadUserInfo(savedToken);
@@ -65,23 +66,11 @@ export const useAuthProvider = (): AuthContextType => {
 
   const loadUserInfo = async (authToken: string) => {
     try {
-      const response = await fetch('/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
-      });
-
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-      } else {
-        // Token might be invalid
-        localStorage.removeItem('auth_token');
-        setToken(null);
-      }
+      const userData = await apiClient.getCurrentUser();
+      setUser(userData);
     } catch (error) {
-      console.error('Failed to load user info:', error);
-      localStorage.removeItem('auth_token');
+      console.error("Failed to load user info:", error);
+      localStorage.removeItem("auth_token");
       setToken(null);
     } finally {
       setLoading(false);
@@ -89,59 +78,25 @@ export const useAuthProvider = (): AuthContextType => {
   };
 
   const login = async (username: string, password: string) => {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ username, password })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Login failed');
-    }
-
-    const tokenData: AuthToken = await response.json();
+    const tokenData: AuthToken = await apiClient.login({ username, password });
     setToken(tokenData.access_token);
-    localStorage.setItem('auth_token', tokenData.access_token);
-    
+    localStorage.setItem("auth_token", tokenData.access_token);
+
     // Load full user info
     await loadUserInfo(tokenData.access_token);
   };
 
   const register = async (data: RegisterData) => {
-    const response = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Registration failed');
-    }
-
+    await apiClient.register(data);
     // Auto-login after registration
     await login(data.username, data.password);
   };
 
   const loginAsGuest = async () => {
-    const response = await fetch('/api/auth/guest', {
-      method: 'POST'
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Guest login failed');
-    }
-
-    const tokenData: AuthToken = await response.json();
+    const tokenData: AuthToken = await apiClient.createGuestSession();
     setToken(tokenData.access_token);
-    localStorage.setItem('auth_token', tokenData.access_token);
-    
+    localStorage.setItem("auth_token", tokenData.access_token);
+
     // Load guest user info
     await loadUserInfo(tokenData.access_token);
   };
@@ -149,7 +104,7 @@ export const useAuthProvider = (): AuthContextType => {
   const logout = () => {
     setUser(null);
     setToken(null);
-    localStorage.removeItem('auth_token');
+    localStorage.removeItem("auth_token");
   };
 
   return {
@@ -161,7 +116,7 @@ export const useAuthProvider = (): AuthContextType => {
     login,
     register,
     loginAsGuest,
-    logout
+    logout,
   };
 };
 
