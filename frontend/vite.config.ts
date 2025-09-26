@@ -20,7 +20,9 @@ export default defineConfig({
     port: 3001,
     proxy: {
       "/api": {
-        target: "http://localhost:8080",
+        // Use environment variable when available during dev; otherwise
+        // default to local backend running on port 8080.
+        target: process.env.VITE_API_BASE_URL || "http://localhost:8080",
         changeOrigin: true,
       },
     },
