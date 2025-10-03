@@ -43,6 +43,17 @@
 
 **Status**: ✅ Ready for production deployment
 
+**🎯 Single Source of Truth Fix (October 3, 2025)**:
+
+- **Problem Found**: User saw OLD GPT-4 models in dropdown (GPT-4o, GPT-4o Mini) instead of new GPT-5 series
+- **Root Cause**: Frontend fallback array (`frontend/src/types/ai.ts`) still had old "gpt-4" and "claude-3.7-sonnet" models
+- **Impact**: When API unavailable/failed, frontend showed outdated GPT-4 models from fallback data
+- **Solution**: Updated `defaultModels` array to exactly match backend API (gpt-5, gpt-5-mini, gpt-5-nano, claude-sonnet-4.5, claude-opus-4)
+- **Result**: Backend and frontend now synchronized - single source of truth established
+- **Documentation**: Created `docs/SINGLE_SOURCE_OF_TRUTH.md` with architecture principles
+
+**Deployment Required**: Backend + Frontend must both be deployed for users to see GPT-5 models in production
+
 ### Model Display Fix - Always Show All Models (2025-10-03) ✅ FIXED
 
 **Issue**: No models displayed in production even after adding API keys

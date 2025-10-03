@@ -44,32 +44,79 @@ const defaultModels: AIModel[] = [
     created_at: new Date().toISOString(),
     usage_count: 0,
   },
+  // GPT-5 Series (Updated October 2025)
   {
-    id: "gpt-4-001",
-    name: "gpt-4",
-    display_name: "GPT-4",
+    id: "gpt-5-001",
+    name: "gpt-5",
+    display_name: "GPT-5",
     provider: "OpenAI",
     model_type: "general",
-    context_window: 128000,
-    cost_per_1k_tokens: 0.03, // Assuming cost is per 1k input tokens or a blended rate
+    context_window: 400000,
+    cost_per_1k_tokens: 0.00125,
     strengths: [
-      "Exceptional reasoning",
-      "Detailed explanations",
-      "Latest patterns",
+      "Advanced reasoning",
+      "Code analysis",
+      "Vision",
+      "Agentic workflows",
     ],
     is_available: false, // Will be set based on API key
     created_at: new Date().toISOString(),
     usage_count: 0,
   },
   {
-    id: "claude-3.7-sonnet-001",
-    name: "claude-3.7-sonnet", // Example name, adjust if different
-    display_name: "Claude 3.7 Sonnet",
+    id: "gpt-5-mini-001",
+    name: "gpt-5-mini",
+    display_name: "GPT-5 Mini",
+    provider: "OpenAI",
+    model_type: "general",
+    context_window: 400000,
+    cost_per_1k_tokens: 0.00025,
+    strengths: ["Code", "Fast", "Efficient", "Cost-effective"],
+    is_available: false, // Will be set based on API key
+    created_at: new Date().toISOString(),
+    usage_count: 0,
+  },
+  {
+    id: "gpt-5-nano-001",
+    name: "gpt-5-nano",
+    display_name: "GPT-5 Nano",
+    provider: "OpenAI",
+    model_type: "general",
+    context_window: 400000,
+    cost_per_1k_tokens: 0.00005,
+    strengths: ["Fast", "Lightweight", "Classification", "Summarization"],
+    is_available: false, // Will be set based on API key
+    created_at: new Date().toISOString(),
+    usage_count: 0,
+  },
+  // Claude 4 Series (Updated October 2025)
+  {
+    id: "claude-sonnet-4.5-001",
+    name: "claude-sonnet-4.5",
+    display_name: "Claude Sonnet 4.5",
     provider: "Anthropic",
     model_type: "general",
     context_window: 200000,
-    cost_per_1k_tokens: 0.015, // Example cost, $0.003/1K input, $0.015/1K output for Sonnet
-    strengths: ["Code quality focus", "Security analysis", "Best practices"],
+    cost_per_1k_tokens: 0.003,
+    strengths: [
+      "Code quality",
+      "Security analysis",
+      "Best practices",
+      "Long context",
+    ],
+    is_available: false, // Will be set based on API key
+    created_at: new Date().toISOString(),
+    usage_count: 0,
+  },
+  {
+    id: "claude-opus-4-001",
+    name: "claude-opus-4",
+    display_name: "Claude Opus 4",
+    provider: "Anthropic",
+    model_type: "general",
+    context_window: 200000,
+    cost_per_1k_tokens: 0.015,
+    strengths: ["Advanced reasoning", "Complex tasks", "Code", "Research"],
     is_available: false, // Will be set based on API key
     created_at: new Date().toISOString(),
     usage_count: 0,
