@@ -1,6 +1,6 @@
 # Code Evolution Tracker - Current Project Status and Project Context
 
-**Last Updated**: 2025-09-13
+**Last Updated**: 2025-10-03
 
 ## CURRENT STATE OVERVIEW
 
@@ -573,6 +573,8 @@ pnpm dev                       # Development server (port 5173)
 
 ## Overall State
 
+- `.gitignore` now explicitly un-ignores `backend/app/utils/token_logger.py` so Railway builds include the token logging utility, preventing `ModuleNotFoundError` during deployment.
+- MongoDB connection layer now supports configurable TLS flags (`MONGODB_TLS`, `MONGODB_TLS_ALLOW_INVALID_CERTIFICATES`, `MONGODB_TLS_CA_FILE`, `MONGODB_APP_NAME`) so Railway deployments can negotiate SSL handshakes without code changes.
 - All Pylance errors in `backend/app/api/analysis.py` and `backend/app/tasks/analysis_tasks.py` related to service method usage, type safety, and parameter passing have been resolved.
 - API and background task layers now use correct service and model utility functions, with explicit type conversions and robust error handling.
 - Background analysis, status, and cancel flows are now type-safe and consistent with backend contracts.
@@ -585,6 +587,8 @@ Session additions:
 
 ## Immediate Next Steps
 
+- Stage and commit `backend/app/utils/token_logger.py` (now unignored) and redeploy so the backend includes the token logging module in production builds.
+- Update Railway (and any other hosted environments) to set `MONGODB_TLS=true` and, if using self-signed certs, `MONGODB_TLS_ALLOW_INVALID_CERTIFICATES=true` or provide `MONGODB_TLS_CA_FILE`, then redeploy to verify MongoDB health check passes.
 - Test backend analysis with both legacy and new OpenAI models to confirm the token parameter fix works as intended.
 - Monitor logs for any parameter-related errors or unexpected behavior.
 - If successful, propagate the utility to any other OpenAI call sites as needed.

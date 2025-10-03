@@ -36,3 +36,4 @@ backend/chroma_db/
 *password*
 credentials/
 secrets/
+!backend/app/utils/token_logger.py
