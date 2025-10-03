@@ -575,6 +575,7 @@ pnpm dev                       # Development server (port 5173)
 
 - `.gitignore` now explicitly un-ignores `backend/app/utils/token_logger.py` so Railway builds include the token logging utility, preventing `ModuleNotFoundError` during deployment.
 - MongoDB connection layer now actively consumes TLS-related environment variables (`MONGODB_TLS`, `MONGODB_TLS_ALLOW_INVALID_CERTIFICATES`, `MONGODB_TLS_CA_FILE`, `MONGODB_TLS_DISABLE_OCSP`, `MONGODB_APP_NAME`) and feeds them into the Motor client, adding validation for CA bundle presence and rich diagnostic logging on connection failures.
+- PyMongo/Motor client configuration now receives server selection, connect, and socket timeout settings (plus pool sizing) from env configuration, eliminating the premature asyncio cancellation and ensuring full `ServerSelectionTimeoutError` diagnostics reach the logs. Sanitized connection URIs and node topology snapshots are emitted whenever a connection attempt fails.
 - All Pylance errors in `backend/app/api/analysis.py` and `backend/app/tasks/analysis_tasks.py` related to service method usage, type safety, and parameter passing have been resolved.
 - API and background task layers now use correct service and model utility functions, with explicit type conversions and robust error handling.
 - Background analysis, status, and cancel flows are now type-safe and consistent with backend contracts.
@@ -588,7 +589,7 @@ Session additions:
 ## Immediate Next Steps
 
 - Stage and commit `backend/app/utils/token_logger.py` (now unignored) and redeploy so the backend includes the token logging module in production builds.
-- Update Railway (and any other hosted environments) to set `MONGODB_TLS=true` and, if using self-signed certs, `MONGODB_TLS_ALLOW_INVALID_CERTIFICATES=true` or provide `MONGODB_TLS_CA_FILE`, then redeploy to verify MongoDB health check passes. After redeploy, review the enhanced MongoDB connection logs to capture detailed failure diagnostics if the handshake continues to fail.
+- Update Railway (and any other hosted environments) to set `MONGODB_TLS=true` and, if using self-signed certs, `MONGODB_TLS_ALLOW_INVALID_CERTIFICATES=true` or provide `MONGODB_TLS_CA_FILE`, then redeploy to verify MongoDB health check passes. After redeploy, review the enhanced MongoDB connection logs to capture detailed failure diagnostics if the handshake continues to fail. The logs now print sanitized Mongo URIs, all applied client options, and any server-selection details reported by PyMongo to speed up Atlas troubleshooting.
 - Test backend analysis with both legacy and new OpenAI models to confirm the token parameter fix works as intended.
 - Monitor logs for any parameter-related errors or unexpected behavior.
 - If successful, propagate the utility to any other OpenAI call sites as needed.

@@ -161,6 +161,15 @@ class MongoDBConfig:
         if self.app_name:
             options["appname"] = self.app_name
 
+        # Propagate timeout and pool configuration to the Motor client so that
+        # pymongo surfaces detailed server selection errors instead of silent cancellations.
+        options["serverSelectionTimeoutMS"] = self.server_selection_timeout_ms
+        options["connectTimeoutMS"] = self.connect_timeout_ms
+        options["socketTimeoutMS"] = self.socket_timeout_ms
+        options["maxPoolSize"] = self.max_pool_size
+        options["minPoolSize"] = self.min_pool_size
+        options["maxIdleTimeMS"] = self.max_idle_time_ms
+
         return options
 
 
@@ -211,6 +220,10 @@ class MongoDBManager:
                 return
 
             logger.info("🔄 Connecting to MongoDB...")
+            sanitized_uri = self._sanitize_connection_string(
+                self.config.connection_string
+            )
+            logger.info("🔗 MongoDB URI (sanitized): %s", sanitized_uri)
 
             # Log Railway environment detection
             if self.config.is_railway_env:
@@ -245,8 +258,9 @@ class MongoDBManager:
                     )
                     self.client = attempt()
 
-                    # Test connection with shorter timeout
-                    await asyncio.wait_for(self._test_connection(), timeout=10.0)
+                    # Test connection; rely on PyMongo timeouts so any
+                    # ServerSelectionTimeoutError surfaces with diagnostic details.
+                    await self._test_connection()
                     connection_successful = True
                     logger.info(
                         f"✅ MongoDB connected successfully with strategy {i+1}"
@@ -302,6 +316,16 @@ class MongoDBManager:
                 details = getattr(e, "details", None)
                 if details:
                     logger.error("❌ Server selection details: %s", details)
+                if self.client:
+                    try:
+                        logger.error(
+                            "❌ Known MongoDB nodes at failure: %s", self.client.nodes
+                        )
+                    except Exception as node_err:  # pragma: no cover - diagnostic aid
+                        logger.debug(
+                            "ℹ️ Unable to read MongoDB nodes during failure: %s",
+                            node_err,
+                        )
 
             # For SSL/TLS errors, provide more helpful error message
             if "SSL" in str(e) or "TLS" in str(e) or "handshake" in str(e).lower():
@@ -503,6 +527,19 @@ class MongoDBManager:
         from .database import get_cache
 
         return get_cache()
+
+    @staticmethod
+    def _sanitize_connection_string(uri: str) -> str:
+        """Hide credentials in MongoDB connection URI for safe logging."""
+        if not uri or "://" not in uri:
+            return uri
+
+        scheme, rest = uri.split("://", 1)
+        if "@" not in rest:
+            return uri
+
+        _, host_part = rest.split("@", 1)
+        return f"{scheme}://<credentials-hidden>@{host_part}"
 
 
 # Global MongoDB manager instance
