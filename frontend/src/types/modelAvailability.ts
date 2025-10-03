@@ -29,6 +29,8 @@ export interface ModelAvailabilityInfo {
   size_gb?: number;
   /** Indicates if this model requires an API key to use (for display purposes). */
   requires_api_key?: boolean;
+  /** Indicates if this model has temperature locked to default (GPT-5 series). */
+  temperature_locked?: boolean;
 }
 
 /**

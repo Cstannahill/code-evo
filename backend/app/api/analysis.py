@@ -184,36 +184,40 @@ async def get_available_models(
                 logger.warning(f"Failed to fetch Ollama models: {e}")
 
         # ALWAYS add OpenAI models (show even without API key)
+        # GPT-5 series models: DO NOT include temperature parameter (must use default of 1)
         openai_models = {
-            "gpt-4o": {
-                "name": "gpt-4o",
-                "display_name": "GPT-4o",
+            "gpt-5": {
+                "name": "gpt-5",
+                "display_name": "GPT-5",
                 "provider": "openai",
                 "available": openai_models_available,
-                "context_window": 128000,
-                "cost_per_1k_tokens": 0.005,
-                "strengths": ["reasoning", "code", "analysis", "vision", "multimodal"],
+                "context_window": 400000,
+                "cost_per_1k_tokens": 0.00125,  # $1.25 per 1M tokens input, $10 per 1M output (using input price)
+                "strengths": ["reasoning", "code", "analysis", "vision", "agentic"],
                 "requires_api_key": not openai_models_available,
+                "temperature_locked": True,  # GPT-5 models require temperature=1 (default)
             },
-            "gpt-4o-mini": {
-                "name": "gpt-4o-mini",
-                "display_name": "GPT-4o Mini",
+            "gpt-5-mini": {
+                "name": "gpt-5-mini",
+                "display_name": "GPT-5 Mini",
                 "provider": "openai",
                 "available": openai_models_available,
-                "context_window": 128000,
-                "cost_per_1k_tokens": 0.00015,
-                "strengths": ["code", "general", "fast", "efficient"],
+                "context_window": 400000,
+                "cost_per_1k_tokens": 0.00025,  # $0.25 per 1M tokens input, $2 per 1M output
+                "strengths": ["code", "fast", "efficient", "cost-effective"],
                 "requires_api_key": not openai_models_available,
+                "temperature_locked": True,  # GPT-5 models require temperature=1 (default)
             },
-            "gpt-4-turbo": {
-                "name": "gpt-4-turbo",
-                "display_name": "GPT-4 Turbo",
+            "gpt-5-nano": {
+                "name": "gpt-5-nano",
+                "display_name": "GPT-5 Nano",
                 "provider": "openai",
                 "available": openai_models_available,
-                "context_window": 128000,
-                "cost_per_1k_tokens": 0.01,
-                "strengths": ["reasoning", "code", "analysis", "comprehensive"],
+                "context_window": 400000,
+                "cost_per_1k_tokens": 0.00005,  # $0.05 per 1M tokens input, $0.40 per 1M output
+                "strengths": ["fast", "lightweight", "classification", "summarization"],
                 "requires_api_key": not openai_models_available,
+                "temperature_locked": True,  # GPT-5 models require temperature=1 (default)
             },
         }
         available_models.update(openai_models)

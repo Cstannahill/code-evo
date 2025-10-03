@@ -92,8 +92,7 @@ export const ModelSelect: React.FC<{
                                     <Select.Item
                                         key={model.id}
                                         value={model.id}
-                                        className="relative flex items-center px-6 py-2 text-sm rounded select-none hover:bg-ctan-dark-hover hover:text-accent-foreground focus:bg-ctan-dark-hover focus:text-accent-foreground cursor-pointer data-[disabled]:opacity-50 data-[disabled]:pointer-events-none transition-all duration-200"
-                                        disabled={!model.is_available}
+                                        className="relative flex items-center px-6 py-2 text-sm rounded select-none hover:bg-ctan-dark-hover hover:text-accent-foreground focus:bg-ctan-dark-hover focus:text-accent-foreground cursor-pointer transition-all duration-200"
                                     >
                                         <Select.ItemText>
                                             <div className="flex items-center justify-between w-full">
@@ -109,8 +108,8 @@ export const ModelSelect: React.FC<{
                                                     })()}
                                                 </span>
                                                 {!model.is_available && (
-                                                    <span className="text-xs ml-2">
-                                                        (Not Available)
+                                                    <span className="text-xs ml-2 text-amber-500">
+                                                        🔒 Not Running
                                                     </span>
                                                 )}
                                             </div>
@@ -134,12 +133,18 @@ export const ModelSelect: React.FC<{
                                     <Select.Item
                                         key={model.id}
                                         value={model.id}
-                                        className="relative flex items-center px-6 py-2 text-sm rounded select-none hover:bg-ctan-dark-hover hover:text-accent-foreground focus:bg-ctan-dark-hover focus:text-accent-foreground cursor-pointer data-[disabled]:opacity-50 data-[disabled]:pointer-events-none transition-all duration-200"
-                                        disabled={!model.is_available}
+                                        className="relative flex items-center px-6 py-2 text-sm rounded select-none hover:bg-ctan-dark-hover hover:text-accent-foreground focus:bg-ctan-dark-hover focus:text-accent-foreground cursor-pointer transition-all duration-200"
                                     >
                                         <Select.ItemText>
                                             <div className="flex items-center justify-between w-full">
-                                                <span>{model.display_name}</span>
+                                                <span>
+                                                    {model.display_name}
+                                                    {!model.is_available && (
+                                                        <span className="ml-2 text-xs text-amber-500 font-medium">
+                                                            🔒 Requires Key
+                                                        </span>
+                                                    )}
+                                                </span>
                                                 <span className="text-xs text-ctan-amber">
                                                     ${formatCloudPrice(model.cost_per_1k_tokens)}/1k
                                                 </span>

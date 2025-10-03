@@ -10,6 +10,39 @@
 
 ## Recent Updates ✅
 
+### GPT-5 Model Update + Dropdown Fix (2025-10-03) ✅ COMPLETE
+
+**What Changed**: Updated OpenAI models to GPT-5 series and fixed dropdown selection issue
+
+**GPT-5 Model Series**:
+
+- **GPT-5** ($0.00125/1k) - Flagship model with 400K context, advanced reasoning
+- **GPT-5 Mini** ($0.00025/1k) - Balanced performance and cost
+- **GPT-5 Nano** ($0.00005/1k) - Ultra-fast, cost-effective (99.5% cheaper than GPT-4 Turbo)
+
+**Critical Temperature Restriction**:
+
+- All GPT-5 models require `temperature=1` (default)
+- **DO NOT** include temperature parameter in API calls
+- Marked with `temperature_locked: true` flag in backend
+- Sending custom temperature values returns 400 Bad Request
+
+**Dropdown Selection Fixed**:
+
+- **Before**: Unavailable models were disabled (greyed out, unclickable)
+- **After**: All models selectable, availability checked before analysis
+- Error message: "🔒 GPT-5 requires an API key. Please add your OpenAI API key in Settings"
+
+**Files Modified**:
+
+- `backend/app/api/analysis.py` - GPT-5 models with temperature_locked flag
+- `frontend/src/components/ai/ModelSelect.tsx` - Removed disabled state
+- `frontend/src/components/features/MultiAnalysisDashboard.tsx` - Added availability check
+- `frontend/src/types/modelAvailability.ts` - Added temperature_locked field
+- `docs/GPT5_MODEL_UPDATE.md`, `docs/DROPDOWN_SELECT_ISSUE.md` - Comprehensive documentation
+
+**Status**: ✅ Ready for production deployment
+
 ### Model Display Fix - Always Show All Models (2025-10-03) ✅ FIXED
 
 **Issue**: No models displayed in production even after adding API keys
@@ -35,9 +68,16 @@
 
 **Model List** (Always Displayed):
 
-- **OpenAI**: GPT-4o ($0.005/1k), GPT-4o Mini ($0.00015/1k), GPT-4 Turbo ($0.01/1k)
+- **OpenAI**: GPT-5 ($0.00125/1k), GPT-5 Mini ($0.00025/1k), GPT-5 Nano ($0.00005/1k)
 - **Anthropic**: Claude Sonnet 4.5 ($0.003/1k), Claude Opus 4 ($0.015/1k)
 - **Ollama**: Dynamic based on local installation (Free)
+
+**GPT-5 Series Temperature Restriction**:
+
+- All GPT-5 models (GPT-5, GPT-5 Mini, GPT-5 Nano) require `temperature=1` (default)
+- DO NOT include temperature parameter in API calls to GPT-5 models
+- Backend marks these with `temperature_locked: true` flag
+- Sending custom temperature values will result in 400 Bad Request errors
 
 **User Experience**:
 

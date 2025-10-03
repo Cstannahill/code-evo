@@ -76,9 +76,21 @@ export const MultiAnalysisDashboard: React.FC = () => {
       return;
     }
 
+    // Check if selected model is available
+    const selectedModel = availableModels.find((m) => m.id === selectedModelId);
+    if (!selectedModel?.is_available) {
+      const providerName = selectedModel?.provider === 'openai' ? 'OpenAI' :
+        selectedModel?.provider === 'anthropic' ? 'Anthropic' :
+          selectedModel?.provider || 'provider';
+      toast.error(
+        `🔒 ${selectedModel?.display_name || 'This model'} requires an API key. Please add your ${providerName} API key in Settings → API Keys to unlock this model.`,
+        { duration: 6000 }
+      );
+      return;
+    }
+
     setAnalysisStarted(true); // Immediately show analyzing state
     try {
-      const selectedModel = availableModels.find((m) => m.id === selectedModelId);
       const modelName = selectedModel?.name;
 
       console.log("🤖 Selected Model ID:", selectedModelId);

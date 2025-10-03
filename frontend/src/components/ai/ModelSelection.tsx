@@ -385,13 +385,13 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
             • <strong>CodeLlama</strong> excels at code understanding
           </li>
           <li>
-            • <strong>GPT-4.1 models</strong> offer 1M token context with major coding improvements
+            • <strong>GPT-5</strong> is the flagship model with advanced reasoning and vision
           </li>
           <li>
-            • <strong>O-series models</strong> are optimized for reasoning and math
+            • <strong>GPT-5 Mini</strong> offers excellent balance of speed and capability
           </li>
           <li>
-            • <strong>GPT-4o Mini</strong> provides excellent cost-efficiency
+            • <strong>GPT-5 Nano</strong> provides ultra-fast, cost-effective analysis
           </li>
           <li>
             • <strong>Claude</strong> focuses on code quality and best practices
