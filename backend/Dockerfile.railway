@@ -10,12 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     netcat-openbsd \
     curl \
     git \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies (use Railway-optimized requirements)
 COPY backend/requirements.railway.txt ./requirements.txt
-COPY backend/rds-combined-ca-bundle.pem /app/certs/rds-combined-ca-bundle.pem
-ENV SSL_CERT_FILE=/app/certs/rds-combined-ca-bundle.pem
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code from backend directory
