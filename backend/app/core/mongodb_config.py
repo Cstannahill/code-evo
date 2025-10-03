@@ -10,11 +10,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from pymongo.errors import (
-    ConnectionFailure,
-    ServerSelectionTimeoutError,
-    ConfigurationError,
-)
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from odmantic import AIOEngine
 import asyncio
 from pathlib import Path
@@ -85,6 +81,27 @@ class MongoDBConfig:
         == "true"
     )
 
+    # TLS/SSL configuration
+    tls_enabled: bool = field(
+        default_factory=lambda: os.getenv("MONGODB_TLS", "false").lower() == "true"
+    )
+    tls_allow_invalid_certificates: bool = field(
+        default_factory=lambda: os.getenv(
+            "MONGODB_TLS_ALLOW_INVALID_CERTIFICATES", "false"
+        ).lower()
+        == "true"
+    )
+    tls_ca_file: Optional[str] = field(
+        default_factory=lambda: os.getenv("MONGODB_TLS_CA_FILE")
+    )
+    tls_disable_ocsp_endpoint_check: bool = field(
+        default_factory=lambda: os.getenv("MONGODB_TLS_DISABLE_OCSP", "false").lower()
+        in {"1", "true", "yes"}
+    )
+    app_name: Optional[str] = field(
+        default_factory=lambda: os.getenv("MONGODB_APP_NAME")
+    )
+
     def __post_init__(self) -> None:
         """Validate configuration after initialization"""
         self.validate()
@@ -106,12 +123,45 @@ class MongoDBConfig:
         if self.connect_timeout_ms <= 0:
             errors.append("connect_timeout_ms must be positive")
 
+        if (
+            self.tls_enabled
+            and self.tls_allow_invalid_certificates
+            and self.tls_ca_file
+        ):
+            errors.append(
+                "tls_allow_invalid_certificates should not be combined with tls_ca_file; remove one of the settings"
+            )
+
+        if self.tls_enabled and self.tls_ca_file:
+            ca_path = Path(self.tls_ca_file)
+            if not ca_path.is_file():
+                errors.append(
+                    f"TLS CA file not found at '{self.tls_ca_file}'. Ensure the certificate bundle is present before starting the service."
+                )
+
         if errors:
             raise ValueError(f"MongoDB configuration errors: {'; '.join(errors)}")
 
     def get_client_options(self) -> Dict[str, Any]:
-        """For local simplicity, rely solely on the URI; pass no extra kwargs."""
-        return {}
+        """Compile optional PyMongo client keyword arguments based on configuration."""
+        options: Dict[str, Any] = {}
+
+        if self.tls_enabled:
+            options["tls"] = True
+
+        if self.tls_allow_invalid_certificates:
+            options["tlsAllowInvalidCertificates"] = True
+
+        if self.tls_ca_file:
+            options["tlsCAFile"] = self.tls_ca_file
+
+        if self.tls_disable_ocsp_endpoint_check:
+            options["tlsDisableOCSPEndpointCheck"] = True
+
+        if self.app_name:
+            options["appname"] = self.app_name
+
+        return options
 
 
 @dataclass
@@ -170,10 +220,18 @@ class MongoDBManager:
 
             # Create client with configured options
             client_options = self.config.get_client_options()
+            if client_options:
+                sanitized_options = {
+                    key: ("<hidden>" if "password" in key.lower() else value)
+                    for key, value in client_options.items()
+                }
+                logger.info("🔐 Applying MongoDB client options: %s", sanitized_options)
 
             # Standard single attempt using only the connection string.
-            def create_client():
-                return AsyncIOMotorClient(self.config.connection_string)
+            def create_client() -> AsyncIOMotorClient:
+                return AsyncIOMotorClient(
+                    self.config.connection_string, **client_options
+                )
 
             connection_attempts = [create_client]
 
@@ -234,9 +292,16 @@ class MongoDBManager:
 
         except Exception as e:
             self.status.error_count += 1
-            self.status.last_error = str(e)
+            self.status.last_error = repr(e)
             self.status.last_error_time = datetime.utcnow()
-            logger.error(f"❌ MongoDB connection failed: {e}")
+            logger.exception("❌ MongoDB connection failed: %s", e)
+
+            if isinstance(e, ServerSelectionTimeoutError):
+                if getattr(e, "args", None):
+                    logger.error("❌ Server selection args: %s", e.args)
+                details = getattr(e, "details", None)
+                if details:
+                    logger.error("❌ Server selection details: %s", details)
 
             # For SSL/TLS errors, provide more helpful error message
             if "SSL" in str(e) or "TLS" in str(e) or "handshake" in str(e).lower():
