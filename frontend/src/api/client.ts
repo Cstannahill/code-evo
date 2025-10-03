@@ -154,6 +154,41 @@ export class ApiClient {
     return response.json();
   }
 
+  async getGlobalRepositories(
+    params: {
+      limit?: number;
+      offset?: number;
+      tag?: string;
+      language?: string;
+    } = {}
+  ): Promise<unknown> {
+    const { limit = 50, offset = 0, tag, language } = params;
+    const searchParams = new URLSearchParams({
+      limit: String(limit),
+      offset: String(offset),
+    });
+
+    if (tag) {
+      searchParams.append("tag", tag);
+    }
+
+    if (language) {
+      searchParams.append("language", language);
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/api/repositories/global?${searchParams.toString()}`
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch global repositories: ${response.statusText}`
+      );
+    }
+
+    return response.json();
+  }
+
   async getUserRepositories() {
     const response = await this.authenticatedFetch(
       `${this.baseUrl}/api/repositories/user/my-repositories`
@@ -227,6 +262,22 @@ export class ApiClient {
         `Failed to fetch repository analysis: ${response.statusText}`
       );
     }
+    return response.json();
+  }
+
+  async getRepositoryInsights(repositoryId: string): Promise<unknown> {
+    const response = await fetch(
+      `${this.baseUrl}/api/analysis/insights/${encodeURIComponent(
+        repositoryId
+      )}`
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch repository insights: ${response.statusText}`
+      );
+    }
+
     return response.json();
   }
 

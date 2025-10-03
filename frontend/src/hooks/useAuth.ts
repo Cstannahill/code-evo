@@ -58,13 +58,13 @@ export const useAuthProvider = (): AuthContextType => {
     const savedToken = localStorage.getItem("auth_token");
     if (savedToken) {
       setToken(savedToken);
-      loadUserInfo(savedToken);
+      loadUserInfo();
     } else {
       setLoading(false);
     }
   }, []);
 
-  const loadUserInfo = async (authToken: string) => {
+  const loadUserInfo = async (): Promise<void> => {
     try {
       const userData = await apiClient.getCurrentUser();
       setUser(userData);
@@ -83,7 +83,7 @@ export const useAuthProvider = (): AuthContextType => {
     localStorage.setItem("auth_token", tokenData.access_token);
 
     // Load full user info
-    await loadUserInfo(tokenData.access_token);
+    await loadUserInfo();
   };
 
   const register = async (data: RegisterData) => {
@@ -98,7 +98,7 @@ export const useAuthProvider = (): AuthContextType => {
     localStorage.setItem("auth_token", tokenData.access_token);
 
     // Load guest user info
-    await loadUserInfo(tokenData.access_token);
+    await loadUserInfo();
   };
 
   const logout = () => {
