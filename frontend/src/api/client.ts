@@ -480,6 +480,71 @@ export class ApiClient {
 
     return response.json();
   }
+
+  // Tunnel Management
+  async getTunnelStatus() {
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/tunnel/status`
+    );
+
+    if (response.status === 404) {
+      return null; // No active tunnel
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch tunnel status: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async registerTunnel(tunnelUrl: string) {
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/tunnel/register`,
+      {
+        method: "POST",
+        body: JSON.stringify({ tunnel_url: tunnelUrl }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response
+        .json()
+        .catch(() => ({ detail: "Failed to register tunnel" }));
+      throw new Error(errorData.detail || "Failed to register tunnel");
+    }
+
+    return response.json();
+  }
+
+  async disableTunnel() {
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/tunnel/disable`,
+      {
+        method: "POST",
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to disable tunnel: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getTunnelRecentRequests(limit: number = 50) {
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/tunnel/requests/recent?limit=${limit}`
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch recent requests: ${response.statusText}`
+      );
+    }
+
+    return response.json();
+  }
 }
 
 // Export singleton instance

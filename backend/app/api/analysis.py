@@ -115,7 +115,11 @@ async def get_ai_status():
 async def get_available_models(
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Get available AI models for frontend dropdown"""
+    """
+    Get ALL AI models for frontend dropdown.
+    Returns all models with 'available' flag indicating if they can be used.
+    Models without API keys are shown but marked as unavailable.
+    """
     logger.info("Available models requested")
 
     try:
@@ -126,10 +130,21 @@ async def get_available_models(
 
         status = ai_service.get_status()
 
+        # Check if OpenAI key is available (global or user-specific)
         openai_models_available = status.get("openai_models_available", False)
         if not openai_models_available and current_user is not None:
             user_has_openai_key = await user_has_provider_key(current_user, "openai")
             openai_models_available = openai_models_available or user_has_openai_key
+
+        # Check if Anthropic key is available (global or user-specific)
+        anthropic_models_available = status.get("anthropic_available", False)
+        if not anthropic_models_available and current_user is not None:
+            user_has_anthropic_key = await user_has_provider_key(
+                current_user, "anthropic"
+            )
+            anthropic_models_available = (
+                anthropic_models_available or user_has_anthropic_key
+            )
 
         # Get Ollama model sizes from backend service
         from app.services.ollama_size_service import get_ollama_size_service
@@ -139,7 +154,7 @@ async def get_available_models(
         # Build available models response
         available_models = {}
 
-        # Add Ollama models
+        # Add Ollama models (if running)
         if status.get("ollama_available", False):
             try:
                 import requests
@@ -168,44 +183,78 @@ async def get_available_models(
             except Exception as e:
                 logger.warning(f"Failed to fetch Ollama models: {e}")
 
-        # Add OpenAI models if available
-        if openai_models_available:
-            openai_models = {
-                "gpt-5": {
-                    "name": "gpt-5",
-                    "display_name": "GPT-5",
-                    "provider": "openai",
-                    "available": True,
-                    "context_window": 128000,
-                    "cost_per_1k_tokens": 0.015,
-                    "strengths": ["reasoning", "code", "analysis", "advanced"],
-                },
-                "gpt-5-mini": {
-                    "name": "gpt-5-mini",
-                    "display_name": "GPT-5 Mini",
-                    "provider": "openai",
-                    "available": True,
-                    "context_window": 128000,
-                    "cost_per_1k_tokens": 0.00015,
-                    "strengths": ["code", "general", "fast", "efficient"],
-                },
-                "gpt-5-nano": {
-                    "name": "gpt-5-nano",
-                    "display_name": "GPT-5 Nano",
-                    "provider": "openai",
-                    "available": True,
-                    "context_window": 128000,
-                    "cost_per_1k_tokens": 0.0001,
-                    "strengths": ["code", "general", "ultra-fast", "cost-effective"],
-                },
-            }
-            available_models.update(openai_models)
+        # ALWAYS add OpenAI models (show even without API key)
+        openai_models = {
+            "gpt-4o": {
+                "name": "gpt-4o",
+                "display_name": "GPT-4o",
+                "provider": "openai",
+                "available": openai_models_available,
+                "context_window": 128000,
+                "cost_per_1k_tokens": 0.005,
+                "strengths": ["reasoning", "code", "analysis", "vision", "multimodal"],
+                "requires_api_key": not openai_models_available,
+            },
+            "gpt-4o-mini": {
+                "name": "gpt-4o-mini",
+                "display_name": "GPT-4o Mini",
+                "provider": "openai",
+                "available": openai_models_available,
+                "context_window": 128000,
+                "cost_per_1k_tokens": 0.00015,
+                "strengths": ["code", "general", "fast", "efficient"],
+                "requires_api_key": not openai_models_available,
+            },
+            "gpt-4-turbo": {
+                "name": "gpt-4-turbo",
+                "display_name": "GPT-4 Turbo",
+                "provider": "openai",
+                "available": openai_models_available,
+                "context_window": 128000,
+                "cost_per_1k_tokens": 0.01,
+                "strengths": ["reasoning", "code", "analysis", "comprehensive"],
+                "requires_api_key": not openai_models_available,
+            },
+        }
+        available_models.update(openai_models)
+
+        # ALWAYS add Anthropic models (show even without API key)
+        # Updated to use Claude Sonnet 4.5 (latest, same cost as 3.5)
+        anthropic_models = {
+            "claude-sonnet-4.5": {
+                "name": "claude-sonnet-4.5",
+                "display_name": "Claude Sonnet 4.5",
+                "provider": "anthropic",
+                "available": anthropic_models_available,
+                "context_window": 200000,
+                "cost_per_1k_tokens": 0.003,
+                "strengths": ["reasoning", "code", "analysis", "long-context"],
+                "requires_api_key": not anthropic_models_available,
+            },
+            "claude-opus-4": {
+                "name": "claude-opus-4",
+                "display_name": "Claude Opus 4",
+                "provider": "anthropic",
+                "available": anthropic_models_available,
+                "context_window": 200000,
+                "cost_per_1k_tokens": 0.015,
+                "strengths": [
+                    "advanced-reasoning",
+                    "complex-tasks",
+                    "code",
+                    "research",
+                ],
+                "requires_api_key": not anthropic_models_available,
+            },
+        }
+        available_models.update(anthropic_models)
 
         return {
             "available_models": available_models,
             "total_count": len(available_models),
             "ollama_available": status.get("ollama_available", False),
             "openai_available": openai_models_available,
+            "anthropic_available": anthropic_models_available,
             "timestamp": status.get("timestamp", ""),
         }
 

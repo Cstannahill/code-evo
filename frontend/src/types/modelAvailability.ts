@@ -27,6 +27,8 @@ export interface ModelAvailabilityInfo {
   is_free?: boolean;
   /** Optional local size information in gigabytes (Ollama). */
   size_gb?: number;
+  /** Indicates if this model requires an API key to use (for display purposes). */
+  requires_api_key?: boolean;
 }
 
 /**
@@ -46,6 +48,8 @@ export interface ModelAvailabilityResponse {
   ollama_available: boolean;
   /** Indicates whether OpenAI models are currently unlockable. */
   openai_available: boolean;
+  /** Indicates whether Anthropic models are currently unlockable. */
+  anthropic_available?: boolean;
   /** Timestamp associated with the AI service status snapshot. */
   timestamp: string;
   /** Optional error message when availability resolution fails. */

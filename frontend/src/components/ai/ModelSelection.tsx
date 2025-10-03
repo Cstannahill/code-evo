@@ -141,20 +141,23 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
     model,
   }) => {
     const isSelected = selectedModels.includes(modelName);
-    const canSelect = isSelected || selectedModels.length < maxModels;
+    const canSelect = model.available && (isSelected || selectedModels.length < maxModels);
     const stats = modelStats[modelName];
+    const requiresApiKey = model.requires_api_key || false;
 
     return (
       <motion.div
         whileHover={{ scale: canSelect ? 1.02 : 1 }}
         whileTap={{ scale: canSelect ? 0.98 : 1 }}
         className={`
-          relative p-4 rounded-lg border-2 cursor-pointer bg-card transition-all
+          relative p-4 rounded-lg border-2 transition-all
           ${isSelected
-            ? `${getProviderColor(model.provider)} border-opacity-100`
-            : "border-gray-700 bg-gray-800 hover:border-gray-600"
+            ? `${getProviderColor(model.provider)} border-opacity-100 cursor-pointer`
+            : !model.available
+              ? "border-gray-700 bg-gray-800/50 opacity-60"
+              : "border-gray-700 bg-gray-800 hover:border-gray-600 cursor-pointer"
           }
-          ${!canSelect && !isSelected ? "opacity-50 cursor-not-allowed" : ""}
+          ${!canSelect && !isSelected ? "cursor-not-allowed" : ""}
         `}
         onClick={() => canSelect && onModelToggle(modelName)}
       >
@@ -177,6 +180,11 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
               {model.display_name}
             </h3>
             <p className="text-sm text-gray-400">{model.provider}</p>
+            {requiresApiKey && (
+              <p className="text-xs text-red-400 mt-1">
+                ⚠️ Requires API Key
+              </p>
+            )}
           </div>
         </div>
 

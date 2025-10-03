@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { apiClient } from "../api/client";
 import type { TunnelConnection, TunnelRequest } from "../types/tunnel";
 
 export interface UseTunnelManagerOptions {
@@ -39,23 +40,9 @@ export function useTunnelManager(
   // Fetch tunnel status
   const refreshStatus = useCallback(async () => {
     try {
-      const response = await fetch("/api/tunnel/status", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const data: TunnelConnection = await response.json();
-        setConnection(data);
-        setError(null);
-      } else if (response.status === 404) {
-        // No active tunnel - valid state
-        setConnection(null);
-      } else {
-        throw new Error("Failed to fetch tunnel status");
-      }
+      const data = await apiClient.getTunnelStatus();
+      setConnection(data);
+      setError(null);
     } catch (err: unknown) {
       // Don't set error for "no active connection" - it's a valid state
       if (err instanceof Error && !err.message.includes("No active tunnel")) {
@@ -69,17 +56,8 @@ export function useTunnelManager(
   // Fetch recent requests
   const refreshRecentRequests = useCallback(async () => {
     try {
-      const response = await fetch("/api/tunnel/requests/recent?limit=50", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const data: TunnelRequest[] = await response.json();
-        setRecentRequests(data);
-      }
+      const data = await apiClient.getTunnelRecentRequests(50);
+      setRecentRequests(data);
     } catch (err: unknown) {
       // Silently fail - not critical
       console.warn("Failed to fetch recent tunnel requests:", err);
@@ -93,23 +71,7 @@ export function useTunnelManager(
       setError(null);
 
       try {
-        const response = await fetch("/api/tunnel/register", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ tunnel_url: tunnelUrl }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response
-            .json()
-            .catch(() => ({ detail: "Failed to register tunnel" }));
-          throw new Error(errorData.detail || "Failed to register tunnel");
-        }
-
-        const data: TunnelConnection = await response.json();
+        const data = await apiClient.registerTunnel(tunnelUrl);
         setConnection(data);
         await refreshRecentRequests(); // Refresh history after registration
         return true;
@@ -131,18 +93,7 @@ export function useTunnelManager(
     setError(null);
 
     try {
-      const response = await fetch("/api/tunnel/disable", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to disable tunnel");
-      }
-
+      await apiClient.disableTunnel();
       setConnection(null);
       setRecentRequests([]);
       return true;

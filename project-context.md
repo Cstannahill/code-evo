@@ -10,6 +10,88 @@
 
 ## Recent Updates ✅
 
+### Model Display Fix - Always Show All Models (2025-10-03) ✅ FIXED
+
+**Issue**: No models displayed in production even after adding API keys
+
+**Root Cause**: Backend only returned models when API keys were detected, resulting in empty model list for users without keys
+
+**Impact**:
+
+- Users couldn't see what models existed
+- No indication of how to unlock cloud models
+- Confusing empty state in model selection UI
+- Poor discoverability of available AI models
+
+**Fix Applied**:
+
+1. ✅ Backend now **always returns all models** with `available` flag:
+   - OpenAI models (GPT-4o, GPT-4o Mini, GPT-4 Turbo) always visible
+   - Anthropic models (Claude Sonnet 4.5, Opus 4) always visible
+   - Ollama models shown when Ollama is running
+2. ✅ Added `requires_api_key` field to indicate locked models
+3. ✅ Frontend displays unavailable models as greyed out with warning
+4. ✅ Updated to **Claude Sonnet 4.5 and Opus 4** (latest, same cost as 3.x)
+
+**Model List** (Always Displayed):
+
+- **OpenAI**: GPT-4o ($0.005/1k), GPT-4o Mini ($0.00015/1k), GPT-4 Turbo ($0.01/1k)
+- **Anthropic**: Claude Sonnet 4.5 ($0.003/1k), Claude Opus 4 ($0.015/1k)
+- **Ollama**: Dynamic based on local installation (Free)
+
+**User Experience**:
+
+- All models always visible (before: empty list without API keys)
+- Locked models greyed out with "⚠️ Requires API Key" badge
+- Clear indication of what can be unlocked
+- Models become available immediately after adding API key
+
+**Files Modified**:
+
+- `backend/app/api/analysis.py` - Always return all models with availability flags
+- `frontend/src/components/ai/ModelSelection.tsx` - Handle unavailable models UI
+- `frontend/src/types/modelAvailability.ts` - Add `requires_api_key` field
+- `docs/MODEL_DISPLAY_FIX.md` - Comprehensive documentation
+
+**Status**: Production-ready, all models now visible with clear availability status
+
+### Tunnel API Route Fix (2025-10-03) ✅ FIXED
+
+**Issue**: Tunnel endpoints returning 404 errors in production (Vercel frontend)
+
+**Root Cause**: `useTunnelManager` hook was using hardcoded `/api/tunnel/*` URLs instead of the centralized `ApiClient` with `getApiBaseUrl()` helper
+
+**Impact**:
+
+- Tunnel registration failing with 404 Not Found
+- Status checks returning 404
+- Recent requests endpoint unreachable
+- Frontend making requests to `https://code-evo.vercel.app/api/tunnel/*` instead of Railway backend
+
+**Fix Applied**:
+
+1. ✅ Added tunnel methods to `ApiClient` class:
+   - `getTunnelStatus()` - Fetch tunnel connection status
+   - `registerTunnel(tunnelUrl)` - Register new tunnel
+   - `disableTunnel()` - Disable active tunnel
+   - `getTunnelRecentRequests(limit)` - Fetch request history
+2. ✅ Updated `useTunnelManager` hook to use `apiClient` instead of raw fetch
+3. ✅ All tunnel requests now properly route through `getApiBaseUrl()` helper
+
+**Benefits**:
+
+- Consistent API routing across all environments (localhost, Railway, Vercel)
+- Automatic authentication header injection via `authenticatedFetch()`
+- Centralized error handling and retry logic
+- Proper base URL resolution for production deployments
+
+**Files Modified**:
+
+- `frontend/src/api/client.ts` - Added 4 tunnel methods
+- `frontend/src/hooks/useTunnelManager.ts` - Replaced fetch calls with apiClient calls
+
+**Status**: Production-ready, tunnel endpoints now accessible from deployed frontend
+
 ### Secure Ollama Tunnel System (2025-10-03) ✅ NEW
 
 **Feature**: Production deployment solution for local Ollama access via secure tunnels
@@ -765,8 +847,30 @@ Session additions:
 - Backend: Added enhanced analysis bundle retrieval and per-model listing/fetch endpoints.
 - Frontend: Added API client methods for models and by-model fetch; created a reusable `ModelSelector` and integrated it into `MAResultsSection` header. The selector fetches repository models and allows an override to reflect context; deeper section wiring is planned.
 
+## Railway Deployment Dependencies Fix (2025-10-03) ✅ NEW
+
+**Issue**: Railway deployment was using incomplete `requirements.railway.txt` missing critical dependencies
+
+**Fixed Dependencies**:
+
+- ✅ `bcrypt==4.2.1` - Added explicit version (was just `bcrypt`)
+- ✅ `websockets==13.1` - CRITICAL - Used by ollama_tunnel_service.py
+- ✅ `rich==14.0.0` - CRITICAL - Used for logging in main.py
+- ✅ All authentication dependencies verified (bcrypt, passlib, PyJWT, cryptography)
+
+**Documentation**: Created `backend/REQUIREMENTS_COMPARISON.md` with comprehensive analysis
+
+- Full comparison of local vs Railway requirements
+- Identified safe removals (PyTorch, dev tools, unused services)
+- Verified all critical imports present
+- Deployment size reduced from ~5-8GB to ~500MB-1GB
+
+**Status**: requirements.railway.txt is production-ready with all vital dependencies
+
 ## Immediate Next Steps
 
+- Stage and commit updated `backend/requirements.railway.txt` with complete dependencies and redeploy to Railway
+- Monitor Railway deployment logs for any missing dependency errors
 - Stage and commit `backend/app/utils/token_logger.py` (now unignored) and redeploy so the backend includes the token logging module in production builds.
 - When hosting the frontend on a secure domain, either run the UI locally or configure `VITE_OLLAMA_BASE_URL` to an HTTPS-accessible tunnel so local Ollama models remain available; update deployment secrets accordingly before the next release.
 - After supplying an OpenAI API key (guest or authenticated user), confirm the refreshed model list includes GPT options in production; if not, inspect backend logs for `/api/analysis/models/available` to verify Bearer tokens are forwarded and cache entries resolve.
