@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getApiBaseUrl } from '../../config/environment';
 
 interface RegisterFormProps {
   onSwitchToLogin: () => void;
@@ -34,7 +35,9 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
     }
 
     try {
-      const response = await fetch('/api/auth/register', {
+      const apiBaseUrl = getApiBaseUrl();
+
+      const response = await fetch(`${apiBaseUrl}/api/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -53,7 +56,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
       }
 
       // Auto-login after registration
-      const loginResponse = await fetch('/api/auth/login', {
+      const loginResponse = await fetch(`${apiBaseUrl}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -69,8 +72,12 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
         localStorage.setItem('auth_token', tokenData.access_token);
         window.location.reload();
       }
-    } catch (err: any) {
-      setError(err.message || 'Registration failed');
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        setError(error.message || 'Registration failed');
+      } else {
+        setError('Registration failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -79,7 +86,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
   return (
     <div className="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md">
       <h2 className="text-2xl font-bold text-center mb-6">Create Account</h2>
-      
+
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
           {error}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { APIKeyManager } from './APIKeyManager';
+import { getApiBaseUrl } from '../../config/environment';
 
 interface User {
   id: string;
@@ -26,7 +27,9 @@ export const UserMenu: React.FC = () => {
     if (!token) return;
 
     try {
-      const response = await fetch('/api/auth/me', {
+      const apiBaseUrl = getApiBaseUrl();
+
+      const response = await fetch(`${apiBaseUrl}/api/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -36,8 +39,12 @@ export const UserMenu: React.FC = () => {
         const userData = await response.json();
         setUser(userData);
       }
-    } catch (error) {
-      console.error('Failed to load user info:', error);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error('Failed to load user info:', error);
+      } else {
+        console.error('Failed to load user info due to unknown error');
+      }
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   Brain,
@@ -12,6 +12,8 @@ import {
   Home,
 } from "lucide-react";
 import { Button } from "../ui/button";
+import { apiClient } from "../../api/client";
+import { useLocalOllama } from "../../hooks/useLocalOllama";
 
 interface ModelStats {
   usage_stats?: {
@@ -55,16 +57,11 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
   >({});
   const [modelStats, setModelStats] = useState<Record<string, ModelStats>>({});
   const [loadingModels, setLoadingModels] = useState(true);
+  const { status: localOllamaStatus } = useLocalOllama();
 
-  useEffect(() => {
-    fetchAvailableModels();
-  }, []);
-  const fetchAvailableModels = async () => {
+  const fetchAvailableModels = useCallback(async () => {
     try {
-      const response = await fetch(
-        "http://localhost:8080/api/analysis/models/available"
-      );
-      const data = await response.json();
+      const data = await apiClient.getAvailableModels();
       console.log("ModelSelection: Raw API data:", data);
       console.log("ModelSelection: Available models:", data.available_models);
       console.log(
@@ -91,7 +88,11 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
     } finally {
       setLoadingModels(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void fetchAvailableModels();
+  }, [fetchAvailableModels]);
 
   const getModelIcon = (provider: string) => {
     if (provider.includes("Ollama")) return <Home className="w-5 h-5" />;
@@ -291,11 +292,22 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
             <Home className="w-5 h-5 text-green-500" />
             Local Models (Free)
           </h3>
+          {!localOllamaStatus.available && localOllamaStatus.blockedReason && (
+            <p className="text-sm text-red-400 mb-3" role="status">
+              {localOllamaStatus.blockedReason}
+            </p>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {localModels.map(([modelName, model]) => (
               <ModelCard key={modelName} modelName={modelName} model={model} />
             ))}
           </div>
+        </div>
+      )}
+
+      {localModels.length === 0 && localOllamaStatus.blockedReason && (
+        <div className="rounded-md border border-red-700 bg-red-900/20 p-4 text-sm text-red-200" role="alert">
+          {localOllamaStatus.blockedReason}
         </div>
       )}
 

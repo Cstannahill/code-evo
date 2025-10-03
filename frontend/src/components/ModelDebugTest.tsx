@@ -1,7 +1,19 @@
 import React, { useState, useEffect } from "react";
+import { getApiBaseUrl } from "../config/environment";
+
+interface AvailableModel {
+  name?: string;
+  display_name?: string;
+  available?: boolean;
+  cost_per_1k_tokens?: number;
+}
+
+interface AvailableModelsResponse {
+  available_models?: Record<string, AvailableModel>;
+}
 
 const ModelDebugTest: React.FC = () => {
-  const [models, setModels] = useState<any>(null);
+  const [models, setModels] = useState<AvailableModelsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -9,9 +21,10 @@ const ModelDebugTest: React.FC = () => {
     const fetchModels = async () => {
       try {
         console.log("Fetching models...");
-      const response = await fetch(
-        "http://localhost:8080/api/analysis/models/available"
-      );
+        const apiBaseUrl = getApiBaseUrl();
+        const response = await fetch(
+          `${apiBaseUrl}/api/analysis/models/available`
+        );
         console.log("Response status:", response.status);
 
         if (!response.ok) {
@@ -38,7 +51,7 @@ const ModelDebugTest: React.FC = () => {
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
 
-  const availableModels = models?.available_models || {};
+  const availableModels = models?.available_models ?? {};
   const modelKeys = Object.keys(availableModels);
 
   return (
@@ -67,10 +80,10 @@ const ModelDebugTest: React.FC = () => {
       <h3>Local Models (cost = 0):</h3>
       <ul>
         {Object.entries(availableModels)
-          .filter(([_, model]: [string, any]) => model.cost_per_1k_tokens === 0)
-          .map(([key, model]: [string, any]) => (
+          .filter(([, model]) => (model.cost_per_1k_tokens ?? 0) === 0)
+          .map(([key, model]) => (
             <li key={key}>
-              {key}: {model.name}
+              {key}: {model.name ?? "Unknown"}
             </li>
           ))}
       </ul>

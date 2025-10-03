@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getApiBaseUrl } from '../../config/environment';
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
@@ -17,7 +18,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister, onGues
     setError('');
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const apiBaseUrl = getApiBaseUrl();
+
+      const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -32,11 +35,15 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister, onGues
 
       const tokenData = await response.json();
       localStorage.setItem('auth_token', tokenData.access_token);
-      
+
       // Reload page to trigger auth state update
       window.location.reload();
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        setError(error.message || 'Login failed');
+      } else {
+        setError('Login failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -45,7 +52,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister, onGues
   return (
     <div className="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md">
       <h2 className="text-2xl font-bold text-center mb-6">Login</h2>
-      
+
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
           {error}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { LoginForm } from './LoginForm';
 import { RegisterForm } from './RegisterForm';
+import { getApiBaseUrl } from '../../config/environment';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -14,7 +15,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   const handleGuestLogin = async () => {
     try {
-      const response = await fetch('/api/auth/guest', {
+      const apiBaseUrl = getApiBaseUrl();
+
+      const response = await fetch(`${apiBaseUrl}/api/auth/guest`, {
         method: 'POST'
       });
 
@@ -26,8 +29,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       localStorage.setItem('auth_token', tokenData.access_token);
       window.location.reload();
       onClose();
-    } catch (error) {
-      console.error('Guest login failed:', error);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error('Guest login failed:', error);
+      } else {
+        console.error('Guest login failed with unknown error');
+      }
       alert('Guest login failed. Please try again.');
     }
   };
@@ -45,7 +52,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
-        
+
         <div className="p-6">
           {mode === 'login' ? (
             <LoginForm

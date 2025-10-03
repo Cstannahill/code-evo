@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { getApiBaseUrl } from '../../config/environment';
 
 interface APIKey {
   id: string;
@@ -17,76 +18,133 @@ interface User {
   is_guest: boolean;
 }
 
+type ApiProvider = 'openai' | 'anthropic' | 'gemini';
+
+interface NewApiKeyPayload {
+  provider: ApiProvider;
+  key_name: string;
+  api_key: string;
+}
+
+interface GuestKeysPayload {
+  openai_key: string;
+  anthropic_key: string;
+  gemini_key: string;
+}
+
+interface ApiErrorResponse {
+  detail?: string;
+  message?: string;
+  error?: string;
+}
+
+const buildApiUrl = (path: string): string => {
+  const baseUrl = getApiBaseUrl();
+  return `${baseUrl}${path}`;
+};
+
+const parseApiError = async (response: Response, fallback: string): Promise<string> => {
+  try {
+    const data = (await response.json()) as ApiErrorResponse;
+    return data.detail ?? data.message ?? data.error ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
 export const APIKeyManager: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newKey, setNewKey] = useState({
+  const [newKey, setNewKey] = useState<NewApiKeyPayload>({
     provider: 'openai',
     key_name: '',
     api_key: ''
   });
 
-  const [guestKeys, setGuestKeys] = useState({
+  const [guestKeys, setGuestKeys] = useState<GuestKeysPayload>({
     openai_key: '',
     anthropic_key: '',
     gemini_key: ''
   });
 
-  useEffect(() => {
-    loadUserInfo();
+  const loadApiKeys = useCallback(async () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      console.warn('Cannot load API keys without auth token');
+      return;
+    }
+
+    try {
+      const response = await fetch(buildApiUrl('/api/auth/api-keys'), {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const keys = (await response.json()) as APIKey[];
+        setApiKeys(keys);
+        return;
+      }
+
+      const message = await parseApiError(response, 'Failed to load API keys');
+      console.error(message);
+    } catch (error) {
+      console.error('Failed to load API keys:', error);
+    }
   }, []);
 
-  const loadUserInfo = async () => {
+  const loadUserInfo = useCallback(async () => {
     const token = localStorage.getItem('auth_token');
     if (!token) return;
 
     try {
-      const response = await fetch('/api/auth/me', {
+      const response = await fetch(buildApiUrl('/api/auth/me'), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-        
-        if (!userData.is_guest) {
-          loadApiKeys();
-        }
+      if (response.status === 401) {
+        localStorage.removeItem('auth_token');
+        setUser(null);
+        return;
       }
+
+      if (response.ok) {
+        const userData = (await response.json()) as User;
+        setUser(userData);
+
+        if (!userData.is_guest) {
+          await loadApiKeys();
+        }
+        return;
+      }
+
+      const message = await parseApiError(response, 'Failed to load user info');
+      console.error(message);
     } catch (error) {
       console.error('Failed to load user info:', error);
     }
-  };
+  }, [loadApiKeys]);
 
-  const loadApiKeys = async () => {
-    try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch('/api/auth/api-keys', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const keys = await response.json();
-        setApiKeys(keys);
-      }
-    } catch (error) {
-      console.error('Failed to load API keys:', error);
-    }
-  };
+  useEffect(() => {
+    void loadUserInfo();
+  }, [loadUserInfo]);
 
   const handleAddApiKey = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch('/api/auth/api-keys', {
+      if (!token) {
+        throw new Error('Authentication token is missing. Please sign in again.');
+      }
+
+      const response = await fetch(buildApiUrl('/api/auth/api-keys'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -100,10 +158,14 @@ export const APIKeyManager: React.FC = () => {
         setShowAddForm(false);
         await loadApiKeys();
       } else {
-        throw new Error('Failed to add API key');
+        const message = await parseApiError(response, 'Failed to add API key');
+        throw new Error(message);
       }
     } catch (error) {
       console.error('Error adding API key:', error);
+      if (error instanceof Error) {
+        alert(error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -115,7 +177,11 @@ export const APIKeyManager: React.FC = () => {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch('/api/auth/guest/api-keys', {
+      if (!token) {
+        throw new Error('Authentication token is missing. Please sign in again.');
+      }
+
+      const response = await fetch(buildApiUrl('/api/auth/guest/api-keys'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -129,7 +195,8 @@ export const APIKeyManager: React.FC = () => {
         alert(`API keys set for guest session: ${result.providers_set.join(', ')}`);
         setGuestKeys({ openai_key: '', anthropic_key: '', gemini_key: '' });
       } else {
-        throw new Error('Failed to set guest API keys');
+        const message = await parseApiError(response, 'Failed to set guest API keys');
+        throw new Error(message);
       }
     } catch (error) {
       console.error('Error setting guest API keys:', error);
@@ -144,7 +211,11 @@ export const APIKeyManager: React.FC = () => {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`/api/auth/api-keys/${keyId}`, {
+      if (!token) {
+        throw new Error('Authentication token is missing. Please sign in again.');
+      }
+
+      const response = await fetch(buildApiUrl(`/api/auth/api-keys/${keyId}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -154,10 +225,14 @@ export const APIKeyManager: React.FC = () => {
       if (response.ok) {
         await loadApiKeys();
       } else {
-        throw new Error('Failed to delete API key');
+        const message = await parseApiError(response, 'Failed to delete API key');
+        throw new Error(message);
       }
     } catch (error) {
       console.error('Error deleting API key:', error);
+      if (error instanceof Error) {
+        alert(error.message);
+      }
     }
   };
 
@@ -179,7 +254,7 @@ export const APIKeyManager: React.FC = () => {
             As a guest user, you can provide API keys for one-time use. These keys are temporarily stored and will expire in 24 hours.
           </p>
         </div>
-        
+
         <form onSubmit={handleSetGuestKeys}>
           <div className="space-y-4">
             <div>
@@ -271,7 +346,10 @@ export const APIKeyManager: React.FC = () => {
                 <select
                   id="provider"
                   value={newKey.provider}
-                  onChange={(e) => setNewKey(prev => ({ ...prev, provider: e.target.value }))}
+                  onChange={(e) => {
+                    const provider = e.target.value as ApiProvider;
+                    setNewKey(prev => ({ ...prev, provider }));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="openai">OpenAI</option>
@@ -309,7 +387,7 @@ export const APIKeyManager: React.FC = () => {
                 />
               </div>
             </div>
-            
+
             <button
               type="submit"
               disabled={loading}
@@ -350,16 +428,16 @@ export const APIKeyManager: React.FC = () => {
             <div key={key.id} className="border rounded-lg p-4 flex justify-between items-center">
               <div>
                 <h4 className="font-medium">
-                  {key.provider.toUpperCase()} 
+                  {key.provider.toUpperCase()}
                   {key.key_name && ` - ${key.key_name}`}
                 </h4>
                 <p className="text-sm text-gray-600">
-                  Created: {new Date(key.created_at).toLocaleDateString()} | 
+                  Created: {new Date(key.created_at).toLocaleDateString()} |
                   Used {key.usage_count} times
                   {key.last_used && ` | Last used: ${new Date(key.last_used).toLocaleDateString()}`}
                 </p>
               </div>
-              
+
               <button
                 onClick={() => handleDeleteApiKey(key.id)}
                 className="text-red-600 hover:text-red-800"
