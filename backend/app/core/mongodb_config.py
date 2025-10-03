@@ -135,9 +135,11 @@ class MongoDBConfig:
         if self.tls_enabled and self.tls_ca_file:
             ca_path = Path(self.tls_ca_file)
             if not ca_path.is_file():
-                errors.append(
-                    f"TLS CA file not found at '{self.tls_ca_file}'. Ensure the certificate bundle is present before starting the service."
+                logger.warning(
+                    "⚠️  TLS CA file configured at '%s' is missing; falling back to system trust store.",
+                    self.tls_ca_file,
                 )
+                self.tls_ca_file = None
 
         if errors:
             raise ValueError(f"MongoDB configuration errors: {'; '.join(errors)}")
