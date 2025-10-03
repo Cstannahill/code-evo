@@ -34,6 +34,7 @@ class EnhancedCORSMiddleware:
                 "https://127.0.0.1:3000",
                 "https://127.0.0.1:3001",
                 "https://127.0.0.1:5173",
+                "https://code-evo-frontend-z2cx.vercel.app",
             ]
 
         app.add_middleware(
@@ -69,9 +70,8 @@ class ConnectionLoggingMiddleware:
 
             # Log incoming request
             request = Request(scope, receive)
-            logger.info(
-                f"{request.method} {request.url.path} from {request.client.host}"
-            )
+            client_host = request.client.host if request.client else "unknown"
+            logger.info(f"{request.method} {request.url.path} from {client_host}")
 
             # Track response
             async def send_wrapper(message):
