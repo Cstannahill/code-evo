@@ -10,7 +10,11 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from pymongo.errors import (
+    ConnectionFailure,
+    ServerSelectionTimeoutError,
+    ConfigurationError,
+)
 from odmantic import AIOEngine
 import asyncio
 from pathlib import Path
@@ -32,7 +36,7 @@ class MongoDBConfig:
     database_name: str = field(
         default_factory=lambda: os.getenv("MONGODB_DATABASE", "code_evolution_ai")
     )
-    
+
     # Railway-specific settings
     is_railway_env: bool = field(
         default_factory=lambda: os.getenv("RAILWAY_ENVIRONMENT") is not None
@@ -106,45 +110,8 @@ class MongoDBConfig:
             raise ValueError(f"MongoDB configuration errors: {'; '.join(errors)}")
 
     def get_client_options(self) -> Dict[str, Any]:
-        """Get client connection options dictionary"""
-        options = {
-            "maxPoolSize": self.max_pool_size,
-            "minPoolSize": self.min_pool_size,
-            "maxIdleTimeMS": self.max_idle_time_ms,
-            "serverSelectionTimeoutMS": self.server_selection_timeout_ms,
-            "connectTimeoutMS": self.connect_timeout_ms,
-            "socketTimeoutMS": self.socket_timeout_ms,
-            "w": self.write_concern,
-            "readPreference": self.read_preference,
-            "heartbeatFrequencyMS": self.heartbeat_frequency_ms,
-            "retryWrites": True,
-            "retryReads": True,
-        }
-        
-        # Add SSL configuration for MongoDB Atlas
-        if "mongodb+srv://" in self.connection_string or "mongodb.net" in self.connection_string:
-            if self.is_railway_env:
-                # Railway-specific SSL settings for better compatibility
-                options.update({
-                    "tls": True,
-                    "tlsAllowInvalidCertificates": True,
-                    "tlsInsecure": True,
-                    "ssl": True,
-                    "ssl_cert_reqs": False,
-                    "ssl_match_hostname": False,
-                    "serverSelectionTimeoutMS": 5000,
-                    "connectTimeoutMS": 10000,
-                    "socketTimeoutMS": 15000,
-                })
-            else:
-                # Standard SSL settings for non-Railway environments
-                options.update({
-                    "tls": True,
-                    "tlsAllowInvalidCertificates": True,
-                    "ssl": True,
-                })
-            
-        return options
+        """For local simplicity, rely solely on the URI; pass no extra kwargs."""
+        return {}
 
 
 @dataclass
@@ -181,73 +148,53 @@ class MongoDBManager:
         """Establish MongoDB connection with comprehensive error handling"""
         try:
             # Check if connection string is provided
-            if not self.config.connection_string or self.config.connection_string.strip() == "":
-                logger.warning("⚠️  MongoDB connection string not provided, skipping MongoDB initialization")
+            if (
+                not self.config.connection_string
+                or self.config.connection_string.strip() == ""
+            ):
+                logger.warning(
+                    "⚠️  MongoDB connection string not provided, skipping MongoDB initialization"
+                )
                 self.client = None
                 self.database = None
                 self.engine = None
                 return
 
             logger.info("🔄 Connecting to MongoDB...")
-            
+
             # Log Railway environment detection
             if self.config.is_railway_env:
-                logger.info("🚂 Railway environment detected - using Railway-optimized connection settings")
+                logger.info(
+                    "🚂 Railway environment detected - using Railway-optimized connection settings"
+                )
 
             # Create client with configured options
             client_options = self.config.get_client_options()
-            
-            # Try multiple connection strategies for better compatibility
-            connection_attempts = [
-                # Standard connection with all options
-                lambda: AsyncIOMotorClient(self.config.connection_string, **client_options),
-                # Connection with aggressive SSL bypass for Railway
-                lambda: AsyncIOMotorClient(
-                    self.config.connection_string,
-                    tls=True,
-                    tlsAllowInvalidCertificates=True,
-                    tlsInsecure=True,
-                    ssl=True,
-                    ssl_cert_reqs=False,
-                    ssl_match_hostname=False,
-                    serverSelectionTimeoutMS=5000,
-                    connectTimeoutMS=10000
-                ),
-                # Connection with minimal SSL options
-                lambda: AsyncIOMotorClient(
-                    self.config.connection_string,
-                    ssl=True,
-                    tlsAllowInvalidCertificates=True,
-                    serverSelectionTimeoutMS=5000
-                ),
-                # Connection with TLS instead of SSL
-                lambda: AsyncIOMotorClient(
-                    self.config.connection_string,
-                    tls=True,
-                    tlsAllowInvalidCertificates=True,
-                    serverSelectionTimeoutMS=5000
-                ),
-                # Connection with no SSL options at all (fallback)
-                lambda: AsyncIOMotorClient(
-                    self.config.connection_string,
-                    serverSelectionTimeoutMS=5000
-                )
-            ]
-            
+
+            # Standard single attempt using only the connection string.
+            def create_client():
+                return AsyncIOMotorClient(self.config.connection_string)
+
+            connection_attempts = [create_client]
+
             connection_successful = False
             last_error = None
-            
+
             for i, attempt in enumerate(connection_attempts):
                 try:
-                    logger.info(f"🔄 Attempting MongoDB connection (strategy {i+1}/{len(connection_attempts)})...")
+                    logger.info(
+                        f"🔄 Attempting MongoDB connection (strategy {i+1}/{len(connection_attempts)})..."
+                    )
                     self.client = attempt()
-                    
+
                     # Test connection with shorter timeout
                     await asyncio.wait_for(self._test_connection(), timeout=10.0)
                     connection_successful = True
-                    logger.info(f"✅ MongoDB connected successfully with strategy {i+1}")
+                    logger.info(
+                        f"✅ MongoDB connected successfully with strategy {i+1}"
+                    )
                     break
-                    
+
                 except Exception as e:
                     last_error = e
                     logger.warning(f"⚠️  Connection strategy {i+1} failed: {e}")
@@ -258,11 +205,15 @@ class MongoDBManager:
                             pass
                         self.client = None
                     continue
-            
+
             if not connection_successful:
                 raise last_error or ConnectionError("All connection strategies failed")
 
             # Set up database and engine
+            if self.client is None:
+                raise ConnectionError(
+                    "MongoDB client not initialized after successful connection"
+                )
             self.database = self.client[self.config.database_name]
             # Fixed: Use client parameter instead of motor_client for newer ODMantic versions
             self.engine = AIOEngine(
@@ -286,12 +237,16 @@ class MongoDBManager:
             self.status.last_error = str(e)
             self.status.last_error_time = datetime.utcnow()
             logger.error(f"❌ MongoDB connection failed: {e}")
-            
+
             # For SSL/TLS errors, provide more helpful error message
             if "SSL" in str(e) or "TLS" in str(e) or "handshake" in str(e).lower():
-                logger.error("💡 SSL/TLS connection issue detected. This is common with MongoDB Atlas in Railway.")
-                logger.error("💡 Consider checking your MongoDB connection string and network access settings.")
-            
+                logger.error(
+                    "💡 SSL/TLS connection issue detected. This is common with MongoDB Atlas in Railway."
+                )
+                logger.error(
+                    "💡 Consider checking your MongoDB connection string and network access settings."
+                )
+
             raise ConnectionError(f"Failed to connect to MongoDB: {e}") from e
 
     async def _test_connection(self) -> None:
@@ -514,13 +469,19 @@ async def get_mongodb_manager() -> MongoDBManager:
 async def get_mongodb_database() -> AsyncIOMotorDatabase:
     """FastAPI dependency: Get MongoDB database"""
     manager = await get_mongodb_manager()
-    return manager.get_database()
+    db = manager.get_database()
+    if db is None:
+        raise ConnectionError("MongoDB database not available")
+    return db
 
 
 async def get_odmantic_engine() -> AIOEngine:
     """FastAPI dependency: Get ODMantic engine"""
     manager = await get_mongodb_manager()
-    return manager.get_engine()
+    engine = manager.get_engine()
+    if engine is None:
+        raise ConnectionError("ODMantic engine not available")
+    return engine
 
 
 async def cleanup_mongodb() -> None:
