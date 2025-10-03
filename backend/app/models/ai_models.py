@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any, Union
 from enum import Enum
 from pydantic import BaseModel, Field
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from bson import ObjectId
 
 
@@ -112,19 +112,39 @@ class CodeQualityAnalysis(BaseModel):
     )
 
     @field_validator("issues", mode="before")
-    def _sync_issues(cls, v, info):
-        # Prefer explicit 'issues' if provided, otherwise copy from 'issues_found'
-        if v:
-            return v
-        data = info.data if hasattr(info, "data") else {}
-        return data.get("issues_found", [])
+    def _sync_issues(cls, v):
+        # In Pydantic v2's 'before' mode, we can't access other fields
+        # The synchronization will be handled in the model_validator
+        return v
 
     @field_validator("improvements", mode="before")
-    def _sync_improvements(cls, v, info):
-        if v:
-            return v
-        data = info.data if hasattr(info, "data") else {}
-        return data.get("recommendations", [])
+    def _sync_improvements(cls, v):
+        # In Pydantic v2's 'before' mode, we can't access other fields
+        # The synchronization will be handled in the model_validator
+        return v
+
+    @model_validator(mode="after")
+    def _sync_alias_fields(self):
+        """Synchronize alias fields after validation"""
+        # Sync issues alias - prefer issues_found if both are provided
+        if not self.issues and self.issues_found:
+            self.issues = self.issues_found.copy()
+        elif not self.issues_found and self.issues:
+            self.issues_found = self.issues.copy()
+        elif self.issues_found and self.issues:
+            # Both provided, keep both but ensure they're consistent
+            pass
+        
+        # Sync improvements alias - prefer recommendations if both are provided
+        if not self.improvements and self.recommendations:
+            self.improvements = self.recommendations.copy()
+        elif not self.recommendations and self.improvements:
+            self.recommendations = self.improvements.copy()
+        elif self.recommendations and self.improvements:
+            # Both provided, keep both but ensure they're consistent
+            pass
+        
+        return self
 
 
 class EvolutionAnalysis(BaseModel):
@@ -156,18 +176,39 @@ class EvolutionAnalysis(BaseModel):
     )
 
     @field_validator("new_patterns", mode="before")
-    def _sync_new_patterns(cls, v, info):
-        if v:
-            return v
-        data = info.data if hasattr(info, "data") else {}
-        return data.get("improvement_areas", [])
+    def _sync_new_patterns(cls, v):
+        # In Pydantic v2's 'before' mode, we can't access other fields
+        # The synchronization will be handled in the model_validator
+        return v
 
     @field_validator("improvements", mode="before")
-    def _sync_improvements_evo(cls, v, info):
-        if v:
-            return v
-        data = info.data if hasattr(info, "data") else {}
-        return data.get("improvement_areas", [])
+    def _sync_improvements_evo(cls, v):
+        # In Pydantic v2's 'before' mode, we can't access other fields
+        # The synchronization will be handled in the model_validator
+        return v
+
+    @model_validator(mode="after")
+    def _sync_alias_fields(self):
+        """Synchronize alias fields after validation"""
+        # Sync new_patterns alias - prefer improvement_areas if both are provided
+        if not self.new_patterns and self.improvement_areas:
+            self.new_patterns = self.improvement_areas.copy()
+        elif not self.improvement_areas and self.new_patterns:
+            self.improvement_areas = self.new_patterns.copy()
+        elif self.improvement_areas and self.new_patterns:
+            # Both provided, keep both but ensure they're consistent
+            pass
+        
+        # Sync improvements alias - prefer improvement_areas if both are provided
+        if not self.improvements and self.improvement_areas:
+            self.improvements = self.improvement_areas.copy()
+        elif not self.improvement_areas and self.improvements:
+            self.improvement_areas = self.improvements.copy()
+        elif self.improvement_areas and self.improvements:
+            # Both provided, keep both but ensure they're consistent
+            pass
+        
+        return self
 
 
 class SecurityAnalysis(BaseModel):

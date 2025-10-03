@@ -92,7 +92,7 @@ Using an explicit value avoids reliance on the hard-coded fallback and allows pe
 
 1. **Create the project**
 
-   - In Vercel dashboard, click **Add New 0 Project** and import your Git repository.
+   - In Vercel dashboard, click **Add New 0 Project** and import your Git repository.
    - When prompted for the root directory, choose `frontend/`.
 
 2. **Configure build settings**
