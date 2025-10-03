@@ -5,6 +5,12 @@ import asyncio
 import datetime
 from typing import Any, Dict, List, Optional
 
+# Optional dependency used for Ollama HTTP checks
+try:
+    import requests
+except Exception:
+    requests = None
+
 try:
     from langchain_community.llms import Ollama as OllamaLLM
     from langchain_community.embeddings import OllamaEmbeddings
@@ -77,7 +83,7 @@ class AIService:
         self.embeddings: Any = None
         self.collection = None
         self.ollama_available: bool = False
-        self.ollama_model: str = None
+        self.ollama_model: Optional[str] = None
         self.security_analyzer = get_security_analyzer()
         self.architectural_analyzer = get_architectural_analyzer()
         self.performance_analyzer = get_performance_analyzer()
@@ -190,7 +196,9 @@ class AIService:
     def _check_ollama_directly(self) -> None:
         """Check for Ollama availability directly via HTTP API - equivalent to 'ollama list'"""
         try:
-            import requests
+            # Use optional top-level 'requests' import if available
+            if requests is None:
+                raise RuntimeError("requests library not available")
 
             # Call Ollama API equivalent to 'ollama list' on localhost:11434
             response = requests.get("http://localhost:11434/api/tags", timeout=5)
@@ -211,12 +219,10 @@ class AIService:
                 self.ollama_available = False
                 logger.debug(f"Ollama not responding: HTTP {response.status_code}")
 
-        except requests.exceptions.ConnectionError:
-            self.ollama_available = False
-            logger.debug("Ollama not running on localhost:11434")
         except Exception as e:
+            # Connection errors or missing requests will be handled here
             self.ollama_available = False
-            logger.debug(f"Error checking Ollama: {e}")
+            logger.debug(f"Ollama not reachable or requests unavailable: {e}")
         finally:
             self.llm = None  # We don't have langchain integration
 
@@ -360,6 +366,19 @@ class AIService:
                 ai_analysis = self._parse_llm_response(result, parser, fixing_parser)
 
                 if ai_analysis:
+                    # Compute a skill_level from complexity_score when the LLM
+                    # doesn't provide an explicit evolution/stage field.
+                    try:
+                        cs = float(getattr(ai_analysis, "complexity_score", 5.0))
+                        if cs <= 3:
+                            skill_level = "beginner"
+                        elif cs >= 8:
+                            skill_level = "advanced"
+                        else:
+                            skill_level = "intermediate"
+                    except Exception:
+                        skill_level = "intermediate"
+
                     if self.embeddings and self.collection:
                         await self.store_pattern_embedding(
                             code,
@@ -367,7 +386,7 @@ class AIService:
                             {
                                 "language": language,
                                 "complexity": ai_analysis.complexity_score,
-                                "skill_level": ai_analysis.evolution_stage,
+                                "skill_level": skill_level,
                             },
                         )
 
@@ -378,7 +397,7 @@ class AIService:
                             set(detected_patterns + ai_analysis.patterns)
                         ),
                         "complexity_score": ai_analysis.complexity_score,
-                        "skill_level": ai_analysis.evolution_stage,
+                        "skill_level": skill_level,
                         "suggestions": ai_analysis.suggestions,
                         "ai_powered": True,
                     }
@@ -398,8 +417,7 @@ class AIService:
             return fixing_parser.parse(result)
         except Exception as e1:
             logger.debug(f"Direct parsing failed: {e1}")
-
-            # Try to extract JSON from text
+            # Try to extract JSON from text and construct only supported fields
             import json
             import re
 
@@ -410,23 +428,40 @@ class AIService:
                     json_str = json_match.group()
                     data = json.loads(json_str)
 
-                    # Create PatternAnalysis object from dict
+                    # Only pass fields that PatternAnalysis expects. This avoids
+                    # Pydantic errors when LLM includes extra fields like
+                    # 'evolution_stage' which aren't part of the model.
+                    patterns = data.get("patterns", [])
+                    complexity_score = float(data.get("complexity_score", 5.0))
+                    suggestions = data.get("suggestions", [])
+                    confidence = data.get("confidence", None)
+                    processing_time = data.get("processing_time", None)
+
                     return PatternAnalysis(
-                        patterns=data.get("patterns", []),
-                        complexity_score=data.get("complexity_score", 5.0),
-                        evolution_stage=data.get("evolution_stage", "intermediate"),
-                        suggestions=data.get("suggestions", []),
+                        patterns=patterns,
+                        complexity_score=complexity_score,
+                        suggestions=suggestions,
+                        confidence=confidence,
+                        processing_time=processing_time,
+                        token_usage=data.get("token_usage", None),
                     )
             except Exception as e2:
                 logger.debug(f"JSON extraction failed: {e2}")
 
-            # Final fallback - create from partial data
+            # Final graceful fallback - log raw output and return a minimal object
+            logger.error(
+                "Failed to parse PatternAnalysis from completion %s. Returning minimal fallback.",
+                result,
+            )
             try:
                 return PatternAnalysis(
-                    patterns=["basic_patterns"],
+                    patterns=["unknown"],
                     complexity_score=5.0,
-                    evolution_stage="intermediate",
-                    suggestions=["Enable proper AI analysis for detailed insights"],
+                    suggestions=[
+                        "LLM output could not be parsed fully; enable more strict JSON formatting"
+                    ],
+                    confidence=None,
+                    processing_time=None,
                 )
             except Exception as e3:
                 logger.warning(f"Fallback parsing failed: {e3}")
@@ -1247,7 +1282,7 @@ class AIService:
                 for metadata, distance in zip(metadatas[0], distances[0]):
                     similar_patterns.append(
                         {
-                            "patterns": json.loads(metadata.get("patterns", "[]")),
+                            "patterns": json.loads(str(metadata.get("patterns", "[]"))),
                             "similarity_score": 1 - distance,
                             "language": metadata.get("language", "unknown"),
                             "complexity": metadata.get("complexity", 0),
@@ -1260,10 +1295,11 @@ class AIService:
             logger.error(f"Similarity search error: {e}")
             return []
 
-    def _detect_patterns_simple(self, code: str, language: str) -> List[str]:
+    def _detect_patterns_simple(self, code: str, language: Optional[str]) -> List[str]:
         """Enhanced pattern detection with comprehensive rule-based analysis"""
         patterns: List[str] = []
-        logger.debug(f"Analyzing {len(code)} chars of {language} code")
+        lang = (language or "").lower()
+        logger.debug(f"Analyzing {len(code)} chars of {lang} code")
         css_patterns_to_exclude = {
             "justify-center",
             "whitespace-nowrap",
@@ -1297,7 +1333,7 @@ class AIService:
         code_lower = code.lower()
 
         # JavaScript/TypeScript patterns
-        if language.lower() in ["javascript", "typescript"]:
+        if lang in ["javascript", "typescript"]:
             if "async" in code_lower and "await" in code_lower:
                 patterns.append("async_await_pattern")
             if "promise" in code_lower:
@@ -1322,7 +1358,7 @@ class AIService:
                 patterns.append("functional_programming")
 
         # Python patterns
-        elif language.lower() == "python":
+        elif lang == "python":
             if "def " in code_lower:
                 patterns.append("function_definition")
             if "class " in code_lower:
@@ -1345,7 +1381,7 @@ class AIService:
                 patterns.append("module_imports")
 
         # Rust patterns
-        elif language.lower() == "rust":
+        elif lang == "rust":
             if "fn " in code_lower:
                 patterns.append("function_definition")
             if "struct " in code_lower:
@@ -1569,7 +1605,7 @@ class AIService:
         "security", ttl_seconds=1800
     )  # 30 minute cache (security is time-sensitive)
     async def analyze_security(
-        self, code: str, file_path: str = "unknown", language: str = None
+        self, code: str, file_path: str = "unknown", language: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Analyze code for security vulnerabilities using comprehensive security patterns
@@ -1631,7 +1667,7 @@ class AIService:
             }
 
     async def analyze_architecture(
-        self, repository_path: str, file_list: List[str] = None
+        self, repository_path: str, file_list: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Analyze repository architecture using comprehensive pattern detection
@@ -1693,7 +1729,7 @@ class AIService:
 
     @cache_analysis_result("performance", ttl_seconds=1800)  # 30 minute cache
     async def analyze_performance(
-        self, code: str, file_path: str = "unknown", language: str = None
+        self, code: str, file_path: str = "unknown", language: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Analyze code for performance issues and bottlenecks

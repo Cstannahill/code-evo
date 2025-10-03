@@ -23,7 +23,7 @@ from app.core.database import Base
 # Imports for MongoDB/ODMantic models
 from odmantic import Model, Field, Reference
 from typing import List, Optional, Dict, Any, Union
-from pydantic import validator, root_validator
+from pydantic import field_validator, model_validator
 from bson import ObjectId
 
 # Import enhanced analysis models
@@ -36,7 +36,7 @@ from app.models.enhanced_analysis import (
     EvolutionAnalysisResult,
     EnsembleMetadata,
     IncrementalAnalysisMetadata,
-    AnalysisDashboard
+    AnalysisDashboard,
 )
 
 # User authentication and API key management models
@@ -50,9 +50,10 @@ logger = logging.getLogger(__name__)
 # User Authentication Models (SQL and MongoDB)
 # ---------------------------------------------------------------------------
 
+
 class UserSQL(Base):
     __tablename__ = "users"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     username = Column(String, unique=True, nullable=False, index=True)
     email = Column(String, unique=True, nullable=False, index=True)
@@ -62,15 +63,19 @@ class UserSQL(Base):
     is_guest = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime)
-    
+
     # Relationships
-    api_keys = relationship("APIKeySQL", back_populates="user", cascade="all, delete-orphan")
-    user_repositories = relationship("UserRepositorySQL", back_populates="user", cascade="all, delete-orphan")
+    api_keys = relationship(
+        "APIKeySQL", back_populates="user", cascade="all, delete-orphan"
+    )
+    user_repositories = relationship(
+        "UserRepositorySQL", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class APIKeySQL(Base):
     __tablename__ = "api_keys"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"))
     provider = Column(String, nullable=False, index=True)  # openai, anthropic, gemini
@@ -80,12 +85,14 @@ class APIKeySQL(Base):
     last_used = Column(DateTime)
     is_active = Column(Boolean, default=True)
     usage_count = Column(Integer, default=0)
-    
+
     # Relationships
     user = relationship("UserSQL", back_populates="api_keys")
-    
+
     __table_args__ = (
-        UniqueConstraint("user_id", "provider", "key_name", name="uq_user_provider_key"),
+        UniqueConstraint(
+            "user_id", "provider", "key_name", name="uq_user_provider_key"
+        ),
         Index("idx_api_key_provider", "provider"),
         Index("idx_api_key_active", "is_active"),
     )
@@ -93,18 +100,18 @@ class APIKeySQL(Base):
 
 class UserRepositorySQL(Base):
     __tablename__ = "user_repositories"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"))
     repository_id = Column(String, ForeignKey("repositories.id", ondelete="CASCADE"))
     access_type = Column(String, default="owner")  # owner, viewer, contributor
     created_at = Column(DateTime, default=datetime.utcnow)
     last_accessed = Column(DateTime)
-    
+
     # Relationships
     user = relationship("UserSQL", back_populates="user_repositories")
     repository = relationship("RepositorySQL")
-    
+
     __table_args__ = (
         UniqueConstraint("user_id", "repository_id", name="uq_user_repository"),
         Index("idx_user_repo_user", "user_id"),
@@ -410,9 +417,10 @@ class ModelBenchmarkSQL(Base):
 # MongoDB/ODMantic models (moved from repository2.py)
 # ---------------------------------------------------------------------------
 
+
 class User(Model):
     """User model for MongoDB"""
-    
+
     username: str = Field(unique=True, index=True)
     email: str = Field(unique=True, index=True)
     full_name: Optional[str] = None
@@ -421,13 +429,13 @@ class User(Model):
     is_guest: bool = Field(default=False, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
     last_login: Optional[datetime] = None
-    
+
     model_config = {"collection": "users"}
 
 
 class APIKey(Model):
     """API Key model for MongoDB"""
-    
+
     user_id: ObjectId = Field(index=True)
     provider: str = Field(index=True)  # openai, anthropic, gemini
     key_name: Optional[str] = None  # user-friendly name
@@ -436,32 +444,42 @@ class APIKey(Model):
     last_used: Optional[datetime] = None
     is_active: bool = Field(default=True, index=True)
     usage_count: int = Field(default=0)
-    
+
     model_config = {"collection": "api_keys"}
 
-    @validator("user_id", pre=True)
-    def validate_user_id(cls, v):
+    @field_validator("user_id", mode="before")
+    def validate_user_id(cls, v, info):
         if isinstance(v, str):
             return ObjectId(v)
         return v
 
+    # converted to Pydantic v2 field_validator above
+
 
 class UserRepository(Model):
     """User-Repository access model for MongoDB"""
-    
+
     user_id: ObjectId = Field(index=True)
     repository_id: ObjectId = Field(index=True)
     access_type: str = "owner"  # owner, viewer, contributor
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
     last_accessed: Optional[datetime] = None
-    
+
     model_config = {"collection": "user_repositories"}
 
-    @validator("user_id", "repository_id", pre=True)
-    def validate_object_ids(cls, v):
+    @field_validator("user_id", mode="before")
+    def validate_user_id_multi(cls, v, info):
         if isinstance(v, str):
             return ObjectId(v)
         return v
+
+    @field_validator("repository_id", mode="before")
+    def validate_repository_id_multi(cls, v, info):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+    # converted to Pydantic v2 field_validator
 
 
 class Repository(Model):
@@ -476,28 +494,33 @@ class Repository(Model):
     updated_at: Optional[datetime] = None
     last_analyzed: Optional[datetime] = None
     error_message: Optional[str] = None
-    
+
     # Access control - optional for backward compatibility
-    is_public: Optional[bool] = Field(default=None, index=True)  # publicly accessible for global analysis
-    created_by_user: Optional[ObjectId] = Field(default=None, index=True)  # user who first added it
+    is_public: Optional[bool] = Field(
+        default=None, index=True
+    )  # publicly accessible for global analysis
+    created_by_user: Optional[ObjectId] = Field(
+        default=None, index=True
+    )  # user who first added it
     analysis_count: Optional[int] = Field(default=None)  # track how many times analyzed
-    unique_users: Optional[int] = Field(default=None)  # track unique users who analyzed it
-    
+    unique_users: Optional[int] = Field(
+        default=None
+    )  # track unique users who analyzed it
+
     # Metadata for global tracking - optional for backward compatibility
     tags: Optional[List[str]] = Field(default=None)  # searchable tags
     description: Optional[str] = Field(default=None)
     primary_language: Optional[str] = Field(default=None, index=True)
-    
+
     model_config = {"collection": "repositories"}
 
-    @validator("created_by_user", pre=True)
-    def validate_created_by_user(cls, v):
+    @field_validator("created_by_user", mode="before")
+    def validate_created_by_user(cls, v, info):
         if v is None:
             return v
         if isinstance(v, str):
             return ObjectId(v)
         return v
-
 
     # Helper methods to get values with defaults
     def get_is_public(self) -> bool:
@@ -533,8 +556,8 @@ class Commit(Model):
 
     model_config = {"collection": "commits"}
 
-    @validator("repository_id", pre=True)
-    def validate_repository_id(cls, v):
+    @field_validator("repository_id", mode="before")
+    def validate_repository_id(cls, v, info):
         if isinstance(v, str):
             return ObjectId(v)
         return v
@@ -553,8 +576,8 @@ class FileChange(Model):
 
     model_config = {"collection": "file_changes"}
 
-    @validator("commit_id", pre=True)
-    def validate_commit_id(cls, v):
+    @field_validator("commit_id", mode="before")
+    def validate_commit_id(cls, v, info):
         if isinstance(v, str):
             return ObjectId(v)
         return v
@@ -574,8 +597,8 @@ class Technology(Model):
 
     model_config = {"collection": "technologies"}
 
-    @validator("repository_id", pre=True)
-    def validate_repository_id(cls, v):
+    @field_validator("repository_id", mode="before")
+    def validate_repository_id_tech(cls, v, info):
         if isinstance(v, str):
             return ObjectId(v)
         return v
@@ -614,22 +637,28 @@ class PatternOccurrence(Model):
 
     model_config = {"collection": "pattern_occurrences"}
 
-    @validator("repository_id", "pattern_id", pre=True)
-    def validate_object_ids(cls, v):
+    @field_validator("repository_id", mode="before")
+    def validate_repository_id_pattern(cls, v, info):
         if isinstance(v, str):
             return ObjectId(v)
         return v
 
-    @validator("commit_id", pre=True)
-    def validate_commit_id(cls, v):
+    @field_validator("pattern_id", mode="before")
+    def validate_pattern_id(cls, v, info):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+    @field_validator("commit_id", mode="before")
+    def validate_commit_id_optional(cls, v, info):
         if v is None:
             return v
         if isinstance(v, str):
             return ObjectId(v)
         return v
 
-    @validator("detected_at", pre=True)
-    def validate_detected_at(cls, v):
+    @field_validator("detected_at", mode="before")
+    def validate_detected_at(cls, v, info):
         if v is None:
             return datetime.utcnow()
         if isinstance(v, datetime):
@@ -652,8 +681,8 @@ class AnalysisSession(Model):
 
     model_config = {"collection": "analysis_sessions"}
 
-    @validator("repository_id", pre=True)
-    def validate_repository_id(cls, v):
+    @field_validator("repository_id", mode="before")
+    def validate_repository_id_session(cls, v, info):
         if isinstance(v, str):
             return ObjectId(v)
         return v
@@ -701,8 +730,14 @@ class AIAnalysisResult(Model):
 
     model_config = {"collection": "ai_analysis_results"}
 
-    @validator("analysis_session_id", "model_id", pre=True)
-    def validate_object_ids(cls, v):
+    @field_validator("analysis_session_id", mode="before")
+    def validate_analysis_session_id_model_id(cls, v, info):
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+    @field_validator("model_id", mode="before")
+    def validate_model_id_field(cls, v, info):
         if isinstance(v, str):
             return ObjectId(v)
         return v
@@ -732,8 +767,8 @@ class ModelBenchmark(Model):
 
     model_config = {"collection": "model_benchmarks"}
 
-    @validator("model_id", pre=True)
-    def validate_model_id(cls, v):
+    @field_validator("model_id", mode="before")
+    def validate_model_id_benchmark(cls, v, info):
         if isinstance(v, str):
             return ObjectId(v)
         return v
@@ -878,14 +913,15 @@ async def create_custom_indexes(engine):
 
 # Enhanced Analysis Models for MongoDB
 
+
 class SecurityAnalysis(Model):
     """Security analysis results for MongoDB"""
-    
+
     repository_id: ObjectId = Field(index=True)
     analysis_session_id: Optional[ObjectId] = Field(default=None, index=True)
     file_path: Optional[str] = None
     language: Optional[str] = None
-    
+
     # Security results
     overall_score: int = Field(ge=0, le=100)
     risk_level: str = Field(index=True)  # critical, high, medium, low, info
@@ -894,16 +930,24 @@ class SecurityAnalysis(Model):
     vulnerabilities: List[Dict[str, Any]] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)
     owasp_coverage: Dict[str, int] = Field(default_factory=dict)
-    
+
     # Metadata
     analyzer_version: str = "1.0.0"
     analysis_metadata: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
-    
+
     model_config = {"collection": "security_analyses"}
 
-    @validator("repository_id", "analysis_session_id", pre=True)
-    def validate_object_ids(cls, v):
+    @field_validator("repository_id", mode="before")
+    def validate_repoid_security(cls, v, info):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+    @field_validator("analysis_session_id", mode="before")
+    def validate_asisessionid_security(cls, v, info):
         if v is None:
             return v
         if isinstance(v, str):
@@ -913,12 +957,12 @@ class SecurityAnalysis(Model):
 
 class PerformanceAnalysis(Model):
     """Performance analysis results for MongoDB"""
-    
+
     repository_id: ObjectId = Field(index=True)
     analysis_session_id: Optional[ObjectId] = Field(default=None, index=True)
     file_path: Optional[str] = None
     language: Optional[str] = None
-    
+
     # Performance results
     overall_score: int = Field(ge=0, le=100)
     performance_grade: str = Field(index=True)  # A+, A, B, C, D
@@ -928,16 +972,24 @@ class PerformanceAnalysis(Model):
     metrics: Dict[str, Any] = Field(default_factory=dict)
     optimizations: List[str] = Field(default_factory=list)
     bottlenecks: List[str] = Field(default_factory=list)
-    
+
     # Metadata
     analyzer_version: str = "1.0.0"
     analysis_metadata: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
-    
+
     model_config = {"collection": "performance_analyses"}
 
-    @validator("repository_id", "analysis_session_id", pre=True)
-    def validate_object_ids(cls, v):
+    @field_validator("repository_id", mode="before")
+    def validate_repoid_perf(cls, v, info):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+    @field_validator("analysis_session_id", mode="before")
+    def validate_asisessionid_perf(cls, v, info):
         if v is None:
             return v
         if isinstance(v, str):
@@ -947,10 +999,10 @@ class PerformanceAnalysis(Model):
 
 class ArchitecturalAnalysis(Model):
     """Architectural analysis results for MongoDB"""
-    
+
     repository_id: ObjectId = Field(index=True)
     analysis_session_id: Optional[ObjectId] = Field(default=None, index=True)
-    
+
     # Architecture results
     architectural_style: Dict[str, Any] = Field(default_factory=dict)
     design_patterns: List[Dict[str, Any]] = Field(default_factory=list)
@@ -959,17 +1011,25 @@ class ArchitecturalAnalysis(Model):
     dependency_analysis: Dict[str, Any] = Field(default_factory=dict)
     recommendations: List[str] = Field(default_factory=list)
     architecture_smells: List[str] = Field(default_factory=list)
-    
+
     # Metadata
     analyzer_version: str = "1.0.0"
     files_analyzed: int = Field(default=0, ge=0)
     analysis_metadata: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
-    
+
     model_config = {"collection": "architectural_analyses"}
 
-    @validator("repository_id", "analysis_session_id", pre=True)
-    def validate_object_ids(cls, v):
+    @field_validator("repository_id", mode="before")
+    def validate_repoid_arch(cls, v, info):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+    @field_validator("analysis_session_id", mode="before")
+    def validate_asisessionid_arch(cls, v, info):
         if v is None:
             return v
         if isinstance(v, str):
@@ -979,12 +1039,12 @@ class ArchitecturalAnalysis(Model):
 
 class EnhancedPatternAnalysis(Model):
     """Enhanced pattern analysis results for MongoDB"""
-    
+
     repository_id: ObjectId = Field(index=True)
     analysis_session_id: Optional[ObjectId] = Field(default=None, index=True)
     file_path: Optional[str] = None
     language: Optional[str] = None
-    
+
     # Pattern results
     detected_patterns: List[str] = Field(default_factory=list)
     ai_patterns: List[str] = Field(default_factory=list)
@@ -993,17 +1053,25 @@ class EnhancedPatternAnalysis(Model):
     skill_level: str = Field(index=True)  # beginner, intermediate, advanced
     suggestions: List[str] = Field(default_factory=list)
     pattern_confidence: Dict[str, float] = Field(default_factory=dict)
-    
+
     # Metadata
     ai_powered: bool = False
     model_used: Optional[str] = None
     analysis_metadata: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
-    
+
     model_config = {"collection": "enhanced_pattern_analyses"}
 
-    @validator("repository_id", "analysis_session_id", pre=True)
-    def validate_object_ids(cls, v):
+    @field_validator("repository_id", mode="before")
+    def validate_repoid_pattern(cls, v, info):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+    @field_validator("analysis_session_id", mode="before")
+    def validate_asisessionid_pattern(cls, v, info):
         if v is None:
             return v
         if isinstance(v, str):
@@ -1013,29 +1081,37 @@ class EnhancedPatternAnalysis(Model):
 
 class EnhancedQualityAnalysis(Model):
     """Enhanced quality analysis results for MongoDB"""
-    
+
     repository_id: ObjectId = Field(index=True)
     analysis_session_id: Optional[ObjectId] = Field(default=None, index=True)
     file_path: Optional[str] = None
     language: Optional[str] = None
-    
+
     # Quality results
     quality_score: float = Field(ge=0.0, le=100.0)
     readability: str = Field(index=True)
     issues: List[str] = Field(default_factory=list)
     improvements: List[str] = Field(default_factory=list)
     metrics: Dict[str, Any] = Field(default_factory=dict)
-    
+
     # Metadata
     ai_powered: bool = False
     model_used: Optional[str] = None
     analysis_metadata: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
-    
+
     model_config = {"collection": "enhanced_quality_analyses"}
 
-    @validator("repository_id", "analysis_session_id", pre=True)
-    def validate_object_ids(cls, v):
+    @field_validator("repository_id", mode="before")
+    def validate_repository_id_dashboard2(cls, v, info):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+    @field_validator("analysis_session_id", mode="before")
+    def validate_analysis_session_id_dashboard2(cls, v, info):
         if v is None:
             return v
         if isinstance(v, str):
@@ -1045,11 +1121,11 @@ class EnhancedQualityAnalysis(Model):
 
 class EnsembleAnalysisResult(Model):
     """AI ensemble analysis results for MongoDB"""
-    
+
     repository_id: ObjectId = Field(index=True)
     analysis_session_id: Optional[ObjectId] = Field(default=None, index=True)
     analysis_type: str = Field(index=True)  # pattern, quality, security, performance
-    
+
     # Ensemble results
     consensus_result: Dict[str, Any] = Field(default_factory=dict)
     individual_results: List[Dict[str, Any]] = Field(default_factory=list)
@@ -1057,14 +1133,22 @@ class EnsembleAnalysisResult(Model):
     consensus_method: str = Field(index=True)
     models_used: List[str] = Field(default_factory=list)
     total_execution_time: float = Field(ge=0.0)
-    
+
     # Metadata
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
-    
+
     model_config = {"collection": "ensemble_analysis_results"}
 
-    @validator("repository_id", "analysis_session_id", pre=True)
-    def validate_object_ids(cls, v):
+    @field_validator("repository_id", mode="before")
+    def validate_repository_id_analysis_dash(cls, v, info):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return ObjectId(v)
+        return v
+
+    @field_validator("analysis_session_id", mode="before")
+    def validate_analysis_session_id_analysis_dash(cls, v, info):
         if v is None:
             return v
         if isinstance(v, str):
@@ -1074,23 +1158,23 @@ class EnsembleAnalysisResult(Model):
 
 class IncrementalAnalysisSnapshot(Model):
     """Snapshot for incremental analysis in MongoDB"""
-    
+
     repository_id: ObjectId = Field(index=True)
     commit_hash: str = Field(index=True)
-    
+
     # Snapshot data
     file_hashes: Dict[str, str] = Field(default_factory=dict)
     analysis_results: Dict[str, Any] = Field(default_factory=dict)
     total_files: int = Field(ge=0)
     total_lines: int = Field(ge=0)
-    
+
     # Metadata
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
-    
+
     model_config = {"collection": "incremental_snapshots"}
 
-    @validator("repository_id", pre=True)
-    def validate_repository_id(cls, v):
+    @field_validator("repository_id", mode="before")
+    def validate_repository_id_dashboard(cls, v, info):
         if isinstance(v, str):
             return ObjectId(v)
         return v
@@ -1098,59 +1182,62 @@ class IncrementalAnalysisSnapshot(Model):
 
 class AnalysisDashboardData(Model):
     """Dashboard data for repositories in MongoDB"""
-    
+
     repository_id: ObjectId = Field(unique=True, index=True)
     repo_name: str
     repo_url: str
     branch: str
     last_analyzed: datetime = Field(index=True)
-    
+
     # High-level metrics
     total_files_analyzed: int = Field(ge=0)
     total_lines_of_code: int = Field(ge=0)
     primary_languages: List[str] = Field(default_factory=list)
-    
+
     # Scores
     overall_quality_score: int = Field(ge=0, le=100)
     overall_security_score: int = Field(ge=0, le=100)
     overall_performance_score: int = Field(ge=0, le=100)
-    
+
     # Summaries
     security_summary: Dict[str, Any] = Field(default_factory=dict)
     performance_summary: Dict[str, Any] = Field(default_factory=dict)
     architecture_summary: Dict[str, Any] = Field(default_factory=dict)
-    
+
     # Trends
     quality_trend: Optional[str] = None
     security_trend: Optional[str] = None
     performance_trend: Optional[str] = None
-    
+
     # Recommendations
     top_recommendations: List[str] = Field(default_factory=list)
-    
+
     # Analysis metadata
     analysis_type: str = "comprehensive"
     models_used: List[str] = Field(default_factory=list)
     analysis_duration: float = Field(ge=0.0)
-    
+
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow, index=True)
-    
+
     model_config = {"collection": "analysis_dashboards"}
 
-    @validator("repository_id", pre=True)
-    def validate_repository_id(cls, v):
+    @field_validator("repository_id", mode="before")
+    def validate_repository_id_final(cls, v, info):
         if isinstance(v, str):
             return ObjectId(v)
         return v
 
-    @validator("updated_at", pre=True, always=True)
-    def set_updated_at(cls, v):
-        return datetime.utcnow()
+    @model_validator(mode="before")
+    def set_updated_at(cls, values):
+        # In pydantic v2, model-level defaulting can be done via model_validator
+        values.setdefault("updated_at", datetime.utcnow())
+        return values
 
 
 # Enhanced query functions
+
 
 async def get_enhanced_analysis_by_repository(
     engine, repository_id: ObjectId
@@ -1168,30 +1255,37 @@ async def get_enhanced_analysis_by_repository(
             ArchitecturalAnalysis, ArchitecturalAnalysis.repository_id == repository_id
         )
         pattern_analyses = await engine.find(
-            EnhancedPatternAnalysis, EnhancedPatternAnalysis.repository_id == repository_id
+            EnhancedPatternAnalysis,
+            EnhancedPatternAnalysis.repository_id == repository_id,
         )
         quality_analyses = await engine.find(
-            EnhancedQualityAnalysis, EnhancedQualityAnalysis.repository_id == repository_id
+            EnhancedQualityAnalysis,
+            EnhancedQualityAnalysis.repository_id == repository_id,
         )
         ensemble_results = await engine.find(
-            EnsembleAnalysisResult, EnsembleAnalysisResult.repository_id == repository_id
+            EnsembleAnalysisResult,
+            EnsembleAnalysisResult.repository_id == repository_id,
         )
-        
+
         # Get dashboard data
         dashboard = await engine.find_one(
             AnalysisDashboardData, AnalysisDashboardData.repository_id == repository_id
         )
-        
+
         return {
             "security_analyses": [analysis.dict() for analysis in security_analyses],
-            "performance_analyses": [analysis.dict() for analysis in performance_analyses],
-            "architectural_analyses": [analysis.dict() for analysis in architectural_analyses],
+            "performance_analyses": [
+                analysis.dict() for analysis in performance_analyses
+            ],
+            "architectural_analyses": [
+                analysis.dict() for analysis in architectural_analyses
+            ],
             "pattern_analyses": [analysis.dict() for analysis in pattern_analyses],
             "quality_analyses": [analysis.dict() for analysis in quality_analyses],
             "ensemble_results": [result.dict() for result in ensemble_results],
-            "dashboard": dashboard.dict() if dashboard else None
+            "dashboard": dashboard.dict() if dashboard else None,
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to get enhanced analyses: {e}")
         return {}
@@ -1204,39 +1298,39 @@ async def create_enhanced_indexes(engine):
         await engine.get_collection(SecurityAnalysis).create_index(
             [("repository_id", 1), ("risk_level", 1), ("created_at", -1)]
         )
-        
+
         # Performance analysis indexes
         await engine.get_collection(PerformanceAnalysis).create_index(
             [("repository_id", 1), ("performance_grade", 1), ("created_at", -1)]
         )
-        
+
         # Architectural analysis indexes
         await engine.get_collection(ArchitecturalAnalysis).create_index(
             [("repository_id", 1), ("created_at", -1)]
         )
-        
+
         # Enhanced pattern analysis indexes
         await engine.get_collection(EnhancedPatternAnalysis).create_index(
             [("repository_id", 1), ("skill_level", 1), ("created_at", -1)]
         )
-        
+
         # Enhanced quality analysis indexes
         await engine.get_collection(EnhancedQualityAnalysis).create_index(
             [("repository_id", 1), ("readability", 1), ("created_at", -1)]
         )
-        
+
         # Ensemble analysis indexes
         await engine.get_collection(EnsembleAnalysisResult).create_index(
             [("repository_id", 1), ("analysis_type", 1), ("created_at", -1)]
         )
-        
+
         # Dashboard indexes
         await engine.get_collection(AnalysisDashboardData).create_index(
             [("updated_at", -1)]
         )
-        
+
         logger.info("✅ Enhanced analysis indexes created successfully")
-        
+
     except Exception as e:
         logger.error(f"Failed to create enhanced indexes: {e}")
         raise

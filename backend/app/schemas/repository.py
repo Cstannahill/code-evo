@@ -1,5 +1,6 @@
 # app/schemas/repository.py - Updated for MongoDB/ODMantic
-from pydantic import BaseModel, HttpUrl, Field, validator
+from pydantic import BaseModel, HttpUrl, Field
+from pydantic import field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from bson import ObjectId
@@ -25,8 +26,8 @@ class RepositoryResponse(BaseModel):
         populate_by_name = True  # Allow both _id and id
         json_encoders = {ObjectId: str}  # Convert ObjectId to string in JSON
 
-    @validator("id", pre=True)
-    def convert_objectid_to_str(cls, v):
+    @field_validator("id", mode="before")
+    def convert_objectid_to_str(cls, v, info):
         if isinstance(v, ObjectId):
             return str(v)
         return v
@@ -40,8 +41,8 @@ class AnalysisResponse(BaseModel):
     patterns: List[Dict]
     insights: List[Dict]
 
-    @validator("repository_id", pre=True)
-    def convert_objectid_to_str(cls, v):
+    @field_validator("repository_id", mode="before")
+    def convert_objectid_to_str(cls, v, info):
         if isinstance(v, ObjectId):
             return str(v)
         return v
@@ -51,14 +52,14 @@ class TimelineResponse(BaseModel):
     repository_id: str
     timeline: List[Dict[str, Any]]
 
-    @validator("repository_id", pre=True)
-    def convert_objectid_to_str(cls, v):
+    @field_validator("repository_id", mode="before")
+    def convert_objectid_to_str_repo(cls, v, info):
         if isinstance(v, ObjectId):
             return str(v)
         return v
 
-    @validator("timeline", pre=True)
-    def convert_timeline_objectids(cls, v):
+    @field_validator("timeline", mode="before")
+    def convert_timeline_objectids(cls, v, info):
         # Recursively convert ObjectIds in timeline dicts to str
         def convert(obj):
             if isinstance(obj, ObjectId):
@@ -68,6 +69,7 @@ class TimelineResponse(BaseModel):
             if isinstance(obj, list):
                 return [convert(i) for i in obj]
             return obj
+
         return convert(v)
 
 
@@ -88,8 +90,8 @@ class PatternOccurrenceResponse(BaseModel):
         populate_by_name = True
         json_encoders = {ObjectId: str}
 
-    @validator("id", "repository_id", "pattern_id", "commit_id", pre=True)
-    def convert_objectid_to_str(cls, v):
+    @field_validator("id", mode="before")
+    def convert_id_objectid_to_str(cls, v, info):
         if isinstance(v, ObjectId):
             return str(v)
         return v
@@ -109,8 +111,8 @@ class TechnologyResponse(BaseModel):
         populate_by_name = True
         json_encoders = {ObjectId: str}
 
-    @validator("id", pre=True)
-    def convert_objectid_to_str(cls, v):
+    @field_validator("id", mode="before")
+    def convert_id_obj_to_str_ai_model(cls, v, info):
         if isinstance(v, ObjectId):
             return str(v)
         return v
@@ -144,8 +146,8 @@ class AIModelResponse(BaseModel):
         populate_by_name = True
         json_encoders = {ObjectId: str}
 
-    @validator("id", pre=True)
-    def convert_objectid_to_str(cls, v):
+    @field_validator("id", mode="before")
+    def convert_id_obj_to_str_ai_result(cls, v, info):
         if isinstance(v, ObjectId):
             return str(v)
         return v
@@ -169,8 +171,8 @@ class AIAnalysisResultResponse(BaseModel):
         populate_by_name = True
         json_encoders = {ObjectId: str}
 
-    @validator("id", pre=True)
-    def convert_objectid_to_str(cls, v):
+    @field_validator("id", mode="before")
+    def convert_id_obj_to_str_ai_analysis(cls, v, info):
         if isinstance(v, ObjectId):
             return str(v)
         return v
@@ -194,8 +196,8 @@ class AnalysisSessionResponse(BaseModel):
         populate_by_name = True
         json_encoders = {ObjectId: str}
 
-    @validator("id", "repository_id", pre=True)
-    def convert_objectid_to_str(cls, v):
+    @field_validator("id", mode="before")
+    def convert_id_repoid_to_str_session(cls, v, info):
         if isinstance(v, ObjectId):
             return str(v)
         return v
@@ -213,8 +215,7 @@ class AIModelCreate(BaseModel):
     cost_per_1k_tokens: float = 0.0
     strengths: List[str] = []
 
-
-# ModelComparisonCreate removed - using single model analysis only
+    # ModelComparisonCreate removed - using single model analysis only
     configuration: Optional[Dict[str, Any]] = None
 
 

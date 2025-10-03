@@ -55,10 +55,12 @@ background_tasks = set()
 
 # Custom JSON encoder for MongoDB ObjectId
 class CustomJSONEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, ObjectId):
-            return str(obj)
-        return super().default(obj)
+    def default(self, o):
+        # Match base class signature (parameter named 'o') to avoid
+        # incompatible override warnings from type checkers.
+        if isinstance(o, ObjectId):
+            return str(o)
+        return super().default(o)
 
 
 # Custom JSON response that handles ObjectId
@@ -237,9 +239,9 @@ async def add_json_encoder(request, call_next):
 
 
 # Set the custom JSON encoder
-import fastapi
+import fastapi.encoders as fastapi_encoders
 
-fastapi.jsonable_encoder = custom_jsonable_encoder
+fastapi_encoders.jsonable_encoder = custom_jsonable_encoder
 
 # Configure middleware in correct order
 app.add_middleware(ConnectionLoggingMiddleware)
@@ -253,7 +255,11 @@ async def add_cors_headers(request: Request, call_next):
     # Handle preflight OPTIONS requests
     if request.method == "OPTIONS":
         response = JSONResponse(content={})
-        response.headers["Access-Control-Allow-Origin"] = "*"
+        # Echo the request Origin when present instead of using a wildcard.
+        # When Access-Control-Allow-Credentials is true the Origin must be
+        # an explicit origin value (not '*').
+        origin = request.headers.get("origin")
+        response.headers["Access-Control-Allow-Origin"] = origin if origin else "*"
         response.headers["Access-Control-Allow-Methods"] = (
             "GET, POST, PUT, DELETE, OPTIONS, PATCH"
         )
@@ -275,7 +281,9 @@ async def add_cors_headers(request: Request, call_next):
         )
 
     # Add CORS headers to all responses (including error responses)
-    response.headers["Access-Control-Allow-Origin"] = "*"
+    # Echo the Origin header when present so credentialed requests are allowed.
+    origin = request.headers.get("origin")
+    response.headers["Access-Control-Allow-Origin"] = origin if origin else "*"
     response.headers["Access-Control-Allow-Methods"] = (
         "GET, POST, PUT, DELETE, OPTIONS, PATCH"
     )
