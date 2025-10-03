@@ -29,13 +29,13 @@ export const TechnologyRadar: React.FC<TechnologyRadarProps> = ({
   const data = React.useMemo(() => {
     const categoryMap = {
       "Languages": "language",
-      "Frameworks": "framework", 
+      "Frameworks": "framework",
       "Libraries": "library",
       "Tools": "tool",
       "Databases": "database",
       "Platforms": "platform"
     };
-    
+
     return Object.entries(categoryMap).map(([displayName, key]) => {
       const techs = technologies[key as keyof typeof technologies] || [];
       return {
@@ -58,7 +58,14 @@ export const TechnologyRadar: React.FC<TechnologyRadarProps> = ({
           <PolarGrid className="stroke-muted" />
           <PolarAngleAxis dataKey="category" className="text-xs" />
           <PolarRadiusAxis className="text-xs" />
-          <Tooltip />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: "#111827",
+              border: "1px solid #374151",
+              borderRadius: "6px",
+              color: "#ffffff",
+            }}
+          />
           <Radar
             name="Technology Count"
             dataKey="count"

@@ -57,18 +57,17 @@ export const PatternDeepDive: React.FC<PatternDeepDiveProps> = ({
           <h4 className="text-sm font-medium text-muted-foreground mb-3">
             Select a pattern to analyze
           </h4>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
+          <div className="space-y-2">
             {patternList.map((pattern) => (
               <motion.button
                 key={pattern.name}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setSelectedPattern(pattern.name)}
-                className={`w-full text-left p-3 rounded-lg border transition-colors ${
-                  selectedPattern === pattern.name
+                className={`w-full text-left p-3 rounded-lg border transition-colors ${selectedPattern === pattern.name
                     ? "bg-primary/10 border-primary"
                     : "bg-card hover:bg-accent/50"
-                }`}
+                  }`}
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{pattern.name}</span>
@@ -78,11 +77,10 @@ export const PatternDeepDive: React.FC<PatternDeepDiveProps> = ({
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${
-                      pattern.is_antipattern
+                    className={`text-xs px-2 py-0.5 rounded-full ${pattern.is_antipattern
                         ? "bg-orange-500/20 text-orange-500"
                         : "bg-green-500/20 text-green-500"
-                    }`}
+                      }`}
                   >
                     {pattern.category}
                   </span>
@@ -128,11 +126,10 @@ export const PatternDeepDive: React.FC<PatternDeepDiveProps> = ({
                 (insight, i) => (
                   <div
                     key={i}
-                    className={`flex items-start gap-3 p-3 rounded-lg ${
-                      insight.type === "warning"
+                    className={`flex items-start gap-3 p-3 rounded-lg ${insight.type === "warning"
                         ? "bg-orange-500/10 text-orange-500"
                         : "bg-blue-500/10 text-blue-500"
-                    }`}
+                      }`}
                   >
                     {insight.type === "warning" ? (
                       <AlertTriangle className="w-4 h-4 mt-0.5" />

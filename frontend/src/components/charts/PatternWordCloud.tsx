@@ -8,21 +8,21 @@ interface Word {
 interface PatternWordCloudProps {
   patterns?: Word[];
   height?: number;
-  width?: number;
+  width?: number | string;
 }
 
 // Custom word cloud implementation that's more reliable
 export const PatternWordCloud: React.FC<PatternWordCloudProps> = ({
   patterns = [],
   height = 300,
-  width = 600,
+  width = "100%",
 }) => {
   const [processedPatterns, setProcessedPatterns] = useState<Word[]>([]);
 
   // Process and validate the data
   useEffect(() => {
     console.log("PatternWordCloud: Received patterns:", patterns);
-    
+
     if (!Array.isArray(patterns) || patterns.length === 0) {
       console.log("PatternWordCloud: No patterns or empty array");
       setProcessedPatterns([]);
@@ -79,8 +79,8 @@ export const PatternWordCloud: React.FC<PatternWordCloudProps> = ({
 
     return (
       <div
-        className="flex flex-wrap items-center justify-center gap-2 p-4"
-        style={{ height, width }}
+        className="flex flex-wrap items-center justify-center gap-3 p-6"
+        style={{ height, width: "100%", minHeight: height }}
       >
         {words.map((word, index) => (
           <span
@@ -106,7 +106,7 @@ export const PatternWordCloud: React.FC<PatternWordCloudProps> = ({
   // Use custom implementation
   return (
     <div
-      style={{ width, height }}
+      style={{ width, height, minHeight: height }}
       className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden"
     >
       <CustomWordCloud words={processedPatterns} />

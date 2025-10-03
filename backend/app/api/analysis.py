@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException
-from typing import Dict, Any, List
+from fastapi import APIRouter, Depends, HTTPException
+from typing import Any, Dict, List, Optional, Tuple
 import logging
 
 from app.core.service_manager import (
@@ -8,13 +8,15 @@ from app.core.service_manager import (
     get_ai_analysis_service,
     get_repository_service,
 )
+from app.api.auth import get_current_user_optional, user_has_provider_key
+from app.models.repository import User
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/analysis", tags=["Analysis"])
 
 
-def get_services():
+def get_services() -> Tuple[Any, Any, Any, Any]:
     """Get service instances using centralized service manager"""
     try:
         ai_service = get_ai_service()
@@ -110,13 +112,24 @@ async def get_ai_status():
 
 
 @router.get("/models/available")
-async def get_available_models():
+async def get_available_models(
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """Get available AI models for frontend dropdown"""
     logger.info("Available models requested")
 
     try:
         ai_service, _, _, _ = get_services()
+        if ai_service is None:
+            logger.error("AI service is unavailable while fetching model list")
+            raise HTTPException(status_code=503, detail="AI service unavailable")
+
         status = ai_service.get_status()
+
+        openai_models_available = status.get("openai_models_available", False)
+        if not openai_models_available and current_user is not None:
+            user_has_openai_key = await user_has_provider_key(current_user, "openai")
+            openai_models_available = openai_models_available or user_has_openai_key
 
         # Get Ollama model sizes from backend service
         from app.services.ollama_size_service import get_ollama_size_service
@@ -156,7 +169,7 @@ async def get_available_models():
                 logger.warning(f"Failed to fetch Ollama models: {e}")
 
         # Add OpenAI models if available
-        if status.get("openai_models_available", False):
+        if openai_models_available:
             openai_models = {
                 "gpt-5": {
                     "name": "gpt-5",
@@ -192,7 +205,7 @@ async def get_available_models():
             "available_models": available_models,
             "total_count": len(available_models),
             "ollama_available": status.get("ollama_available", False),
-            "openai_available": status.get("openai_models_available", False),
+            "openai_available": openai_models_available,
             "timestamp": status.get("timestamp", ""),
         }
 

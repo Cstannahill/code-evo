@@ -5,10 +5,10 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
 } from "@radix-ui/react-icons"; // Or your preferred icons
-import type { ModelInfo } from "./ModelSelection"; // Assuming ModelInfo is exported or defined here
+import type { ModelAvailabilityMap, ModelAvailabilityInfo } from "../../types";
 
 interface ModelSelectComponentProps {
-  models: Record<string, ModelInfo>; // Or ModelInfo[] if you prefer to pass an array
+  models: ModelAvailabilityMap;
   selectedModelName?: string;
   onSelectedModelChange: (modelName: string | undefined) => void;
   placeholder?: string;
@@ -22,7 +22,7 @@ export const ModelSelectComponent: React.FC<ModelSelectComponentProps> = ({
   placeholder = "Select a model...",
   disabled = false,
 }) => {
-  const modelEntries = Object.entries(models);
+  const modelEntries = Object.entries<ModelAvailabilityInfo>(models);
 
   return (
     <Select.Root

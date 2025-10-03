@@ -167,7 +167,7 @@ const TechnologyTimeline: React.FC<TechnologyTimelineProps> = ({
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-popover p-3 rounded shadow-lg border">
+        <div className="bg-gray-900 text-white p-3 rounded shadow-lg border border-gray-700">
           <p className="text-sm font-semibold">{label}</p>
           {payload.map((pld: any, index: number) => (
             <div key={index} style={{ color: pld.color }} className="text-xs">
@@ -175,12 +175,12 @@ const TechnologyTimeline: React.FC<TechnologyTimelineProps> = ({
             </div>
           ))}
           {payload[0].payload.languages && (
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-gray-400 mt-1">
               Languages: {payload[0].payload.languages}
             </p>
           )}
           {payload[0].payload.technologies && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-gray-400">
               Technologies: {payload[0].payload.technologies}
             </p>
           )}
@@ -351,7 +351,7 @@ const TechnologyTimeline: React.FC<TechnologyTimelineProps> = ({
                         style={{
                           backgroundColor:
                             colors[
-                              allLanguages.indexOf(stat.name) % colors.length
+                            allLanguages.indexOf(stat.name) % colors.length
                             ],
                         }}
                         className="h-2.5 w-2.5 rounded-full mr-2"

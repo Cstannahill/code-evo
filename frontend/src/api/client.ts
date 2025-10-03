@@ -1,5 +1,6 @@
 // src/api/client.ts - Enhanced with model selection and analytics
 import { getApiBaseUrl } from "../config/environment";
+import type { ModelAvailabilityResponse } from "../types";
 
 interface CreateRepositoryRequest {
   url: string;
@@ -85,14 +86,16 @@ export class ApiClient {
   }
 
   // Get available AI models
-  async getAvailableModels() {
-    const response = await fetch(
+  async getAvailableModels(): Promise<ModelAvailabilityResponse> {
+    const response = await this.authenticatedFetch(
       `${this.baseUrl}/api/analysis/models/available`
     );
     if (!response.ok) {
       throw new Error("Failed to fetch available models");
     }
-    return response.json();
+
+    const payload = (await response.json()) as ModelAvailabilityResponse;
+    return payload;
   }
 
   // Multi-model analysis endpoints

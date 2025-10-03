@@ -8,6 +8,7 @@ import { MultiAnalysisDashboard } from "./components/features/MultiAnalysisDashb
 import { SimpleThemeToggle } from "./components/ui/ThemeToggle";
 import { AuthModal } from "./components/auth/AuthModal";
 import { UserMenu } from "./components/auth/UserMenu";
+import { TunnelToggle } from "./components/tunnel/TunnelToggle";
 
 // Main App Content Component
 function AppContent() {
@@ -120,6 +121,7 @@ function AppContent() {
 
             </div>
             <div className="flex items-center gap-4">
+              <TunnelToggle />
               <SimpleThemeToggle />
 
               {/* Authentication UI */}

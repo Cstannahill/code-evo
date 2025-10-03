@@ -8,6 +8,177 @@
 
 ✅ **Production Ready** - All core systems operational with enhanced observability
 
+## Recent Updates ✅
+
+### Secure Ollama Tunnel System (2025-10-03) ✅ NEW
+
+**Feature**: Production deployment solution for local Ollama access via secure tunnels
+
+**Problem**: Deployed backend cannot access `localhost:11434` Ollama instances, blocking AI analysis in production environments
+
+**Solution**: Implemented comprehensive secure tunnel infrastructure with full transparency and user consent
+
+**Backend Implementation**:
+
+- `SecureTunnelService` (421 lines) - Core tunnel management with token-based auth
+- API endpoints: `/api/tunnel/register`, `/status`, `/disable`, `/proxy`, `/requests/recent`
+- Security: 24-hour token expiration, rate limiting (60 requests/min), request audit logging
+- Validation: Tunnel URL verification, health checks, automatic connection monitoring
+
+**Frontend Implementation**:
+
+- `useTunnelManager` hook - State management and API integration
+- `TunnelToggle` component - Compact nav bar control with status indicator
+- `RiskDisclosureDialog` - Full transparency with 3 risk categories and source code links
+- `TunnelSetupWizard` - Step-by-step guides for Cloudflare Tunnel and ngrok
+
+**Security Measures**:
+
+- Token-based authentication with automatic expiration
+- Rate limiting per user to prevent abuse
+- Comprehensive audit logging (last 1000 requests)
+- Request validation and sanitization
+- Explicit user consent with risk disclosure
+
+**Transparency Features**:
+
+- Direct links to source code (backend service, API, frontend hook)
+- Risk disclosure dialog with 3 categories (exposure, bandwidth, security)
+- Recent request history viewer for monitoring
+- Status indicators and connection diagnostics
+
+**Tunnel Providers Supported**:
+
+- **Cloudflare Tunnel**: Free, secure, no account required for quick tunnels (recommended)
+- **ngrok**: Quick setup, free tier with signup, persistent URLs
+
+**UI/UX Design**:
+
+- Toggle placed in nav bar between AI status and Theme Toggle (clean, uncluttered)
+- Visual status indicator: Green (active), Yellow (connecting), Red (error), Gray (disconnected)
+- Animated ping effect on active connection
+- Dropdown menu with connection stats and actions
+- Error messaging with actionable feedback
+
+**Components Created**:
+
+- `backend/app/services/secure_tunnel_service.py` - Tunnel management service
+- `backend/app/api/tunnel.py` - FastAPI router with 6 endpoints
+- `frontend/src/hooks/useTunnelManager.ts` - React hook for state/API
+- `frontend/src/components/tunnel/TunnelToggle.tsx` - Nav bar component
+- `frontend/src/components/tunnel/RiskDisclosureDialog.tsx` - Risk disclosure UI
+- `frontend/src/components/tunnel/TunnelSetupWizard.tsx` - Setup wizard UI
+- `frontend/src/types/tunnel.ts` - TypeScript type definitions
+
+**Status**: Backend infrastructure complete, frontend components integrated, ready for testing
+**Next**: End-to-end testing with real Ollama instance + Cloudflare Tunnel
+
+### Chart Tooltip Overlay Fix (2025-10-03) ✅
+
+**Fixed**: All chart tooltip overlays now have solid dark backgrounds for better readability
+
+**Issue**: Multiple chart tooltips used semi-transparent `bg-popover` or `hsl(var(--popover))` backgrounds, making text hard to read over busy chart visualizations
+
+**Solution**: Converted all tooltips to use solid dark backgrounds (`#111827` / `bg-gray-900`) with proper contrast
+
+- **Color Scheme**: Dark gray background (#111827), gray border (#374151), white text (#ffffff)
+- **Consistency**: All tooltips now match the professional appearance shown in tech timeline tooltips
+
+**Components Updated**:
+
+- `PatternTimeline.tsx` - CustomTooltip with solid bg-gray-900
+- `TechnologyTimeline.tsx` - CustomTooltip with solid bg-gray-900
+- `LearningProgressionChart.tsx` - Tooltip contentStyle updated
+- `ComplexityEvolutionChart.tsx` - Tooltip contentStyle updated
+- `TechStackComposition.tsx` - Both tooltip instances updated
+- `TechnologyEvolutionChart.tsx` - Tooltip contentStyle updated
+- `TechRadar.tsx` - Tooltip contentStyle added
+
+**Result**: All 7 chart components now have fully readable, professional tooltips with solid backgrounds
+
+### Pattern Analysis Tab Optimization (2025-10-03)
+
+**Fixed**: Pattern Heatmap centering and Pattern Deep Dive scroll issues
+
+**Phase 4 - Pattern Tab Full-Width Layout**:
+
+- **Issues**:
+  - Pattern Heatmap had fixed width (600px) in 2-column grid causing alignment issues
+  - Pattern Deep Dive list had `max-h-96 overflow-y-auto` causing unnecessary vertical scroll
+- **Solution**: Full-width stacked layout for all pattern analysis components
+- **Changes Made**:
+  - Removed `xl:grid-cols-2` wrapper div from Pattern Analysis tab
+  - Changed PatternHeatmap width prop from fixed `600px` to `"100%"` responsive default
+  - Updated PatternHeatmap interface to accept `width?: number | string`
+  - Added intelligent width calculation handling for percentage-based widths
+  - Added `minHeight` to heatmap for consistent height with responsive width
+  - Removed `max-h-96 overflow-y-auto` from Pattern Deep Dive pattern list
+  - Pattern list now flows naturally without scroll constraints
+  - All three sections (Heatmap, Timeline, Deep Dive) now full-width stacked
+
+**Components Modified**:
+
+- `frontend/src/components/features/AnalysisDashboard.tsx` - Pattern tab layout restructure
+- `frontend/src/components/charts/PatternHeatmap.tsx` - Responsive width improvements
+- `frontend/src/components/features/PatternDeepDive.tsx` - Removed scroll constraint
+
+**Status**: Pattern Analysis tab now fully responsive and scroll-free
+**Result**: Clean, professional layout with better space utilization and no cramped scrolling
+
+### Analysis Dashboard Layout Optimization (2025-10-03)
+
+**Fixed**: Overview tab layout and Pattern Distribution centering issues
+
+**Phase 3 - Full-Width Row Layout**:
+
+- **Issue**: Code Quality Metrics and Pattern Distribution squeezed side-by-side caused alignment issues
+- **Solution**: Changed from 2-column grid to full-width stacked rows
+- **Changes Made**:
+  - Removed `lg:grid-cols-2` wrapper div from Overview tab
+  - Each section now gets full width for better content display
+  - Pattern Distribution now properly centered and responsive
+  - Code Quality Metrics has more room for 6 metric cards to breathe
+  - Improved overall UX with clearer visual hierarchy
+  - Enhanced PatternWordCloud to use `width="100%"` by default
+  - Increased gap spacing in word cloud from `gap-2` to `gap-3`
+  - Increased padding in word cloud from `p-4` to `p-6` for better spacing
+
+**Components Modified**:
+
+- `frontend/src/components/features/AnalysisDashboard.tsx` - Layout restructure
+- `frontend/src/components/charts/PatternWordCloud.tsx` - Full-width responsive improvements
+
+**Status**: Layout is now clean, centered, and responsive across all screen sizes
+**Result**: Better readability, improved visual balance, professional dashboard appearance
+
+### Code Quality Metrics UI Enhancement (2025-10-03)
+
+**Fixed**: Layout alignment and responsiveness issues in `CodeQualityMetrics` component
+
+**Phase 1 - Circle Alignment**:
+
+- **Issue**: Circular progress circles were misaligned and pushed right out of their category cards
+- **Solution**: Restructured MetricCard component with proper flexbox centering
+- **Changes**: Added flex container with proper alignment, removed mx-auto, proper width distribution
+
+**Phase 2 - Title & Icon Layout**:
+
+- **Issue**: Titles were truncating/wrapping awkwardly (e.g., "Maintainab...", "Evolution Score" wrapping), icons cramped
+- **Solution**: Vertical stacked layout with centered icon and title
+- **Changes Made**:
+  - Moved icon above title in centered vertical stack
+  - Increased icon size from `w-5 h-5` to `w-6 h-6` for better visibility
+  - Changed title to centered alignment with `leading-tight` for better text flow
+  - Reduced card padding from `p-6` to `p-4` for tighter, cleaner appearance
+  - Added `gap-2` between icon and title for proper spacing
+  - Added `leading-snug` and `px-1` to description for better text wrapping
+  - Full titles now display cleanly without truncation
+  - Added proper TypeScript typing with `LucideIcon` and `PatternInfo` types
+
+**Component**: `frontend/src/components/charts/CodeQualityMetrics.tsx`
+**Status**: All TypeScript errors resolved, layout properly centered and responsive
+**Result**: Clean card layout with icon-on-top design, full title visibility, better mobile responsiveness
+
 ## Operational Features ✅ NEW
 
 ### Token Usage Tracking & Analytics
@@ -577,6 +748,9 @@ pnpm dev                       # Development server (port 5173)
 - Frontend API integrations now standardize on the `getApiBaseUrl` helper, eliminating relative `/api` calls that previously broke production authentication and ancillary requests like API key management.
 - The `useLocalOllama` hook detects secure-origin mixed content blocking, surfaces actionable guidance to the user, and supports a configurable `VITE_OLLAMA_BASE_URL` for tunneling a remotely accessible Ollama endpoint.
 - `ENVIRONMENT_SETUP.md` documents the new Ollama configuration variable alongside the existing API base URL guidance so deployments know how to expose local models safely.
+- `/api/analysis/models/available` now accepts optional Bearer auth and inspects per-user API keys, enabling guest-supplied OpenAI credentials to populate the model picker even when the global environment lacks cloud keys.
+- `ModelSelection` displays contextual empty-state guidance, prompting users to add API keys when no cloud models are available, and surfaces Ollama browser-blocking warnings inline.
+- Model availability flow shares a dedicated TypeScript contract, and `ApiClient.getAvailableModels` now always forwards bearer tokens via the authenticated fetch helper so guest/user API keys unlock OpenAI results consistently across the UI.
 - MongoDB connection layer now actively consumes TLS-related environment variables (`MONGODB_TLS`, `MONGODB_TLS_ALLOW_INVALID_CERTIFICATES`, `MONGODB_TLS_CA_FILE`, `MONGODB_TLS_DISABLE_OCSP`, `MONGODB_APP_NAME`) and feeds them into the Motor client, adding validation for CA bundle presence and rich diagnostic logging on connection failures.
 - PyMongo/Motor client configuration now receives server selection, connect, and socket timeout settings (plus pool sizing) from env configuration, eliminating the premature asyncio cancellation and ensuring full `ServerSelectionTimeoutError` diagnostics reach the logs. Sanitized connection URIs and node topology snapshots are emitted whenever a connection attempt fails.
 - Docker image no longer overrides `SSL_CERT_FILE` with the AWS RDS bundle; instead it installs Debian's `ca-certificates`, allowing the default trust store (which already includes the MongoDB Atlas chain) to validate TLS handshakes. Deployments must remove any stale `MONGODB_TLS_CA_FILE=/app/certs/rds-combined-ca-bundle.pem` environment variable so the driver falls back to the system bundle. If that variable is still present at runtime, the backend now logs a warning and automatically ignores the missing file rather than aborting initialization.
@@ -595,6 +769,8 @@ Session additions:
 
 - Stage and commit `backend/app/utils/token_logger.py` (now unignored) and redeploy so the backend includes the token logging module in production builds.
 - When hosting the frontend on a secure domain, either run the UI locally or configure `VITE_OLLAMA_BASE_URL` to an HTTPS-accessible tunnel so local Ollama models remain available; update deployment secrets accordingly before the next release.
+- After supplying an OpenAI API key (guest or authenticated user), confirm the refreshed model list includes GPT options in production; if not, inspect backend logs for `/api/analysis/models/available` to verify Bearer tokens are forwarded and cache entries resolve.
+- Smoke-test `ModelSelection`, `ModelSelectComponent`, and the multi-analysis tabs to confirm the shared model types behave as expected after redeploy (local models listed, auth-protected cloud models appear once keys are supplied).
 - Update Railway (and any other hosted environments) to set `MONGODB_TLS=true` and, if using self-signed certs, `MONGODB_TLS_ALLOW_INVALID_CERTIFICATES=true` or provide `MONGODB_TLS_CA_FILE`, then redeploy to verify MongoDB health check passes. After redeploy, review the enhanced MongoDB connection logs to capture detailed failure diagnostics if the handshake continues to fail. The logs now print sanitized Mongo URIs, all applied client options, and any server-selection details reported by PyMongo to speed up Atlas troubleshooting. If you previously pointed `MONGODB_TLS_CA_FILE` at `/app/certs/rds-combined-ca-bundle.pem`, remove that variable so the deployment uses the refreshed system CA bundle.
 - Test backend analysis with both legacy and new OpenAI models to confirm the token parameter fix works as intended.
 - Monitor logs for any parameter-related errors or unexpected behavior.

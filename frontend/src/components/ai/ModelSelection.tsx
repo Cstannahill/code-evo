@@ -14,6 +14,11 @@ import {
 import { Button } from "../ui/button";
 import { apiClient } from "../../api/client";
 import { useLocalOllama } from "../../hooks/useLocalOllama";
+import type {
+  ModelAvailabilityInfo,
+  ModelAvailabilityMap,
+  ModelAvailabilityResponse,
+} from "../../types";
 
 interface ModelStats {
   usage_stats?: {
@@ -21,18 +26,6 @@ interface ModelStats {
     total_analyses: number;
     avg_confidence: number;
   };
-}
-
-export interface ModelInfo {
-  name: string;
-  display_name: string;
-  provider: string;
-  context_window: number;
-  cost_per_1k_tokens: number;
-  strengths: string[];
-  available: boolean;
-  cost_tier?: string;
-  is_free?: boolean;
 }
 
 interface ModelSelectionProps {
@@ -52,16 +45,15 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
   analysisType,
   loading = false,
 }) => {
-  const [availableModels, setAvailableModels] = useState<
-    Record<string, ModelInfo>
-  >({});
+  const [availableModels, setAvailableModels] = useState<ModelAvailabilityMap>({});
   const [modelStats, setModelStats] = useState<Record<string, ModelStats>>({});
   const [loadingModels, setLoadingModels] = useState(true);
+  const [openAiAvailable, setOpenAiAvailable] = useState(false);
   const { status: localOllamaStatus } = useLocalOllama();
 
   const fetchAvailableModels = useCallback(async () => {
     try {
-      const data = await apiClient.getAvailableModels();
+      const data: ModelAvailabilityResponse = await apiClient.getAvailableModels();
       console.log("ModelSelection: Raw API data:", data);
       console.log("ModelSelection: Available models:", data.available_models);
       console.log(
@@ -70,6 +62,7 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
       );
 
       setAvailableModels(data.available_models);
+      setOpenAiAvailable(Boolean(data.openai_available));
 
       // Initialize empty stats since we don't have stats endpoint anymore
       const statsObject: Record<string, ModelStats> = {};
@@ -95,16 +88,18 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
   }, [fetchAvailableModels]);
 
   const getModelIcon = (provider: string) => {
-    if (provider.includes("Ollama")) return <Home className="w-5 h-5" />;
-    if (provider.includes("OpenAI")) return <Cloud className="w-5 h-5" />;
-    if (provider.includes("Anthropic")) return <Brain className="w-5 h-5" />;
+    const normalizedProvider = provider.toLowerCase();
+    if (normalizedProvider.includes("ollama")) return <Home className="w-5 h-5" />;
+    if (normalizedProvider.includes("openai")) return <Cloud className="w-5 h-5" />;
+    if (normalizedProvider.includes("anthropic")) return <Brain className="w-5 h-5" />;
     return <Cpu className="w-5 h-5" />;
   };
 
   const getProviderColor = (provider: string) => {
-    if (provider.includes("Ollama")) return "border-green-500 bg-green-500/10";
-    if (provider.includes("OpenAI")) return "border-blue-500 bg-blue-500/10";
-    if (provider.includes("Anthropic"))
+    const normalizedProvider = provider.toLowerCase();
+    if (normalizedProvider.includes("ollama")) return "border-green-500 bg-green-500/10";
+    if (normalizedProvider.includes("openai")) return "border-blue-500 bg-blue-500/10";
+    if (normalizedProvider.includes("anthropic"))
       return "border-purple-500 bg-purple-500/10";
     return "border-gray-500 bg-gray-500/10";
   };
@@ -141,7 +136,7 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
     }
   };
 
-  const ModelCard: React.FC<{ modelName: string; model: ModelInfo }> = ({
+  const ModelCard: React.FC<{ modelName: string; model: ModelAvailabilityInfo }> = ({
     modelName,
     model,
   }) => {
@@ -308,6 +303,18 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
       {localModels.length === 0 && localOllamaStatus.blockedReason && (
         <div className="rounded-md border border-red-700 bg-red-900/20 p-4 text-sm text-red-200" role="alert">
           {localOllamaStatus.blockedReason}
+        </div>
+      )}
+
+      {apiModels.length === 0 && !openAiAvailable && (
+        <div className="rounded-md border border-blue-700 bg-blue-900/20 p-4 text-sm text-blue-200" role="alert">
+          Connect a cloud provider API key to unlock OpenAI models. Add your key in the API Key Manager or, as a guest, provide it in the modal form to refresh this list.
+        </div>
+      )}
+
+      {localModels.length === 0 && apiModels.length === 0 && !loadingModels && (
+        <div className="rounded-md border border-gray-700 bg-gray-900/40 p-4 text-sm text-gray-300" role="status">
+          No models are currently available. Start Ollama locally or supply a cloud API key to enable analysis.
         </div>
       )}
 

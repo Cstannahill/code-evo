@@ -31,23 +31,23 @@ export const ComplexityEvolutionChart: React.FC<
     // Process patterns with enhanced complexity detection
     Object.entries(patterns).forEach(([name, stats]) => {
       let level = stats.complexity_level || "intermediate";
-      
+
       // Enhanced complexity classification based on pattern characteristics
       const occurrences = stats.occurrences || 0;
       const nameComplexity = name.toLowerCase();
-      
+
       // Upgrade complexity based on pattern characteristics
-      if (nameComplexity.includes("async") || nameComplexity.includes("concurrent") || 
-          nameComplexity.includes("reactive") || nameComplexity.includes("decorator") ||
-          nameComplexity.includes("observer") || nameComplexity.includes("strategy") ||
-          occurrences > 20) {
+      if (nameComplexity.includes("async") || nameComplexity.includes("concurrent") ||
+        nameComplexity.includes("reactive") || nameComplexity.includes("decorator") ||
+        nameComplexity.includes("observer") || nameComplexity.includes("strategy") ||
+        occurrences > 20) {
         level = "expert";
       } else if (nameComplexity.includes("factory") || nameComplexity.includes("builder") ||
-                 nameComplexity.includes("adapter") || nameComplexity.includes("facade") ||
-                 occurrences > 10) {
+        nameComplexity.includes("adapter") || nameComplexity.includes("facade") ||
+        occurrences > 10) {
         level = "advanced";
       } else if (nameComplexity.includes("function") || nameComplexity.includes("class") ||
-                 nameComplexity.includes("method") || occurrences > 5) {
+        nameComplexity.includes("method") || occurrences > 5) {
         level = "intermediate";
       } else if (occurrences <= 3) {
         level = "simple";
@@ -78,7 +78,7 @@ export const ComplexityEvolutionChart: React.FC<
       const hasSimple = result.some(r => r.complexity === 'simple');
       const hasIntermediate = result.some(r => r.complexity === 'intermediate');
       const hasAdvanced = result.some(r => r.complexity === 'advanced');
-      
+
       if (!hasSimple && totalPatterns > 3) {
         result.unshift({
           complexity: 'simple',
@@ -87,7 +87,7 @@ export const ComplexityEvolutionChart: React.FC<
           patterns: []
         });
       }
-      
+
       if (!hasIntermediate) {
         result.push({
           complexity: 'intermediate',
@@ -96,7 +96,7 @@ export const ComplexityEvolutionChart: React.FC<
           patterns: []
         });
       }
-      
+
       if (!hasAdvanced && totalPatterns > 5) {
         result.push({
           complexity: 'advanced',
@@ -173,16 +173,16 @@ export const ComplexityEvolutionChart: React.FC<
             textAnchor="end"
             height={60}
           />
-          <YAxis 
-            className="text-xs" 
-            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} 
+          <YAxis
+            className="text-xs"
+            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "hsl(var(--popover))",
-              borderColor: "hsl(var(--border))",
+              backgroundColor: "#111827",
+              borderColor: "#374151",
               borderRadius: "0.5rem",
-              color: "hsl(var(--popover-foreground))",
+              color: "#ffffff",
             }}
             cursor={{ fill: "hsl(var(--muted))", opacity: 0.1 }}
             content={({ active, payload }) => {
@@ -222,11 +222,11 @@ export const ComplexityEvolutionChart: React.FC<
               return null;
             }}
           />
-          <Legend 
-            wrapperStyle={{ 
-              color: "hsl(var(--muted-foreground))", 
-              paddingTop: "10px" 
-            }} 
+          <Legend
+            wrapperStyle={{
+              color: "hsl(var(--muted-foreground))",
+              paddingTop: "10px"
+            }}
           />
           <Bar dataKey="count" name="Pattern Count" radius={[2, 2, 0, 0]}>
             {data.map((entry, index) => (

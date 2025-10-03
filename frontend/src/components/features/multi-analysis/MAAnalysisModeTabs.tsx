@@ -1,6 +1,6 @@
 import React from "react";
 import { Tabs, TabsList, TabsTrigger } from "../../ui/tabs";
-import { Brain, Zap } from "lucide-react";
+import { Brain } from "lucide-react";
 import { ModelSelect } from "../../ai/ModelSelect";
 import type { AIModel } from "../../../types/ai";
 
@@ -48,13 +48,13 @@ export const MAAnalysisModeTabs: React.FC<MAAnalysisModeTabsProps> = ({
                     <Brain className="w-4 h-4" />
                     Analyze
                 </TabsTrigger>
-                <TabsTrigger
+                {/* <TabsTrigger
                     value="compare"
                     className="ctan-tab flex items-center gap-2 hover:text-[#ffb700]"
                 >
                     <Zap className="w-4 h-4" />
                     Compare Models
-                </TabsTrigger>
+                </TabsTrigger> */}
             </TabsList>
             {analysisMode === "single" && (
                 <ModelSelect

@@ -50,7 +50,7 @@ export const LearningProgressionChart: React.FC<
         const patterns = point.patterns || {};
         const patternCount = Object.keys(patterns).length;
         const complexPatterns = Object.values(patterns).filter((count: any) => count > 5).length;
-        
+
         // Calculate progressive skill metrics
         const skillLevel = Math.min(100, 20 + (index * 8) + (patternCount * 3));
         const patternComplexity = Math.min(100, 15 + (complexPatterns * 10) + (index * 5));
@@ -69,10 +69,10 @@ export const LearningProgressionChart: React.FC<
 
     // Generate progression data based on available metrics
     const periods = Math.max(6, Math.min(12, Math.ceil(commits / 10)));
-    
+
     return Array.from({ length: periods }, (_, index) => {
       const progressRatio = index / (periods - 1);
-      
+
       // Simulate realistic learning progression curves
       const skillLevel = Math.min(100, 25 + (progressRatio * 60) + (totalPatterns * 2));
       const patternComplexity = Math.min(100, 15 + (progressRatio * 50) + (totalPatterns * 1.5));
@@ -117,21 +117,22 @@ export const LearningProgressionChart: React.FC<
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis 
-            dataKey="period" 
+          <XAxis
+            dataKey="period"
             className="text-xs"
             tick={{ fontSize: 12 }}
           />
-          <YAxis 
+          <YAxis
             className="text-xs"
             tick={{ fontSize: 12 }}
             domain={[0, 100]}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "hsl(var(--popover))",
-              border: "1px solid hsl(var(--border))",
+              backgroundColor: "#111827",
+              border: "1px solid #374151",
               borderRadius: "6px",
+              color: "#ffffff",
             }}
             formatter={(value: any, name: string) => [
               `${value}%`,
@@ -139,12 +140,12 @@ export const LearningProgressionChart: React.FC<
             ]}
           />
           <Legend />
-          
+
           {/* Reference lines for skill levels */}
           <ReferenceLine y={25} stroke="#ef4444" strokeDasharray="2 2" opacity={0.3} />
           <ReferenceLine y={50} stroke="#f59e0b" strokeDasharray="2 2" opacity={0.3} />
           <ReferenceLine y={75} stroke="#10b981" strokeDasharray="2 2" opacity={0.3} />
-          
+
           <Line
             type="monotone"
             dataKey="skillLevel"

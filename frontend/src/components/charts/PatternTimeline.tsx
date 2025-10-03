@@ -45,7 +45,7 @@ const CustomTooltip = ({
     // Get the full date from the payload data
     const fullDate = payload[0]?.payload?.fullDate || label;
     return (
-      <div className="bg-popover p-3 rounded-lg shadow-lg border">
+      <div className="bg-gray-900 text-white p-3 rounded-lg shadow-lg border border-gray-700">
         <p className="font-semibold">{fullDate}</p>
         {payload.map((entry, index) => (
           <p key={index} style={{ color: entry.color }}>

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Header, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta
@@ -469,6 +469,27 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     return user
 
 
+async def get_current_user_optional(
+    authorization: Optional[str] = Header(default=None),
+) -> Optional[User]:
+    """Return the authenticated user if a valid Bearer token is provided, otherwise None."""
+
+    if not authorization:
+        return None
+
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        return None
+
+    try:
+        return await verify_token(token)
+    except HTTPException:
+        return None
+    except Exception as exc:
+        logger.debug(f"Optional auth token verification failed: {exc}")
+        return None
+
+
 # Authentication endpoints
 @router.post("/register", response_model=UserResponse)
 async def register_user(user_data: UserCreate):
@@ -784,3 +805,29 @@ async def get_api_key_for_user(user: User, provider: str) -> Optional[str]:
         return await get_guest_api_key(str(user.id), provider)
     else:
         return await get_user_api_key(str(user.id), provider)
+
+
+async def user_has_provider_key(user: User, provider: str) -> bool:
+    """Check whether the user (including guests) has an active API key for the provider."""
+    if user.is_guest:
+        guest_key = await get_guest_api_key(str(user.id), provider)
+        return guest_key is not None
+
+    try:
+        engine = await get_engine()
+        if engine:
+            api_key = await engine.find_one(
+                APIKey,
+                APIKey.user_id == str(user.id),
+                APIKey.provider == provider,
+                APIKey.is_active == True,
+            )
+            return api_key is not None
+    except Exception as exc:
+        logger.debug(
+            "Failed to determine provider key availability for user %s: %s",
+            user.id,
+            exc,
+        )
+
+    return False

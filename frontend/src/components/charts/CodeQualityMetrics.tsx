@@ -9,8 +9,10 @@ import {
   Shield,
   Zap,
   GitBranch,
+  type LucideIcon,
 } from "lucide-react";
 import type { RepositoryAnalysis } from "../../types/api";
+import type { PatternInfo } from "../../types/analysis";
 
 interface CodeQualityMetricsProps {
   analysis: RepositoryAnalysis;
@@ -25,7 +27,7 @@ export const CodeQualityMetrics: React.FC<CodeQualityMetricsProps> = ({
     const antipatterns = analysis.summary?.antipatterns_detected || 0;
     const complexPatterns = Object.values(
       analysis.pattern_statistics || {}
-    ).filter((p: any) => p.complexity_level === "advanced").length;
+    ).filter((p: PatternInfo) => p.complexity_level === "advanced").length;
 
     return {
       codeQuality: Math.max(0, Math.min(100, 90 - antipatterns * 15)),
@@ -58,7 +60,7 @@ export const CodeQualityMetrics: React.FC<CodeQualityMetricsProps> = ({
   }: {
     title: string;
     value: number;
-    icon: any;
+    icon: LucideIcon;
     color: string;
     description: string;
   }) => {
@@ -78,13 +80,13 @@ export const CodeQualityMetrics: React.FC<CodeQualityMetricsProps> = ({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-card rounded-lg border p-6 shadow-lg"
+        className="bg-card rounded-lg border p-4 shadow-lg flex flex-col items-center"
       >
-        <div className="flex items-center justify-between mb-4">
-          <h4 className="text-sm font-medium">{title}</h4>
-          <Icon className={`w-5 h-5 ${color}`} />
+        <div className="w-full flex flex-col items-center gap-2 mb-4">
+          <Icon className={`w-6 h-6 ${color} flex-shrink-0`} />
+          <h4 className="text-sm font-medium text-center leading-tight">{title}</h4>
         </div>
-        <div className="w-24 h-24 mx-auto mb-4">
+        <div className="w-24 h-24 mb-4">
           <CircularProgressbar
             value={value}
             text={`${Math.round(value)}%`}
@@ -97,7 +99,7 @@ export const CodeQualityMetrics: React.FC<CodeQualityMetricsProps> = ({
             })}
           />
         </div>
-        <p className="text-xs text-center text-muted-foreground">{description}</p>
+        <p className="text-xs text-center text-muted-foreground w-full leading-snug px-1">{description}</p>
       </motion.div>
     );
   };

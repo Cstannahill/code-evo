@@ -261,8 +261,9 @@ export const TechnologyEvolutionChart: React.FC<
           <YAxis className="text-xs" />
           <Tooltip
             contentStyle={{
-              backgroundColor: "hsl(var(--popover))",
-              border: "1px solid hsl(var(--border))",
+              backgroundColor: "#111827",
+              border: "1px solid #374151",
+              color: "#ffffff",
             }}
           />
           <Legend />

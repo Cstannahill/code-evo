@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 
 interface PatternHeatmapProps {
   data: any;
-  width?: number;
+  width?: number | string;
   height?: number;
   topPatterns?: string[];
 }
@@ -17,7 +17,7 @@ interface HeatmapCell {
 
 export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
   data,
-  width = 800,
+  width = "100%",
   height = 400,
   topPatterns,
 }) => {
@@ -103,7 +103,7 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
   if (heatmapData.cells.length === 0) {
     return (
       <div
-        style={{ width, height }}
+        style={{ width, height, minHeight: height }}
         className="flex items-center justify-center bg-card rounded-lg border"
       >
         <div className="text-center text-muted-foreground">
@@ -118,7 +118,9 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
   }
 
   const { patterns, months } = heatmapData;
-  const cellWidth = Math.max(40, (width - 120) / months.length);
+  // Calculate cell dimensions - use a reasonable default for percentage widths
+  const numericWidth = typeof width === 'string' ? 1000 : width;
+  const cellWidth = Math.max(40, (numericWidth - 120) / months.length);
   const cellHeight = Math.max(30, (height - 60) / patterns.length);
 
   return (
@@ -127,7 +129,7 @@ export const PatternHeatmap: React.FC<PatternHeatmapProps> = ({
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5 }}
       className="bg-card rounded-lg border p-4 overflow-auto"
-      style={{ width, height }}
+      style={{ width, height, minHeight: height }}
     >
       <div className="relative">
         {/* Pattern labels */}

@@ -166,7 +166,7 @@ export const TechStackComposition: React.FC<TechStackCompositionProps> = ({
   // Prepare drill-down data
   const drillDownData = useMemo(() => {
     if (!selectedCategory) return [];
-    
+
     return selectedCategory.technologies
       .map((tech: any) => ({
         name: tech.name || tech,
@@ -210,8 +210,8 @@ export const TechStackComposition: React.FC<TechStackCompositionProps> = ({
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={drillDownData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted opacity-30" />
-        <XAxis 
-          dataKey="name" 
+        <XAxis
+          dataKey="name"
           tick={{ fontSize: 10 }}
           angle={-45}
           textAnchor="end"
@@ -220,13 +220,14 @@ export const TechStackComposition: React.FC<TechStackCompositionProps> = ({
         <YAxis tick={{ fontSize: 10 }} />
         <Tooltip
           contentStyle={{
-            backgroundColor: "hsl(var(--popover))",
-            border: "1px solid hsl(var(--border))",
+            backgroundColor: "#111827",
+            border: "1px solid #374151",
             borderRadius: "6px",
+            color: "#ffffff",
           }}
         />
-        <Bar 
-          dataKey="usage" 
+        <Bar
+          dataKey="usage"
           fill={COLORS[activeIndex % COLORS.length]}
           radius={[2, 2, 0, 0]}
         />
@@ -281,12 +282,13 @@ export const TechStackComposition: React.FC<TechStackCompositionProps> = ({
             </Pie>
             <Tooltip
               contentStyle={{
-                backgroundColor: "hsl(var(--popover))",
-                borderColor: "hsl(var(--border))",
+                backgroundColor: "#111827",
+                borderColor: "#374151",
                 borderRadius: "0.5rem",
+                color: "#ffffff",
               }}
               itemStyle={{
-                color: "hsl(var(--popover-foreground))",
+                color: "#ffffff",
               }}
               cursor={{ fill: "rgba(255, 255, 255, 0.1)" }}
               formatter={(
@@ -296,13 +298,12 @@ export const TechStackComposition: React.FC<TechStackCompositionProps> = ({
               ): [React.ReactNode, React.ReactNode] => {
                 const techDataPayload = entry.payload as TechStackPieData;
                 const formattedName = techDataPayload.name;
-                const formattedValue = `${techDataPayload.count} tech${
-                  techDataPayload.count !== 1 ? "s" : ""
-                } (${(
-                  ((entry.value || 0) /
-                    (data.reduce((acc, d) => acc + d.value, 0) || 1)) *
-                  100
-                ).toFixed(0)}%) - Click to explore`;
+                const formattedValue = `${techDataPayload.count} tech${techDataPayload.count !== 1 ? "s" : ""
+                  } (${(
+                    ((entry.value || 0) /
+                      (data.reduce((acc, d) => acc + d.value, 0) || 1)) *
+                    100
+                  ).toFixed(0)}%) - Click to explore`;
 
                 return [formattedValue, formattedName];
               }}

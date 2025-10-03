@@ -322,27 +322,25 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ repository
           >
             {/* Overview */}
             <TabsContent value="overview" className="space-y-6 mt-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <DashboardCard title="Code Quality Metrics" icon={Gauge}>
-                  <CodeQualityMetrics analysis={analysis} />
-                </DashboardCard>
-                <DashboardCard title="Pattern Distribution" icon={Brain}>
-                  {wordCloudData.length > 0 ? (
-                    <PatternWordCloud patterns={wordCloudData} height={280} />
-                  ) : (
-                    <div className="flex items-center justify-center h-64 text-muted-foreground">
-                      <div className="text-center">
-                        <div className="text-4xl mb-2">🧠</div>
-                        <p>Analyzing patterns...</p>
-                        <p className="text-sm mt-1">
-                          {Object.keys(analysis.pattern_statistics || {}).length}{" "}
-                          patterns detected
-                        </p>
-                      </div>
+              <DashboardCard title="Code Quality Metrics" icon={Gauge}>
+                <CodeQualityMetrics analysis={analysis} />
+              </DashboardCard>
+              <DashboardCard title="Pattern Distribution" icon={Brain}>
+                {wordCloudData.length > 0 ? (
+                  <PatternWordCloud patterns={wordCloudData} height={280} />
+                ) : (
+                  <div className="flex items-center justify-center h-64 text-muted-foreground">
+                    <div className="text-center">
+                      <div className="text-4xl mb-2">🧠</div>
+                      <p>Analyzing patterns...</p>
+                      <p className="text-sm mt-1">
+                        {Object.keys(analysis.pattern_statistics || {}).length}{" "}
+                        patterns detected
+                      </p>
                     </div>
-                  )}
-                </DashboardCard>
-              </div>
+                  </div>
+                )}
+              </DashboardCard>
               <DashboardCard
                 title="Repository Evolution Timeline"
                 icon={Calendar}
@@ -357,18 +355,16 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ repository
 
             {/* Pattern Analysis */}
             <TabsContent value="patterns" className="space-y-6 mt-6">
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <DashboardCard title="Pattern Heatmap" icon={BarChart3}>
-                  <PatternHeatmap data={analysis} width={600} height={300} topPatterns={topPatternNames} />
-                </DashboardCard>
-                <DashboardCard title="Pattern Timeline" icon={LineChart}>
-                  <PatternTimeline
-                    data={analysis.pattern_timeline || {}}
-                    height={300}
-                    topPatterns={topPatternNames}
-                  />
-                </DashboardCard>
-              </div>
+              <DashboardCard title="Pattern Heatmap" icon={BarChart3}>
+                <PatternHeatmap data={analysis} height={300} topPatterns={topPatternNames} />
+              </DashboardCard>
+              <DashboardCard title="Pattern Timeline" icon={LineChart}>
+                <PatternTimeline
+                  data={analysis.pattern_timeline || {}}
+                  height={300}
+                  topPatterns={topPatternNames}
+                />
+              </DashboardCard>
               <DashboardCard title="Pattern Deep Dive" icon={Brain}>
                 <PatternDeepDive
                   patterns={analysis.pattern_statistics || {}}
