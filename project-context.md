@@ -920,6 +920,99 @@ Session additions:
 
 ## Immediate Next Steps
 
+### 🎉 API Key Security Implementation COMPLETE (2025-10-03)
+
+**Frontend Security Features Implemented**:
+
+1. ✅ **APIKey Interface Enhanced**:
+
+   - Added `expires_at?: string` - Expiration date field
+   - Added `key_version: number` - Track rotation versions
+   - Added `rotation_warning_sent: boolean` - Warning notification flag
+   - Created `ExpiringKey` interface for expiration tracking
+
+2. ✅ **API Client Methods Added** (`frontend/src/api/client.ts`):
+
+   - `rotateAPIKey(keyId, newApiKey, provider, keyName)` - Rotate API key with version increment
+   - `getExpiringKeys()` - Fetch keys expiring within 7 days
+   - Both methods use authenticated fetch with Bearer token
+
+3. ✅ **Expiring Keys Warning Widget**:
+
+   - Displays at top of APIKeyManager when keys are expiring soon
+   - Orange border with warning icon for visibility
+   - Shows provider, key name, version, and days until expiry
+   - "Rotate Now" button for each expiring key
+   - Contextual empty state (hidden when no expiring keys)
+
+4. ✅ **Enhanced Key Display Cards**:
+
+   - Version badge (v1, v2, v3...) in blue
+   - Expiration badge with color coding:
+     - 🔴 Red: <7 days left (urgent)
+     - 🟡 Yellow: 8-30 days left (warning)
+     - 🟢 Green: >30 days left (healthy)
+     - ⚫ Gray: Expired
+   - Expiration date display ("Expires: MM/DD/YYYY")
+   - Days calculation from helper function
+
+5. ✅ **Key Rotation Workflow**:
+
+   - "Rotate" button on each key card with refresh icon
+   - Modal dialog for rotation workflow:
+     - Shows provider context
+     - Secure password input for new API key
+     - Cancel and Rotate buttons
+     - Form validation (disabled until key entered)
+   - Success feedback with alert
+   - Automatic list refresh after rotation
+
+6. ✅ **Helper Functions**:
+
+   - `getDaysUntilExpiry()` - Calculate days until expiration
+   - `getExpirationBadge()` - Determine badge text and color
+   - Consistent date formatting throughout
+
+7. ✅ **State Management**:
+   - `expiringKeys` - Dashboard widget data
+   - `showRotateDialog` - Modal visibility
+   - `rotatingKeyId` - Track which key is being rotated
+   - `rotatingProvider` - Provider context for dialog
+   - `newRotationKey` - New key input state
+
+**Backend Security Features** (Previously Completed):
+
+- ✅ Removed dangerous encryption key fallback
+- ✅ Enhanced APIKey model (4 new fields)
+- ✅ Created APIKeyAuditLog model
+- ✅ Implemented audit logging service
+- ✅ Fixed delete endpoint with ObjectId parsing
+- ✅ Key rotation endpoint (POST /api/auth/api-keys/{id}/rotate)
+- ✅ Expiration warnings endpoint (GET /api/auth/api-keys/expiring)
+- ✅ 90-day expiration enforced on new keys
+- ✅ Comprehensive documentation (500+ lines)
+
+**Complete Security Feature Set**:
+
+- 🔒 Fernet encryption (AES-128 CBC) for API keys
+- 🔑 Required ENCRYPTION_KEY environment variable (no fallback)
+- ⏰ 90-day automatic expiration with renewal workflow
+- 🔄 Key rotation with version tracking
+- ⚠️ 7-day expiration warnings
+- 📝 Complete audit logging for compliance
+- 🎨 Professional UI with color-coded status indicators
+- ✅ End-to-end implementation from database to UI
+
+**Ready for Deployment**:
+
+- Backend: All changes committed
+- Frontend: All TypeScript errors resolved, no linting issues
+- Documentation: Comprehensive security guide in `docs/API_KEY_SECURITY_IMPLEMENTATION.md`
+- Testing: UI components validated, API endpoints tested
+- Next: Commit frontend changes → Deploy to Railway (backend) + Vercel (frontend)
+
+---
+
 - Stage and commit updated `backend/requirements.railway.txt` with complete dependencies and redeploy to Railway
 - Monitor Railway deployment logs for any missing dependency errors
 - Stage and commit `backend/app/utils/token_logger.py` (now unignored) and redeploy so the backend includes the token logging module in production builds.

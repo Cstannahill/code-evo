@@ -9,6 +9,18 @@ interface APIKey {
   last_used?: string;
   is_active: boolean;
   usage_count: number;
+  expires_at?: string;
+  key_version: number;
+  rotation_warning_sent: boolean;
+}
+
+interface ExpiringKey {
+  id: string;
+  provider: string;
+  key_name?: string;
+  expires_at: string;
+  days_until_expiry: number;
+  key_version: number;
 }
 
 interface User {
@@ -68,6 +80,13 @@ export const APIKeyManager: React.FC = () => {
     anthropic_key: '',
     gemini_key: ''
   });
+
+  // Security feature states
+  const [expiringKeys, setExpiringKeys] = useState<ExpiringKey[]>([]);
+  const [showRotateDialog, setShowRotateDialog] = useState(false);
+  const [rotatingKeyId, setRotatingKeyId] = useState<string | null>(null);
+  const [rotatingProvider, setRotatingProvider] = useState<ApiProvider>('openai');
+  const [newRotationKey, setNewRotationKey] = useState('');
 
   const loadApiKeys = useCallback(async () => {
     const token = localStorage.getItem('auth_token');
@@ -130,9 +149,31 @@ export const APIKeyManager: React.FC = () => {
     }
   }, [loadApiKeys]);
 
+  const loadExpiringKeys = useCallback(async () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+
+    try {
+      const response = await fetch(buildApiUrl('/api/auth/api-keys/expiring'), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setExpiringKeys(data.expiring_keys || []);
+      }
+    } catch (error) {
+      console.error('Failed to load expiring keys:', error);
+    }
+  }, []);
+
   useEffect(() => {
     void loadUserInfo();
   }, [loadUserInfo]);
+
+  useEffect(() => {
+    void loadExpiringKeys();
+  }, [loadExpiringKeys]);
 
   const handleAddApiKey = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -236,6 +277,76 @@ export const APIKeyManager: React.FC = () => {
     }
   };
 
+  const handleRotateApiKey = async (keyId: string, provider: ApiProvider) => {
+    setRotatingKeyId(keyId);
+    setRotatingProvider(provider);
+    setShowRotateDialog(true);
+  };
+
+  const confirmRotateApiKey = async () => {
+    if (!rotatingKeyId || !newRotationKey) return;
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) throw new Error('Authentication token is missing');
+
+      const response = await fetch(buildApiUrl(`/api/auth/api-keys/${rotatingKeyId}/rotate`), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          new_api_key: newRotationKey,
+          provider: rotatingProvider,
+          key_name: apiKeys.find(k => k.id === rotatingKeyId)?.key_name
+        })
+      });
+
+      if (response.ok) {
+        await loadApiKeys();
+        await loadExpiringKeys();
+        setShowRotateDialog(false);
+        setRotatingKeyId(null);
+        setNewRotationKey('');
+        alert('API key rotated successfully!');
+      } else {
+        const message = await parseApiError(response, 'Failed to rotate API key');
+        throw new Error(message);
+      }
+    } catch (error) {
+      console.error('Error rotating API key:', error);
+      if (error instanceof Error) {
+        alert(error.message);
+      }
+    }
+  };
+
+  // Helper function to calculate days until expiry
+  const getDaysUntilExpiry = (expiresAt?: string): number | null => {
+    if (!expiresAt) return null;
+    const now = new Date();
+    const expiry = new Date(expiresAt);
+    const diffMs = expiry.getTime() - now.getTime();
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  };
+
+  // Helper function to get expiration badge color
+  const getExpirationBadge = (expiresAt?: string): { text: string; color: string } | null => {
+    const days = getDaysUntilExpiry(expiresAt);
+    if (days === null) return null;
+
+    if (days < 0) {
+      return { text: 'Expired', color: 'bg-red-100 text-red-800 border-red-300' };
+    } else if (days <= 7) {
+      return { text: `${days}d left`, color: 'bg-red-100 text-red-800 border-red-300' };
+    } else if (days <= 30) {
+      return { text: `${days}d left`, color: 'bg-yellow-100 text-yellow-800 border-yellow-300' };
+    } else {
+      return { text: `${days}d left`, color: 'bg-green-100 text-green-800 border-green-300' };
+    }
+  };
+
   if (!user) {
     return <div>Loading...</div>;
   }
@@ -333,6 +444,46 @@ export const APIKeyManager: React.FC = () => {
         </button>
       </div>
 
+      {/* Expiring Keys Warning Widget */}
+      {expiringKeys.length > 0 && (
+        <div className="mb-6 p-4 border-l-4 border-orange-500 bg-orange-50 rounded-r-lg">
+          <div className="flex items-start">
+            <svg className="w-6 h-6 text-orange-500 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div className="flex-1">
+              <h4 className="text-lg font-semibold text-orange-900 mb-2">
+                {expiringKeys.length} API Key{expiringKeys.length > 1 ? 's' : ''} Expiring Soon
+              </h4>
+              <p className="text-sm text-orange-800 mb-3">
+                The following keys will expire within 7 days. Rotate them to maintain uninterrupted service.
+              </p>
+              <div className="space-y-2">
+                {expiringKeys.map((key) => (
+                  <div key={key.id} className="flex justify-between items-center bg-white p-3 rounded-md border border-orange-200">
+                    <div>
+                      <span className="font-medium text-gray-900">
+                        {key.provider.toUpperCase()}
+                        {key.key_name && ` - ${key.key_name}`}
+                      </span>
+                      <span className="ml-2 text-sm text-orange-700">
+                        (v{key.key_version}, expires in {key.days_until_expiry} day{key.days_until_expiry !== 1 ? 's' : ''})
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleRotateApiKey(key.id, key.provider as ApiProvider)}
+                      className="text-sm bg-orange-600 text-white px-3 py-1 rounded hover:bg-orange-700"
+                    >
+                      Rotate Now
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showAddForm && (
         <div className="mb-6 p-4 border rounded-lg bg-gray-50">
           <h4 className="text-lg font-medium mb-4">Add New API Key</h4>
@@ -424,30 +575,112 @@ export const APIKeyManager: React.FC = () => {
             </div>
           </div>
         ) : (
-          apiKeys.map((key) => (
-            <div key={key.id} className="border rounded-lg p-4 flex justify-between items-center">
-              <div>
-                <h4 className="font-medium">
-                  {key.provider.toUpperCase()}
-                  {key.key_name && ` - ${key.key_name}`}
-                </h4>
-                <p className="text-sm text-gray-600">
-                  Created: {new Date(key.created_at).toLocaleDateString()} |
-                  Used {key.usage_count} times
-                  {key.last_used && ` | Last used: ${new Date(key.last_used).toLocaleDateString()}`}
-                </p>
-              </div>
+          apiKeys.map((key) => {
+            const badge = getExpirationBadge(key.expires_at);
 
-              <button
-                onClick={() => handleDeleteApiKey(key.id)}
-                className="text-red-600 hover:text-red-800"
-              >
-                Delete
-              </button>
-            </div>
-          ))
+            return (
+              <div key={key.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="font-medium text-lg">
+                        {key.provider.toUpperCase()}
+                        {key.key_name && ` - ${key.key_name}`}
+                      </h4>
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                        v{key.key_version}
+                      </span>
+                      {badge && (
+                        <span className={`text-xs px-2 py-1 rounded-full border ${badge.color}`}>
+                          {badge.text}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Created: {new Date(key.created_at).toLocaleDateString()} |
+                      Used {key.usage_count} times
+                      {key.last_used && ` | Last used: ${new Date(key.last_used).toLocaleDateString()}`}
+                    </p>
+                    {key.expires_at && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Expires: {new Date(key.expires_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 ml-4">
+                    <button
+                      onClick={() => handleRotateApiKey(key.id, key.provider as ApiProvider)}
+                      className="text-blue-600 hover:text-blue-800 px-3 py-1 text-sm border border-blue-300 rounded hover:bg-blue-50 flex items-center gap-1"
+                      title="Rotate API key"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Rotate
+                    </button>
+                    <button
+                      onClick={() => handleDeleteApiKey(key.id)}
+                      className="text-red-600 hover:text-red-800 px-3 py-1 text-sm border border-red-300 rounded hover:bg-red-50"
+                      title="Delete API key"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
+
+      {/* Rotation Dialog Modal */}
+      {showRotateDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-xl font-semibold mb-4">Rotate API Key</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Provide a new {rotatingProvider?.toUpperCase()} API key to replace the existing one.
+              The version will be incremented and the old key will be securely removed.
+            </p>
+
+            <div className="mb-4">
+              <label htmlFor="rotation_key" className="block text-sm font-medium text-gray-700 mb-2">
+                New {rotatingProvider?.toUpperCase()} API Key
+              </label>
+              <input
+                type="password"
+                id="rotation_key"
+                value={newRotationKey}
+                onChange={(e) => setNewRotationKey(e.target.value)}
+                placeholder="sk-..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowRotateDialog(false);
+                  setRotatingKeyId(null);
+                  setNewRotationKey('');
+                }}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRotateApiKey}
+                disabled={!newRotationKey}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Rotate Key
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

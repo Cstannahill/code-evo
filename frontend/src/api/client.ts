@@ -481,6 +481,43 @@ export class ApiClient {
     return response.json();
   }
 
+  async rotateApiKey(
+    keyId: string,
+    newApiKey: string,
+    provider: string,
+    keyName?: string
+  ) {
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/auth/api-keys/${keyId}/rotate`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          new_api_key: newApiKey,
+          provider: provider,
+          key_name: keyName,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to rotate API key: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getExpiringKeys() {
+    const response = await this.authenticatedFetch(
+      `${this.baseUrl}/api/auth/api-keys/expiring`
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to get expiring keys: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
   // Tunnel Management
   async getTunnelStatus() {
     const response = await this.authenticatedFetch(
