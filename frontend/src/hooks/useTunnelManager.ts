@@ -7,29 +7,27 @@ export interface UseTunnelManagerOptions {
   refreshInterval?: number;
 }
 
-export interface UseTunnelManagerResult {
-  // State
+export interface TunnelManager {
   connection: TunnelConnection | null;
   isLoading: boolean;
   error: string | null;
   recentRequests: TunnelRequest[];
-
-  // Actions
-  registerTunnel: (tunnelUrl: string) => Promise<boolean>;
+  isActive: boolean;
+  statusText: string;
+  statusColor: "green" | "yellow" | "red" | "gray";
+  registerTunnel: (
+    tunnelUrl: string,
+    tunnelMethod: "cloudflare" | "ngrok"
+  ) => Promise<boolean>;
   disableTunnel: () => Promise<boolean>;
   refreshStatus: () => Promise<void>;
   refreshRecentRequests: () => Promise<void>;
   clearError: () => void;
-
-  // Computed
-  isActive: boolean;
-  statusText: string;
-  statusColor: "green" | "yellow" | "red" | "gray";
 }
 
 export function useTunnelManager(
   options: UseTunnelManagerOptions = {}
-): UseTunnelManagerResult {
+): TunnelManager {
   const { autoRefresh = true, refreshInterval = 30000 } = options;
 
   const [connection, setConnection] = useState<TunnelConnection | null>(null);
@@ -66,12 +64,15 @@ export function useTunnelManager(
 
   // Register a new tunnel
   const registerTunnel = useCallback(
-    async (tunnelUrl: string): Promise<boolean> => {
+    async (
+      tunnelUrl: string,
+      tunnelMethod: "cloudflare" | "ngrok"
+    ): Promise<boolean> => {
       setIsLoading(true);
       setError(null);
 
       try {
-        const data = await apiClient.registerTunnel(tunnelUrl);
+        const data = await apiClient.registerTunnel(tunnelUrl, tunnelMethod);
         setConnection(data);
         await refreshRecentRequests(); // Refresh history after registration
         return true;

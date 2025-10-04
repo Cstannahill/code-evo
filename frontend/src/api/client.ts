@@ -540,12 +540,18 @@ export class ApiClient {
     return response.json();
   }
 
-  async registerTunnel(tunnelUrl: string) {
+  async registerTunnel(
+    tunnelUrl: string,
+    tunnelMethod: "cloudflare" | "ngrok"
+  ) {
     const response = await this.authenticatedFetch(
       `${this.baseUrl}/api/tunnel/register`,
       {
         method: "POST",
-        body: JSON.stringify({ tunnel_url: tunnelUrl }),
+        body: JSON.stringify({
+          tunnel_url: tunnelUrl,
+          tunnel_method: tunnelMethod,
+        }),
       }
     );
 

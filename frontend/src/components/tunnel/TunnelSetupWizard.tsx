@@ -45,7 +45,18 @@ export function TunnelSetupWizard({ open, onOpenChange }: TunnelSetupWizardProps
             return;
         }
 
-        const success = await registerTunnel(tunnelUrl);
+        if (!provider) {
+            setError('Please select a tunnel provider');
+            return;
+        }
+
+        // Only cloudflare and ngrok are supported by backend
+        if (provider === 'custom') {
+            setError('Custom tunnel method is not yet supported. Please use Cloudflare or ngrok.');
+            return;
+        }
+
+        const success = await registerTunnel(tunnelUrl, provider);
         if (success) {
             onOpenChange(false);
             // Reset wizard for next time
