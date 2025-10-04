@@ -14,8 +14,13 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Encryption for API keys
-ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", Fernet.generate_key())
+# Encryption for API keys - MUST be set in environment variables
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
+if not ENCRYPTION_KEY:
+    raise ValueError(
+        "ENCRYPTION_KEY environment variable is required! "
+        "Generate one with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+    )
 cipher_suite = Fernet(ENCRYPTION_KEY)
 
 # Password hashing
@@ -79,6 +84,9 @@ class APIKeyResponse(BaseModel):
     last_used: Optional[datetime]
     is_active: bool
     usage_count: int
+    expires_at: Optional[datetime] = None
+    key_version: int = 1
+    rotation_warning_sent: bool = False
 
 
 class GuestAPIKeys(BaseModel):
@@ -118,6 +126,41 @@ def encrypt_api_key(api_key: str) -> str:
 def decrypt_api_key(encrypted_key: str) -> str:
     """Decrypt an API key"""
     return cipher_suite.decrypt(encrypted_key.encode()).decode()
+
+
+async def log_api_key_action(
+    user_id: str,
+    action: str,
+    provider: str,
+    key_name: Optional[str] = None,
+    status: str = "success",
+    error: Optional[str] = None,
+    ip_address: Optional[str] = None,
+):
+    """Log API key actions for audit trail"""
+    try:
+        from app.models.repository import APIKeyAuditLog
+
+        engine = await get_engine()
+
+        audit_log = APIKeyAuditLog(
+            user_id=user_id,
+            action=action,  # create, update, delete, use, rotate
+            provider=provider,
+            key_name=key_name,
+            status=status,
+            error_message=error,
+            ip_address=ip_address,
+            timestamp=datetime.utcnow(),
+        )
+
+        await engine.save(audit_log)
+        logger.info(
+            f"Audit log created: {action} {provider} for user {user_id} - {status}"
+        )
+    except Exception as e:
+        # Don't fail the main operation if audit logging fails
+        logger.error(f"Failed to create audit log: {e}")
 
 
 async def get_user_by_username(username: str) -> Optional[User]:
@@ -659,6 +702,9 @@ async def get_user_api_keys(current_user: User = Depends(get_current_user)):
                 last_used=key.last_used,
                 is_active=key.is_active,
                 usage_count=key.usage_count,
+                expires_at=key.expires_at,
+                key_version=key.key_version,
+                rotation_warning_sent=key.rotation_warning_sent,
             )
             for key in api_keys
         ]
@@ -671,19 +717,186 @@ async def get_user_api_keys(current_user: User = Depends(get_current_user)):
 async def delete_api_key(key_id: str, current_user: User = Depends(get_current_user)):
     """Delete an API key"""
     try:
-        engine = await get_engine()
-        api_key = await engine.get(APIKey, key_id)
+        from bson import ObjectId
 
-        if not api_key or api_key.user_id != current_user.id:
+        engine = await get_engine()
+
+        # Convert string ID to ObjectId for MongoDB
+        try:
+            obj_id = ObjectId(key_id)
+        except Exception as e:
+            logger.error(f"Invalid key_id format: {key_id} - {e}")
+            raise HTTPException(status_code=400, detail="Invalid API key ID format")
+
+        # Find the API key
+        api_key = await engine.find_one(
+            APIKey, APIKey.id == obj_id, APIKey.user_id == current_user.id
+        )
+
+        if not api_key:
             raise HTTPException(status_code=404, detail="API key not found")
 
+        # Log the deletion for audit trail
+        await log_api_key_action(
+            user_id=str(current_user.id),
+            action="delete",
+            provider=api_key.provider,
+            key_name=api_key.key_name,
+            status="success",
+        )
+
         await engine.delete(api_key)
+        logger.info(
+            f"API key deleted successfully: {key_id} for user {current_user.username}"
+        )
         return {"message": "API key deleted successfully"}
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting API key: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete API key")
+        logger.error(f"Error deleting API key {key_id}: {e}", exc_info=True)
+        # Log failed deletion attempt
+        try:
+            await log_api_key_action(
+                user_id=str(current_user.id),
+                action="delete",
+                provider="unknown",
+                status="failed",
+                error=str(e),
+            )
+        except:
+            pass
+        raise HTTPException(
+            status_code=500, detail=f"Failed to delete API key: {str(e)}"
+        )
+
+
+@router.post("/api-keys/{key_id}/rotate", response_model=APIKeyResponse)
+async def rotate_api_key(
+    key_id: str, new_key: APIKeyCreate, current_user: User = Depends(get_current_user)
+):
+    """Rotate an API key (create new version, deactivate old)"""
+    try:
+        from bson import ObjectId
+        from datetime import timedelta
+
+        engine = await get_engine()
+
+        # Convert string ID to ObjectId
+        try:
+            obj_id = ObjectId(key_id)
+        except Exception as e:
+            logger.error(f"Invalid key_id format: {key_id} - {e}")
+            raise HTTPException(status_code=400, detail="Invalid API key ID format")
+
+        # Find the existing API key
+        api_key = await engine.find_one(
+            APIKey, APIKey.id == obj_id, APIKey.user_id == current_user.id
+        )
+
+        if not api_key:
+            raise HTTPException(status_code=404, detail="API key not found")
+
+        # Encrypt the new key
+        encrypted_key = encrypt_api_key(new_key.api_key)
+
+        # Update with new version
+        old_version = api_key.key_version
+        api_key.encrypted_key = encrypted_key
+        api_key.key_version = old_version + 1
+        api_key.previous_key_version = old_version
+        api_key.expires_at = datetime.utcnow() + timedelta(days=90)
+        api_key.rotation_warning_sent = False
+        api_key.last_used = None  # Reset usage tracking
+        api_key.usage_count = 0
+
+        await engine.save(api_key)
+
+        # Log the rotation
+        await log_api_key_action(
+            user_id=str(current_user.id),
+            action="rotate",
+            provider=api_key.provider,
+            key_name=api_key.key_name,
+            status="success",
+        )
+
+        logger.info(
+            f"API key rotated: {key_id} v{old_version} -> v{api_key.key_version}"
+        )
+
+        return APIKeyResponse(
+            id=str(api_key.id),
+            provider=api_key.provider,
+            key_name=api_key.key_name,
+            created_at=api_key.created_at,
+            last_used=api_key.last_used,
+            is_active=api_key.is_active,
+            usage_count=api_key.usage_count,
+            expires_at=api_key.expires_at,
+            key_version=api_key.key_version,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error rotating API key {key_id}: {e}", exc_info=True)
+        try:
+            await log_api_key_action(
+                user_id=str(current_user.id),
+                action="rotate",
+                provider="unknown",
+                status="failed",
+                error=str(e),
+            )
+        except:
+            pass
+        raise HTTPException(
+            status_code=500, detail=f"Failed to rotate API key: {str(e)}"
+        )
+
+
+@router.get("/api-keys/expiring")
+async def get_expiring_keys(current_user: User = Depends(get_current_user)):
+    """Get API keys that are expiring soon (within 7 days)"""
+    try:
+        from datetime import timedelta
+
+        engine = await get_engine()
+
+        # Find keys expiring in the next 7 days
+        warning_threshold = datetime.utcnow() + timedelta(days=7)
+
+        api_keys = await engine.find(
+            APIKey,
+            APIKey.user_id == current_user.id,
+            APIKey.is_active == True,
+            APIKey.expires_at != None,
+            APIKey.expires_at <= warning_threshold,
+        )
+
+        expiring_keys = []
+        for key in api_keys:
+            if key.expires_at:
+                days_until_expiry = (key.expires_at - datetime.utcnow()).days
+                expiring_keys.append(
+                    {
+                        "id": str(key.id),
+                        "provider": key.provider,
+                        "key_name": key.key_name,
+                        "expires_at": key.expires_at,
+                        "days_until_expiry": days_until_expiry,
+                        "expired": days_until_expiry < 0,
+                    }
+                )
+
+                # Mark warning as sent if not already
+                if not key.rotation_warning_sent:
+                    key.rotation_warning_sent = True
+                    await engine.save(key)
+
+        return {"expiring_keys": expiring_keys, "count": len(expiring_keys)}
+    except Exception as e:
+        logger.error(f"Error getting expiring keys: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get expiring keys")
 
 
 # Utility function to get API key for a user

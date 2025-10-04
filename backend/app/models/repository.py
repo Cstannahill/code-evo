@@ -445,6 +445,12 @@ class APIKey(Model):
     is_active: bool = Field(default=True, index=True)
     usage_count: int = Field(default=0)
 
+    # Key rotation and expiration fields
+    key_version: int = Field(default=1)  # Track key versions for rotation
+    previous_key_version: Optional[int] = None  # Track previous version
+    expires_at: Optional[datetime] = None  # Key expiration date
+    rotation_warning_sent: bool = Field(default=False)  # Track if warning sent
+
     model_config = {"collection": "api_keys"}
 
     @field_validator("user_id", mode="before")
@@ -454,6 +460,21 @@ class APIKey(Model):
         return v
 
     # converted to Pydantic v2 field_validator above
+
+
+class APIKeyAuditLog(Model):
+    """Audit log for API key operations"""
+
+    user_id: str = Field(index=True)  # Store as string for easier querying
+    action: str = Field(index=True)  # create, update, delete, use, rotate
+    provider: str = Field(index=True)  # openai, anthropic, gemini
+    key_name: Optional[str] = None
+    status: str = Field(default="success")  # success, failed
+    error_message: Optional[str] = None
+    ip_address: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+    model_config = {"collection": "api_key_audit_logs"}
 
 
 class UserRepository(Model):
