@@ -183,6 +183,14 @@ class SecureTunnelService:
 
                 response = await client.get(test_url)
 
+                # Helpful debugging: log the remote status and a short snippet
+                reason = getattr(response, "reason_phrase", "") or getattr(
+                    response, "reason", ""
+                )
+                logger.info(
+                    f'HTTP Request: GET {test_url} "HTTP/1.1 {response.status_code} {reason}"'
+                )
+
                 if response.status_code == 200:
                     data = response.json()
                     # Validate it's actually Ollama
@@ -190,15 +198,50 @@ class SecureTunnelService:
                         logger.info(f"✅ Tunnel validated: {tunnel_url}")
                         return {"valid": True}
                     else:
+                        snippet = (
+                            (json.dumps(data)[:200] + "...")
+                            if isinstance(data, (dict, list))
+                            else str(data)[:200]
+                        )
                         return {
                             "valid": False,
                             "error": "Tunnel endpoint doesn't appear to be Ollama",
+                            "details": snippet,
                         }
-                else:
+
+                # Handle common HTTP statuses with more actionable messages
+                if response.status_code == 401:
                     return {
                         "valid": False,
-                        "error": f"Tunnel returned HTTP {response.status_code}",
+                        "error": "Unauthorized (401) from tunnel. The tunnel may require authentication or access controls.",
+                        "status_code": 401,
+                        "suggestion": "Check Cloudflare Access / ngrok auth and ensure the tunnel allows unauthenticated requests to /api/tags",
                     }
+
+                if response.status_code == 403:
+                    return {
+                        "valid": False,
+                        "error": "Forbidden (403) from tunnel. The remote host is reachable but is refusing access.",
+                        "status_code": 403,
+                        "suggestion": "If using Cloudflare, review Access policies, IP allowlists, or service tokens. For ngrok, ensure the tunnel is not requiring additional auth.",
+                    }
+
+                if response.status_code == 404:
+                    return {
+                        "valid": False,
+                        "error": "Not Found (404) when hitting /api/tags. The base URL may be incorrect or Ollama may not be running at that path.",
+                        "status_code": 404,
+                        "suggestion": "Verify the tunnel URL and that Ollama is reachable at /api/tags",
+                    }
+
+                # Fallback for other non-200 responses
+                short_text = (response.text or "")[:300]
+                return {
+                    "valid": False,
+                    "error": f"Tunnel returned HTTP {response.status_code}",
+                    "status_code": response.status_code,
+                    "response_snippet": short_text,
+                }
 
         except httpx.TimeoutException:
             return {
