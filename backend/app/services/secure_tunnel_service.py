@@ -18,6 +18,7 @@ import json
 import logging
 import secrets
 import time
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Any, List
 from enum import Enum
@@ -25,6 +26,16 @@ import httpx
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+# Fix for Railway SSL_CERT_FILE environment variable issue
+# Railway may have SSL_CERT_FILE pointing to non-existent file
+# We want httpx/certifi to use system certificates instead
+if "SSL_CERT_FILE" in os.environ:
+    ssl_cert_path = os.environ["SSL_CERT_FILE"]
+    if not os.path.exists(ssl_cert_path):
+        logger.warning(f"⚠️ SSL_CERT_FILE points to non-existent file: {ssl_cert_path}")
+        logger.warning("   Removing SSL_CERT_FILE to use system certificates")
+        del os.environ["SSL_CERT_FILE"]
 
 
 class TunnelStatus(str, Enum):
