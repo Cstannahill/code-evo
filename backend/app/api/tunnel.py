@@ -66,9 +66,14 @@ async def register_tunnel(
         )
 
         if not result["success"]:
+            # If the service provided a structured validation result, include it
+            validation = result.get("validation") or result
             raise HTTPException(
                 status_code=400,
-                detail=result.get("error", "Tunnel registration failed"),
+                detail={
+                    "message": validation.get("error", "Tunnel registration failed"),
+                    "validation": validation,
+                },
             )
 
         return {

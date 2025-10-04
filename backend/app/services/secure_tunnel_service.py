@@ -234,6 +234,13 @@ class SecureTunnelService:
                         "suggestion": "Verify the tunnel URL and that Ollama is reachable at /api/tags",
                     }
 
+                # Collect a small set of non-sensitive headers to help debugging
+                safe_headers = {}
+                for h in ("server", "cf-ray", "x-request-id", "x-amzn-requestid"):
+                    val = response.headers.get(h)
+                    if val:
+                        safe_headers[h] = val
+
                 # Fallback for other non-200 responses
                 short_text = (response.text or "")[:300]
                 return {
@@ -241,6 +248,7 @@ class SecureTunnelService:
                     "error": f"Tunnel returned HTTP {response.status_code}",
                     "status_code": response.status_code,
                     "response_snippet": short_text,
+                    "headers": safe_headers,
                 }
 
         except httpx.TimeoutException:
