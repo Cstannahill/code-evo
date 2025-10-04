@@ -143,11 +143,16 @@ export class ApiClient {
   }
 
   private trackRepositoryAnalysis(modelId: string, repoUrl: string) {
-    if (typeof gtag !== "undefined") {
-      gtag("event", "repository_analysis_started", {
-        model_name: modelId,
-        repository_domain: new URL(repoUrl).hostname,
-      });
+    if (typeof gtag !== "undefined" && repoUrl) {
+      try {
+        const hostname = new URL(repoUrl).hostname;
+        gtag("event", "repository_analysis_started", {
+          model_name: modelId,
+          repository_domain: hostname,
+        });
+      } catch {
+        console.warn("Failed to parse repository URL for analytics:", repoUrl);
+      }
     }
   }
 

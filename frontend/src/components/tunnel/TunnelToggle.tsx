@@ -156,7 +156,13 @@ export function TunnelToggle() {
                                     <div className="flex items-center justify-between text-xs">
                                         <span className="text-muted-foreground">Tunnel URL:</span>
                                         <span className="font-mono text-xs truncate max-w-[180px]">
-                                            {new URL(connection.tunnel_url).hostname}
+                                            {connection.tunnel_url ? (() => {
+                                                try {
+                                                    return new URL(connection.tunnel_url).hostname;
+                                                } catch {
+                                                    return connection.tunnel_url;
+                                                }
+                                            })() : 'N/A'}
                                         </span>
                                     </div>
                                 </div>
