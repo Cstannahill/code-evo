@@ -85,19 +85,43 @@ export function useTunnelManager(
 
       try {
         const data = await apiClient.registerTunnel(tunnelUrl, tunnelMethod);
-        // API returns { success: true, message, tunnel: { ... } }
+        // API may return { success: true, message, tunnel: { ... } }
         const tunnelData = data?.tunnel ?? null;
-        setConnection(tunnelData);
+
         // clear any previous validation info
         setValidationResult(null);
+
+        // Try to fetch the canonical/updated connection from the backend.
+        // Some backends populate additional fields or change 'status' after
+        // register completes, so prefer the refreshed object when present.
+        let dispatchedConnection: TunnelConnection | null = null;
+        try {
+          const refreshed = await apiClient.getTunnelStatus();
+          if (refreshed) {
+            setConnection(refreshed);
+            dispatchedConnection = refreshed;
+          } else {
+            setConnection(tunnelData);
+            dispatchedConnection = tunnelData;
+          }
+        } catch (err) {
+          // If the follow-up status check fails, fall back to the returned
+          // tunnel object from the register call (if any).
+          setConnection(tunnelData);
+          dispatchedConnection = tunnelData;
+        }
+
         // Notify other parts of the app that a tunnel was connected
         try {
           window.dispatchEvent(
-            new CustomEvent("tunnel:connected", { detail: tunnelData })
+            new CustomEvent("tunnel:connected", {
+              detail: dispatchedConnection,
+            })
           );
         } catch {
           // ignore if CustomEvent not supported
         }
+
         await refreshRecentRequests(); // Refresh history after registration
         return true;
       } catch (err: unknown) {
@@ -165,7 +189,9 @@ export function useTunnelManager(
   }, [autoRefresh, refreshInterval, refreshStatus, refreshRecentRequests]);
 
   // Computed values
-  const isActive = connection?.status === "connected";
+  // Treat both 'connected' and 'active' as active states (backend may use either)
+  const isActive =
+    connection?.status === "connected" || connection?.status === "active";
 
   const statusText = connection
     ? connection.status === "active" || connection.status === "connected"

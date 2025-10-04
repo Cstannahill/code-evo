@@ -130,6 +130,41 @@ async def get_available_models(
 
         status = ai_service.get_status()
 
+        # If Ollama isn't available locally, try to detect a per-user tunnel
+        # and use it to fetch available models. This ensures that when a user
+        # registers an external tunnel (Cloudflare/ngrok) the frontend will
+        # see ollama models as available for that user.
+        tunnel_models: Optional[list] = None
+        try:
+            # Only attempt if the ai service reports Ollama as unavailable
+            # and we have an authenticated user
+            if not status.get("ollama_available", False) and current_user is not None:
+                from app.services.secure_tunnel_service import get_tunnel_service
+
+                tunnel_service = get_tunnel_service()
+                tunnel_status = tunnel_service.get_tunnel_status(str(current_user.id))
+                if tunnel_status and tunnel_status.get("connected"):
+                    tunnel_url = tunnel_status.get("tunnel_url")
+                    if tunnel_url:
+                        import requests
+
+                        try:
+                            resp = requests.get(
+                                f"{tunnel_url.rstrip('/')}/api/tags", timeout=5
+                            )
+                            if resp.status_code == 200:
+                                payload = resp.json()
+                                tunnel_models = payload.get("models", [])
+                                # Treat per-user tunnel as Ollama available for this request
+                                status["ollama_available"] = True
+                                logger.info(
+                                    f"Detected Ollama models via tunnel for user {current_user.id}: {len(tunnel_models or [])} models"
+                                )
+                        except Exception as e:
+                            logger.debug(f"Could not fetch models via user tunnel: {e}")
+        except Exception as e:
+            logger.debug(f"Tunnel model detection skipped or failed: {e}")
+
         # Check if OpenAI key is available (global or user-specific)
         openai_models_available = status.get("openai_models_available", False)
         if not openai_models_available and current_user is not None:
@@ -154,32 +189,40 @@ async def get_available_models(
         # Build available models response
         available_models = {}
 
-        # Add Ollama models (if running)
+        # Add Ollama models (if running locally OR available via per-user tunnel)
         if status.get("ollama_available", False):
             try:
                 import requests
 
-                response = requests.get("http://localhost:11434/api/tags", timeout=5)
-                if response.status_code == 200:
-                    models_data = response.json()
-                    models = models_data.get("models", [])
+                # Prefer tunnel-provided models when available for this user
+                if tunnel_models is not None:
+                    models = tunnel_models
+                else:
+                    # Fallback to local Ollama on localhost
+                    response = requests.get(
+                        "http://localhost:11434/api/tags", timeout=5
+                    )
+                    models = []
+                    if response.status_code == 200:
+                        models_data = response.json()
+                        models = models_data.get("models", [])
 
-                    for model in models:
-                        model_name = model.get("name", "")
-                        # Get size from backend service
-                        size_info = ollama_sizes.get(model_name, {})
-                        size_gb = size_info.get("size_gb")
+                for model in models:
+                    model_name = model.get("name", "")
+                    # Get size from backend service
+                    size_info = ollama_sizes.get(model_name, {})
+                    size_gb = size_info.get("size_gb")
 
-                        available_models[model_name] = {
-                            "name": model_name,
-                            "display_name": model_name,
-                            "provider": "ollama",
-                            "available": True,
-                            "context_window": 4096,  # Default
-                            "cost_per_1k_tokens": 0,
-                            "strengths": ["code", "general"],
-                            "size_gb": size_gb,  # Add backend-provided size
-                        }
+                    available_models[model_name] = {
+                        "name": model_name,
+                        "display_name": model_name,
+                        "provider": "ollama",
+                        "available": True,
+                        "context_window": 4096,  # Default
+                        "cost_per_1k_tokens": 0,
+                        "strengths": ["code", "general"],
+                        "size_gb": size_gb,  # Add backend-provided size
+                    }
             except Exception as e:
                 logger.warning(f"Failed to fetch Ollama models: {e}")
 
