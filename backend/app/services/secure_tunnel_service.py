@@ -122,10 +122,12 @@ class SecureTunnelService:
             # Validate tunnel URL is accessible
             validation_result = await self._validate_tunnel(tunnel_url)
             if not validation_result["valid"]:
+                # Return structured validation result for better debugging
                 return {
                     "success": False,
-                    "error": validation_result["error"],
+                    "error": validation_result.get("error", "Tunnel validation failed"),
                     "status": TunnelStatus.ERROR,
+                    "validation": validation_result,
                 }
 
             # Generate authentication token
