@@ -18,8 +18,8 @@ export function TunnelToggle() {
         statusText,
         statusColor,
         disableTunnel,
+        validationResult,
     } = useTunnelManager();
-
     const [showRiskDialog, setShowRiskDialog] = useState(false);
     const [showWizard, setShowWizard] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
@@ -155,19 +155,51 @@ export function TunnelToggle() {
                                     </div>
                                     <div className="flex items-center justify-between text-xs">
                                         <span className="text-muted-foreground">Tunnel URL:</span>
-                                        <span className="font-mono text-xs truncate max-w-[180px]">
-                                            {connection.tunnel_url ? (() => {
-                                                try {
-                                                    return new URL(connection.tunnel_url).hostname;
-                                                } catch {
-                                                    return connection.tunnel_url;
-                                                }
-                                            })() : 'N/A'}
+                                        <span
+                                            className="font-mono text-xs truncate max-w-[180px]"
+                                            title={connection.tunnel_url ?? undefined}
+                                        >
+                                            {connection.tunnel_url
+                                                ? (() => {
+                                                    try {
+                                                        return new URL(connection.tunnel_url).hostname;
+                                                    } catch {
+                                                        return connection.tunnel_url;
+                                                    }
+                                                })()
+                                                : "N/A"}
                                         </span>
                                     </div>
                                 </div>
                             )}
 
+                            {/* Validation details (actionable suggestions) */}
+                            {validationResult && (
+                                <div className="mt-2 rounded-md bg-yellow-900/10 p-3 text-yellow-300 text-xs">
+                                    <div className="font-semibold">Validation suggestion</div>
+                                    {validationResult.suggestion && (
+                                        <div className="mt-1">{validationResult.suggestion}</div>
+                                    )}
+                                    {validationResult.response_snippet && (
+                                        <pre className="mt-2 max-h-28 overflow-auto text-[11px] bg-black/10 p-2 rounded">
+                                            {validationResult.response_snippet}
+                                        </pre>
+                                    )}
+                                    {validationResult.headers && (
+                                        <div className="mt-2 text-[11px]">
+                                            <strong>Debug headers:</strong>
+                                            <div className="mt-1">
+                                                {Object.entries(validationResult.headers).map(([k, v]) => (
+                                                    <div key={k} className="flex justify-between">
+                                                        <span className="text-muted-foreground">{k}</span>
+                                                        <span className="font-mono">{v}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                             {/* Actions */}
                             <div className="flex gap-2">
                                 {isActive ? (

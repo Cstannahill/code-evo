@@ -87,6 +87,17 @@ export const ModelSelection: React.FC<ModelSelectionProps> = ({
     void fetchAvailableModels();
   }, [fetchAvailableModels]);
 
+  // Re-fetch models when a tunnel connects elsewhere in the app
+  useEffect(() => {
+    const handler = () => {
+      setLoadingModels(true);
+      void fetchAvailableModels();
+    };
+
+    window.addEventListener("tunnel:connected", handler as EventListener);
+    return () => window.removeEventListener("tunnel:connected", handler as EventListener);
+  }, [fetchAvailableModels]);
+
   const getModelIcon = (provider: string) => {
     const normalizedProvider = provider.toLowerCase();
     if (normalizedProvider.includes("ollama")) return <Home className="w-5 h-5" />;

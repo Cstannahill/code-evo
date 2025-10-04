@@ -559,7 +559,25 @@ export class ApiClient {
       const errorData = await response
         .json()
         .catch(() => ({ detail: "Failed to register tunnel" }));
-      throw new Error(errorData.detail || "Failed to register tunnel");
+
+      // errorData.detail may be a string or an object { message, validation }
+      const rawDetail = errorData?.detail ?? errorData;
+      const message =
+        typeof rawDetail === "string"
+          ? rawDetail
+          : rawDetail?.message || JSON.stringify(rawDetail);
+
+      const err = new Error(message || "Failed to register tunnel");
+      // Attach structured validation info when present so callers can surface it
+      try {
+        const withValidation = err as Error & { validation?: unknown };
+        withValidation.validation =
+          rawDetail?.validation ?? errorData?.validation ?? null;
+      } catch {
+        // ignore
+      }
+
+      throw err;
     }
 
     return response.json();

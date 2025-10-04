@@ -2,6 +2,15 @@ import { useState, useEffect, useCallback } from "react";
 import { apiClient } from "../api/client";
 import type { TunnelConnection, TunnelRequest } from "../types/tunnel";
 
+// Minimal shape for validation details returned by the backend
+export interface TunnelValidationResult {
+  status_code?: number;
+  suggestion?: string;
+  response_snippet?: string;
+  headers?: Record<string, string> | null;
+  message?: string;
+}
+
 export interface UseTunnelManagerOptions {
   autoRefresh?: boolean;
   refreshInterval?: number;
@@ -11,6 +20,7 @@ export interface TunnelManager {
   connection: TunnelConnection | null;
   isLoading: boolean;
   error: string | null;
+  validationResult: TunnelValidationResult | null;
   recentRequests: TunnelRequest[];
   isActive: boolean;
   statusText: string;
@@ -33,6 +43,8 @@ export function useTunnelManager(
   const [connection, setConnection] = useState<TunnelConnection | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationResult, setValidationResult] =
+    useState<TunnelValidationResult | null>(null);
   const [recentRequests, setRecentRequests] = useState<TunnelRequest[]>([]);
 
   // Fetch tunnel status
@@ -73,13 +85,35 @@ export function useTunnelManager(
 
       try {
         const data = await apiClient.registerTunnel(tunnelUrl, tunnelMethod);
-        setConnection(data);
+        // API returns { success: true, message, tunnel: { ... } }
+        const tunnelData = data?.tunnel ?? null;
+        setConnection(tunnelData);
+        // clear any previous validation info
+        setValidationResult(null);
+        // Notify other parts of the app that a tunnel was connected
+        try {
+          window.dispatchEvent(
+            new CustomEvent("tunnel:connected", { detail: tunnelData })
+          );
+        } catch {
+          // ignore if CustomEvent not supported
+        }
         await refreshRecentRequests(); // Refresh history after registration
         return true;
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : "Failed to register tunnel";
         setError(message);
+        // If the thrown error had structured validation info attached, capture it for the UI
+        try {
+          const maybe = err as unknown as {
+            validation?: TunnelValidationResult;
+          };
+          const val = maybe?.validation ?? null;
+          if (val) setValidationResult(val);
+        } catch {
+          // ignore
+        }
         return false;
       } finally {
         setIsLoading(false);
@@ -131,10 +165,10 @@ export function useTunnelManager(
   }, [autoRefresh, refreshInterval, refreshStatus, refreshRecentRequests]);
 
   // Computed values
-  const isActive = connection?.status === "active";
+  const isActive = connection?.status === "connected";
 
   const statusText = connection
-    ? connection.status === "active"
+    ? connection.status === "active" || connection.status === "connected"
       ? "Connected"
       : connection.status === "connecting"
       ? "Connecting..."
@@ -144,7 +178,7 @@ export function useTunnelManager(
     : "Not Connected";
 
   const statusColor: "green" | "yellow" | "red" | "gray" = connection
-    ? connection.status === "active"
+    ? connection.status === "active" || connection.status === "connected"
       ? "green"
       : connection.status === "connecting"
       ? "yellow"
@@ -158,6 +192,7 @@ export function useTunnelManager(
     connection,
     isLoading,
     error,
+    validationResult,
     recentRequests,
 
     // Actions

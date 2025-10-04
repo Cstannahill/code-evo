@@ -5,7 +5,12 @@
 /**
  * Tunnel connection status
  */
-export type TunnelStatus = "active" | "connecting" | "disconnected" | "error";
+export type TunnelStatus =
+  | "active"
+  | "connected"
+  | "connecting"
+  | "disconnected"
+  | "error";
 
 /**
  * Tunnel provider type
