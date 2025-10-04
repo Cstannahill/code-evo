@@ -1031,7 +1031,8 @@ async def user_has_provider_key(user: User, provider: str) -> bool:
         if engine:
             api_key = await engine.find_one(
                 APIKey,
-                APIKey.user_id == str(user.id),
+                APIKey.user_id
+                == user.id,  # Fixed: Use ObjectId directly, not str(user.id)
                 APIKey.provider == provider,
                 APIKey.is_active == True,
             )
