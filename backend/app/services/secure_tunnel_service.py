@@ -159,9 +159,17 @@ class SecureTunnelService:
         Tests the tunnel by making a request to Ollama's /api/tags endpoint
         """
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            # Create client with proper SSL handling
+            # Verify SSL for production tunnels (cloudflare, ngrok have valid certs)
+            async with httpx.AsyncClient(
+                timeout=10.0,
+                verify=True,  # Verify SSL certificates
+                follow_redirects=True,
+            ) as client:
                 # Try to access Ollama through the tunnel
                 test_url = f"{tunnel_url}/api/tags"
+                logger.info(f"🔍 Validating tunnel: {test_url}")
+
                 response = await client.get(test_url)
 
                 if response.status_code == 200:
@@ -186,12 +194,26 @@ class SecureTunnelService:
                 "valid": False,
                 "error": "Tunnel connection timeout - check if tunnel is running",
             }
-        except httpx.ConnectError:
+        except httpx.ConnectError as e:
+            logger.warning(f"⚠️ Tunnel connection error: {e}")
             return {
                 "valid": False,
-                "error": "Cannot connect to tunnel - verify URL is correct",
+                "error": "Cannot connect to tunnel - verify URL is correct and tunnel is running",
+            }
+        except httpx.HTTPError as e:
+            logger.warning(f"⚠️ Tunnel HTTP error: {e}")
+            return {
+                "valid": False,
+                "error": f"HTTP error: {str(e)}",
             }
         except Exception as e:
+            logger.error(
+                f"❌ Tunnel validation unexpected error: {type(e).__name__}: {e}"
+            )
+            # More detailed error logging
+            import traceback
+
+            logger.error(f"Stack trace: {traceback.format_exc()}")
             return {"valid": False, "error": f"Validation error: {str(e)}"}
 
     def get_tunnel(self, user_id: str) -> Optional[TunnelConnection]:

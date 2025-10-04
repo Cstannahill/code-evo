@@ -10,6 +10,97 @@
 
 ## Recent Updates ✅
 
+### Tunnel Method Parameter Bug Fix (2025-01-30) ✅ FIXED
+
+**Issue**: Users received **422 Unprocessable Content** error when trying to register tunnels through the Tunnel Setup Wizard
+
+**Root Cause**: Frontend was only sending `tunnel_url` but backend required both `tunnel_url` AND `tunnel_method` fields
+
+**Error Response**:
+
+```json
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": ["body", "tunnel_method"],
+      "msg": "Field required"
+    }
+  ]
+}
+```
+
+**Impact**:
+
+- **Severity**: HIGH - Complete blocking of tunnel registration
+- **Scope**: All users attempting to register tunnels (Cloudflare/ngrok)
+- **User Experience**: Could not connect local Ollama instances to deployed backend
+
+**Fixes Applied**:
+
+1. **API Client** - Added `tunnel_method` parameter:
+
+```typescript
+async registerTunnel(tunnelUrl: string, tunnelMethod: 'cloudflare' | 'ngrok') {
+    body: JSON.stringify({
+        tunnel_url: tunnelUrl,
+        tunnel_method: tunnelMethod  // ✅ Now included
+    })
+}
+```
+
+2. **Hook Interface** - Updated type definitions:
+
+```typescript
+export interface TunnelManager {
+  registerTunnel: (
+    tunnelUrl: string,
+    tunnelMethod: "cloudflare" | "ngrok"
+  ) => Promise<boolean>;
+  disableTunnel: () => Promise<boolean>; // Fixed return type
+  recentRequests: TunnelRequest[]; // Added missing property
+  refreshRecentRequests: () => Promise<void>; // Added missing method
+  clearError: () => void; // Added missing method
+}
+```
+
+3. **Wizard Component** - Pass provider to registration:
+
+```typescript
+if (provider === "custom") {
+  setError(
+    "Custom tunnel method is not yet supported. Please use Cloudflare or ngrok."
+  );
+  return;
+}
+const success = await registerTunnel(tunnelUrl, provider); // ✅ Provider included
+```
+
+**Files Modified**:
+
+- `frontend/src/api/client.ts` - Added tunnel_method parameter
+- `frontend/src/hooks/useTunnelManager.ts` - Updated interface and implementation
+- `frontend/src/components/tunnel/TunnelSetupWizard.tsx` - Added provider validation
+- `docs/BUG_FIX_TUNNEL_METHOD_MISSING.md` - Complete documentation (600+ lines)
+
+**Deployment Status**: ✅ Committed and pushed to main
+
+- Commit: `19e5b2f` - "fix: Add tunnel_method parameter to tunnel registration"
+- Changes: 5 files changed, 788 insertions(+), 17 deletions(-)
+- Vercel: Automatic deployment triggered
+
+**Benefits**:
+
+- ✅ Tunnel registration now works correctly
+- ✅ Users can successfully register Cloudflare/ngrok tunnels
+- ✅ Frontend and backend API contracts aligned
+- ✅ Complete type safety throughout the chain
+- ✅ Clear validation and error messages
+
+**Related Documentation**: See `docs/BUG_FIX_TUNNEL_METHOD_MISSING.md` for complete analysis and testing procedures
+
+---
+
 ### Tunnel URL Construction Bug Fix (2025-01-30) ✅ FIXED
 
 **Issue**: Production deployment on Vercel crashed when users clicked Tunnel button with "Failed to construct 'URL': Invalid URL" error
