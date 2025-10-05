@@ -51,7 +51,42 @@ export function useTunnelManager(
   const refreshStatus = useCallback(async () => {
     try {
       const data = await apiClient.getTunnelStatus();
-      setConnection(data);
+      // API may return a wrapper { success: true, tunnel: { ... } }
+      const conn = ((): TunnelConnection | null => {
+        if (!data) return null;
+        if (
+          typeof data === "object" &&
+          (data as Record<string, unknown>)["tunnel"]
+        ) {
+          const maybe = (data as Record<string, unknown>)["tunnel"];
+          return (maybe as TunnelConnection) ?? null;
+        }
+        return (data as TunnelConnection) ?? null;
+      })();
+      // Normalize common field names so UI can rely on provider/request_count/tunnel_url
+      const normalized = conn
+        ? (() => {
+            const record = conn as unknown as Record<string, unknown>;
+            return {
+              ...conn,
+              provider:
+                (record["provider"] as string) ??
+                (record["tunnel_method"] as string) ??
+                "custom",
+              request_count:
+                (record["request_count"] as number) ??
+                (record["requests"] as number) ??
+                0,
+              tunnel_url:
+                (record["tunnel_url"] as string) ??
+                (record["tunnelUrl"] as string) ??
+                (record["ollama_url"] as string) ??
+                null,
+            } as TunnelConnection;
+          })()
+        : null;
+
+      setConnection(normalized as TunnelConnection | null);
       setError(null);
     } catch (err: unknown) {
       // Don't set error for "no active connection" - it's a valid state
@@ -67,7 +102,19 @@ export function useTunnelManager(
   const refreshRecentRequests = useCallback(async () => {
     try {
       const data = await apiClient.getTunnelRecentRequests(50);
-      setRecentRequests(data);
+      // API may return wrapper { success: true, requests: [...] }
+      const reqs = ((): TunnelRequest[] => {
+        if (!data) return [];
+        if (
+          typeof data === "object" &&
+          (data as Record<string, unknown>)["requests"]
+        ) {
+          const maybe = (data as Record<string, unknown>)["requests"];
+          return (maybe as TunnelRequest[]) ?? [];
+        }
+        return (data as TunnelRequest[]) ?? [];
+      })();
+      setRecentRequests(reqs ?? []);
     } catch (err: unknown) {
       // Silently fail - not critical
       console.warn("Failed to fetch recent tunnel requests:", err);
@@ -97,14 +144,26 @@ export function useTunnelManager(
         let dispatchedConnection: TunnelConnection | null = null;
         try {
           const refreshed = await apiClient.getTunnelStatus();
-          if (refreshed) {
-            setConnection(refreshed);
-            dispatchedConnection = refreshed;
+          // Unwrap wrapper if necessary
+          const refreshedConn = ((): TunnelConnection | null => {
+            if (!refreshed) return null;
+            if (
+              typeof refreshed === "object" &&
+              (refreshed as Record<string, unknown>)["tunnel"]
+            ) {
+              const maybe = (refreshed as Record<string, unknown>)["tunnel"];
+              return (maybe as TunnelConnection) ?? null;
+            }
+            return (refreshed as TunnelConnection) ?? null;
+          })();
+          if (refreshedConn) {
+            setConnection(refreshedConn);
+            dispatchedConnection = refreshedConn;
           } else {
             setConnection(tunnelData);
             dispatchedConnection = tunnelData;
           }
-        } catch (err) {
+        } catch {
           // If the follow-up status check fails, fall back to the returned
           // tunnel object from the register call (if any).
           setConnection(tunnelData);
@@ -154,6 +213,12 @@ export function useTunnelManager(
     try {
       await apiClient.disableTunnel();
       setConnection(null);
+      // Notify other hook instances that the tunnel was disconnected
+      try {
+        window.dispatchEvent(new CustomEvent("tunnel:disconnected"));
+      } catch {
+        // ignore
+      }
       setRecentRequests([]);
       return true;
     } catch (err: unknown) {
@@ -187,6 +252,45 @@ export function useTunnelManager(
 
     return () => clearInterval(intervalId);
   }, [autoRefresh, refreshInterval, refreshStatus, refreshRecentRequests]);
+
+  // Listen for global tunnel events so separate hook instances stay in sync
+  useEffect(() => {
+    const onConnected = (e: Event) => {
+      try {
+        const detail = (e as CustomEvent).detail as TunnelConnection | null;
+        if (detail) {
+          setConnection(detail);
+        } else {
+          // If no detail, refresh canonical status
+          void refreshStatus();
+        }
+      } catch {
+        void refreshStatus();
+      }
+    };
+
+    const onDisconnected = () => {
+      setConnection(null);
+      setRecentRequests([]);
+    };
+
+    window.addEventListener("tunnel:connected", onConnected as EventListener);
+    window.addEventListener(
+      "tunnel:disconnected",
+      onDisconnected as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "tunnel:connected",
+        onConnected as EventListener
+      );
+      window.removeEventListener(
+        "tunnel:disconnected",
+        onDisconnected as EventListener
+      );
+    };
+  }, [refreshStatus]);
 
   // Computed values
   // Treat both 'connected' and 'active' as active states (backend may use either)

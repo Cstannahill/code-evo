@@ -9,6 +9,7 @@ import { SimpleThemeToggle } from "./components/ui/ThemeToggle";
 import { AuthModal } from "./components/auth/AuthModal";
 import { UserMenu } from "./components/auth/UserMenu";
 import { TunnelToggle } from "./components/tunnel/TunnelToggle";
+import { useTunnelManager } from "./hooks/useTunnelManager";
 
 // Main App Content Component
 function AppContent() {
@@ -27,6 +28,10 @@ function AppContent() {
     }
     | undefined
   >(undefined);
+  const [hasOpenaiKey, setHasOpenaiKey] = useState(false);
+  const [hasAnthropicKey, setHasAnthropicKey] = useState(false);
+  const { isActive: tunnelConnected } = useTunnelManager();
+  const [aiServiceRaw, setAiServiceRaw] = useState<unknown | null>(null);
 
   useEffect(() => {
     mount();
@@ -59,6 +64,8 @@ function AppContent() {
 
         // Add null safety checks for aiStat and ai_service
         if (aiStat && aiStat.ai_service) {
+          // store raw ai_service for combined availability calculations
+          setAiServiceRaw(aiStat.ai_service);
           setAiStatus({
             available: aiStat.ai_service.ollama_available,
             model: aiStat.ai_service.ollama_model,
@@ -66,11 +73,31 @@ function AppContent() {
           info("AI status check completed");
         } else {
           // Fallback for when AI service is not available
+          setAiServiceRaw(null);
           setAiStatus({
             available: false,
             model: undefined,
           });
           info("AI service not available - using fallback status");
+        }
+
+        // Try to fetch user's API keys to detect OpenAI/Anthropic presence
+        try {
+          const keys = (await apiClient.getUserApiKeys()) as unknown;
+          // keys is expected to be an array of { provider: string, api_key: string, ... }
+          if (Array.isArray(keys)) {
+            const arr = keys as Array<Record<string, unknown>>;
+            setHasOpenaiKey(
+              arr.some((k) => ((k["provider"] as string) || (k["provider_name"] as string) || "").toLowerCase().includes("openai"))
+            );
+            setHasAnthropicKey(
+              arr.some((k) => ((k["provider"] as string) || (k["provider_name"] as string) || "").toLowerCase().includes("anthropic"))
+            );
+          }
+        } catch {
+          // ignore - may be unauthenticated or no keys
+          setHasOpenaiKey(false);
+          setHasAnthropicKey(false);
         }
       } catch (err) {
         error("Error checking backend status", err as Error);
@@ -90,6 +117,14 @@ function AppContent() {
       unmount();
     };
   }, [mount, unmount, info, error]);
+
+  // Recompute combined availability whenever tunnel, keys, or aiServiceRaw change
+  useEffect(() => {
+    const aiRaw = (aiServiceRaw as Record<string, unknown> | null) ?? null;
+    const ollamaAvailable = Boolean(aiRaw?.["ollama_available"] as boolean);
+    const combined = Boolean(tunnelConnected) || Boolean(hasOpenaiKey) || Boolean(hasAnthropicKey) || Boolean(ollamaAvailable);
+    setAiStatus((prev) => ({ available: combined, model: (aiRaw?.["ollama_model"] as string) ?? prev?.model }));
+  }, [tunnelConnected, hasOpenaiKey, hasAnthropicKey, aiServiceRaw]);
 
   if (authLoading) {
     return (
@@ -129,11 +164,11 @@ function AppContent() {
                 <UserMenu />
               ) : (
                 <button
+                  className="inline-flex items-center gap-2 px-3 py-1 rounded bg-blue-500 text-white text-xs"
                   onClick={() => setShowAuthModal(true)}
-                  className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
                 >
-                  <LogIn className="w-3 h-3" />
-                  Login / Register
+                  <LogIn size={14} />
+                  Sign in
                 </button>
               )}
             </div>
