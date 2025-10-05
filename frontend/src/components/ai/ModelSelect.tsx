@@ -75,12 +75,12 @@ export const ModelSelect: React.FC<{
             </Select.Trigger>
 
             <Select.Portal>
-                <Select.Content className="overflow-hidden text-[#ffb700] bg-[#161618] rounded-md shadow-2xl border border-ctan-dark-border">
+                <Select.Content className="overflow-hidden text-[#ffb700] bg-[#161618] rounded-md shadow-2xl border border-ctan-dark-border max-h-[60vh]">
                     <Select.ScrollUpButton className="flex items-center justify-center h-6 bg-ctan-dark-card text-muted-foreground cursor-default">
                         <ChevronDown className="w-4 h-4 rotate-180" />
                     </Select.ScrollUpButton>
 
-                    <Select.Viewport className="p-1">
+                    <Select.Viewport className="p-1 max-h-64 overflow-auto">
                         {/* Local Models */}
                         <Select.Group>
                             <Select.Label className="px-6 py-1.5 text-xs font-medium">
