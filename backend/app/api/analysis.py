@@ -224,9 +224,15 @@ async def get_available_models(
 
                 for model in models:
                     model_name = model.get("name", "")
-                    # Get size from backend service
-                    size_info = ollama_sizes.get(model_name, {})
-                    size_gb = size_info.get("size_gb")
+                    # Prefer size supplied by the tunnel payload (size_gb) then fall back to backend ollama_sizes
+                    size_gb = None
+                    try:
+                        size_gb = model.get("size_gb")
+                    except Exception:
+                        size_gb = None
+                    if size_gb is None:
+                        size_info = ollama_sizes.get(model_name, {})
+                        size_gb = size_info.get("size_gb")
 
                     available_models[model_name] = {
                         "name": model_name,
