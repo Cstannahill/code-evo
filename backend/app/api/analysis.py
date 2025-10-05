@@ -134,7 +134,7 @@ async def get_available_models(
         # and use it to fetch available models. This ensures that when a user
         # registers an external tunnel (Cloudflare/ngrok) the frontend will
         # see ollama models as available for that user.
-        tunnel_models: Optional[list] = None
+        tunnel_models: list = []
         try:
             # Only attempt if the ai service reports Ollama as unavailable
             # and we have an authenticated user
@@ -154,7 +154,22 @@ async def get_available_models(
                             )
                             if resp.status_code == 200:
                                 payload = resp.json()
-                                tunnel_models = payload.get("models", [])
+                                tunnel_models = payload.get("models") or []
+                                # Convert tunnel 'size' (bytes) to size_gb for frontend display
+                                for m in tunnel_models:
+                                    try:
+                                        byte_size = m.get("size")
+                                        if (
+                                            isinstance(byte_size, (int, float))
+                                            and byte_size > 0
+                                        ):
+                                            m["size_gb"] = round(
+                                                byte_size / (1024 * 1024 * 1024), 1
+                                            )
+                                    except Exception:
+                                        # ignore malformed size values
+                                        pass
+
                                 # Treat per-user tunnel as Ollama available for this request
                                 status["ollama_available"] = True
                                 logger.info(
