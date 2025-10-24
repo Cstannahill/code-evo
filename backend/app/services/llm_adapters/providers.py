@@ -4,13 +4,26 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import requests
 
 from app.core.config import settings
 
 from .base import LLMAdapterManager, LLMProvider, LLMProviderNotAvailable, build_adapter_manager
+
+try:  # pragma: no cover - optional dependency during startup
+    from app.services.secure_tunnel_service import (
+        SecureTunnelService,
+        TunnelStatus,
+        get_tunnel_service,
+    )
+except Exception:  # pragma: no cover - service is optional
+    SecureTunnelService = None  # type: ignore
+    TunnelStatus = None  # type: ignore
+
+    def get_tunnel_service() -> Optional["SecureTunnelService"]:  # type: ignore[misc]
+        return None
 
 logger = logging.getLogger(__name__)
 
@@ -33,26 +46,104 @@ class _BaseHTTPProvider(LLMProvider):
 class OllamaProvider(_BaseHTTPProvider):
     name = "ollama"
 
-    def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+        tunnel_service: Optional[SecureTunnelService] = None,
+    ) -> None:
         self.base_url = base_url or settings.OLLAMA_BASE_URL
         self.model = model or settings.OLLAMA_MODEL
+        self._tunnel_service: Optional[SecureTunnelService] = tunnel_service
+
+    def _ensure_tunnel_service(self) -> Optional[SecureTunnelService]:
+        if self._tunnel_service is None and SecureTunnelService is not None:
+            try:
+                self._tunnel_service = get_tunnel_service()
+            except Exception:  # pragma: no cover - optional during startup
+                self._tunnel_service = None
+        return self._tunnel_service
+
+    def _resolve_tunnel_target(self, user_id: Optional[str]) -> Optional[Tuple[str, str]]:
+        service = self._ensure_tunnel_service()
+        if service is None:
+            return None
+
+        if user_id:
+            try:
+                tunnel = service.get_tunnel(user_id)
+            except Exception:  # pragma: no cover - defensive
+                tunnel = None
+            if tunnel:
+                status = getattr(tunnel, "status", "")
+                if isinstance(status, str):
+                    connected = status.lower() == "connected"
+                else:
+                    connected = str(status).lower().endswith("connected")
+                if connected:
+                    tunnel_url = getattr(tunnel, "tunnel_url", None)
+                    if tunnel_url:
+                        return user_id, str(tunnel_url).rstrip("/")
+            return None
+
+        try:
+            all_status = service.get_all_tunnels_status()
+        except Exception:  # pragma: no cover - defensive
+            return None
+
+        for tunnel_user, status in (all_status or {}).items():
+            if not status:
+                continue
+            if bool(status.get("connected")) and status.get("tunnel_url"):
+                return tunnel_user, str(status["tunnel_url"]).rstrip("/")
+        return None
 
     def is_available(self) -> bool:
+        if self._resolve_tunnel_target(None):
+            return True
+
         try:
             response = requests.get(f"{self.base_url}/api/tags", timeout=5)
             response.raise_for_status()
-            return any(tag.get("name") == self.model for tag in response.json().get("models", [])) or True
+            models = response.json().get("models", [])
+            if not models:
+                return True
+            return any(tag.get("name") == self.model for tag in models)
         except Exception:
             logger.debug("Ollama provider not available", exc_info=True)
             return False
 
     async def acompletion(self, prompt: str, *, instructions: Optional[str] = None, **kwargs: Any) -> str:
+        user_id = kwargs.pop("user_id", None)
         payload = {
             "model": self.model,
             "prompt": self._build_prompt(prompt, instructions),
             "stream": False,
         }
-        data = await self._post_json(f"{self.base_url}/api/generate", headers={}, payload=payload)
+
+        tunnel_target = self._resolve_tunnel_target(user_id)
+        if tunnel_target:
+            service = self._ensure_tunnel_service()
+            if service is None:
+                raise LLMProviderNotAvailable("Tunnel service unavailable")
+
+            tunnel_user, _ = tunnel_target
+            result = await service.proxy_ollama_request(
+                tunnel_user,
+                "/api/generate",
+                method="POST",
+                data=payload,
+            )
+            if not result.get("success"):
+                raise LLMProviderNotAvailable(result.get("error", "Tunnel request failed"))
+            data = result.get("data") or {}
+        else:
+            data = await self._post_json(
+                f"{self.base_url}/api/generate",
+                headers={},
+                payload=payload,
+            )
+
         text = data.get("response") or data.get("text")
         if not text:
             raise LLMProviderNotAvailable("Ollama response did not contain text")
@@ -257,11 +348,18 @@ def build_default_manager() -> Optional[LLMAdapterManager]:
 
     priority_list = [item.strip() for item in settings.AI_PROVIDER_PRIORITY.split(",") if item.strip()]
     providers = []
+    tunnel_service: Optional[SecureTunnelService] = None
+
     for index, provider_name in enumerate(priority_list):
         priority = index  # lower index == higher priority
         provider_name_lower = provider_name.lower()
         if provider_name_lower == "ollama":
-            providers.append((priority, OllamaProvider()))
+            if tunnel_service is None:
+                try:
+                    tunnel_service = get_tunnel_service()
+                except Exception:  # pragma: no cover - defensive
+                    tunnel_service = None
+            providers.append((priority, OllamaProvider(tunnel_service=tunnel_service)))
         elif provider_name_lower == "openai":
             providers.append((priority, OpenAIProvider()))
         elif provider_name_lower == "anthropic":

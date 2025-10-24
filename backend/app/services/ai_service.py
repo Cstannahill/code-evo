@@ -217,6 +217,7 @@ class AIService:
         *,
         max_tokens: int = 800,
         temperature: float = 0.2,
+        user_id: Optional[str] = None,
     ) -> Optional[BaseModel]:
         if not self.llm_adapter:
             return None
@@ -228,6 +229,7 @@ class AIService:
             instructions=instructions,
             max_tokens=max_tokens,
             temperature=temperature,
+            user_id=user_id,
         )
 
     def _check_ollama_directly(self) -> None:
@@ -350,7 +352,13 @@ class AIService:
         return status
 
     @cache_analysis_result("pattern", ttl_seconds=3600)  # 1 hour cache
-    async def analyze_code_pattern(self, code: str, language: str) -> Dict[str, Any]:
+    async def analyze_code_pattern(
+        self,
+        code: str,
+        language: str,
+        *,
+        user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Analyze code for patterns with enhanced AI understanding
         Fix #7: Use AI for dynamic pattern complexity and skill assessment
@@ -373,6 +381,7 @@ class AIService:
                 prompt,
                 max_tokens=800,
                 temperature=0.15,
+                user_id=user_id,
             )
             if isinstance(ai_analysis, PatternAnalysis):
                 try:
@@ -552,7 +561,13 @@ class AIService:
                 return None
 
     @cache_analysis_result("quality", ttl_seconds=3600)  # 1 hour cache
-    async def analyze_code_quality(self, code: str, language: str) -> Dict[str, Any]:
+    async def analyze_code_quality(
+        self,
+        code: str,
+        language: str,
+        *,
+        user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Analyze code quality with detailed insights"""
 
         # Multi-model service removed - using single model analysis only
@@ -568,6 +583,7 @@ class AIService:
                 prompt,
                 max_tokens=900,
                 temperature=0.1,
+                user_id=user_id,
             )
             if isinstance(quality_analysis, CodeQualityAnalysis):
                 return {
@@ -676,7 +692,12 @@ class AIService:
                 return None
 
     async def analyze_evolution(
-        self, old_code: str, new_code: str, context: str = ""
+        self,
+        old_code: str,
+        new_code: str,
+        context: str = "",
+        *,
+        user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Analyze the evolution between two code versions
@@ -697,6 +718,7 @@ class AIService:
                 prompt,
                 max_tokens=900,
                 temperature=0.15,
+                user_id=user_id,
             )
             if isinstance(evolution_analysis, EvolutionAnalysis):
                 return {
@@ -1932,6 +1954,7 @@ class AIService:
         language: str,
         file_path: str = "unknown",
         use_ensemble: bool = True,
+        user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Perform analysis using AI ensemble for improved quality
@@ -1981,9 +2004,13 @@ class AIService:
             else:
                 # Fallback to single model analysis
                 if analysis_type == "pattern":
-                    return await self.analyze_code_pattern(code, language)
+                    return await self.analyze_code_pattern(
+                        code, language, user_id=user_id
+                    )
                 elif analysis_type == "quality":
-                    return await self.analyze_code_quality(code, language)
+                    return await self.analyze_code_quality(
+                        code, language, user_id=user_id
+                    )
                 elif analysis_type == "security":
                     return await self.analyze_security(code, file_path, language)
                 elif analysis_type == "performance":
@@ -1995,9 +2022,13 @@ class AIService:
             logger.error(f"Ensemble analysis failed: {e}")
             # Final fallback to basic single model
             if analysis_type == "pattern":
-                return await self.analyze_code_pattern(code, language)
+                return await self.analyze_code_pattern(
+                    code, language, user_id=user_id
+                )
             elif analysis_type == "quality":
-                return await self.analyze_code_quality(code, language)
+                return await self.analyze_code_quality(
+                    code, language, user_id=user_id
+                )
             elif analysis_type == "security":
                 return await self.analyze_security(code, file_path, language)
             elif analysis_type == "performance":

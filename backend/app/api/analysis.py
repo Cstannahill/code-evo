@@ -373,7 +373,10 @@ async def get_available_models(
 
 
 @router.post("/code")
-async def analyze_code_snippet(request: Dict[str, str]):
+async def analyze_code_snippet(
+    request: Dict[str, str],
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """Analyze a code snippet for patterns and store the result"""
     try:
         code = request.get("code", "")
@@ -383,8 +386,13 @@ async def analyze_code_snippet(request: Dict[str, str]):
 
         logger.info(f"🤖 Analyzing {len(code)} chars of {language} code")
         ai_service, _, ai_analysis_service, _ = get_services()
-        pattern_result = await ai_service.analyze_code_pattern(code, language)
-        quality_result = await ai_service.analyze_code_quality(code, language)
+        user_id = str(current_user.id) if current_user else None
+        pattern_result = await ai_service.analyze_code_pattern(
+            code, language, user_id=user_id
+        )
+        quality_result = await ai_service.analyze_code_quality(
+            code, language, user_id=user_id
+        )
 
         analysis_id = None
         try:
@@ -607,7 +615,10 @@ async def benchmark_model(model_id: str, test_data: Dict[str, Any]):
 
 
 @router.post("/evolution")
-async def analyze_code_evolution(request: Dict[str, Any]):
+async def analyze_code_evolution(
+    request: Dict[str, Any],
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """Analyze evolution between two code versions"""
     try:
         ai_service, _, _, _ = get_services()
@@ -618,8 +629,9 @@ async def analyze_code_evolution(request: Dict[str, Any]):
             raise HTTPException(
                 status_code=400, detail="Both old_code and new_code are required"
             )
+        user_id = str(current_user.id) if current_user else None
         evolution_result = await ai_service.analyze_evolution(
-            old_code, new_code, context
+            old_code, new_code, context, user_id=user_id
         )
         return {
             "evolution_analysis": evolution_result,

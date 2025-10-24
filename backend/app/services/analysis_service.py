@@ -92,6 +92,7 @@ class AnalysisService:
         commit_limit: int = 100,
         candidate_limit: Optional[int] = 20,
         use_enhanced: bool = True,
+        user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Clone the repository, extract history, and run AI analyses.
@@ -181,11 +182,15 @@ class AnalysisService:
 
             # Run AI analyses in parallel
             pattern_tasks = [
-                self.ai.analyze_code_pattern(c["code"], c["language"])
+                self.ai.analyze_code_pattern(
+                    c["code"], c["language"], user_id=user_id
+                )
                 for c in analysis_candidates
             ]
             quality_tasks = [
-                self.ai.analyze_code_quality(c["code"], c["language"])
+                self.ai.analyze_code_quality(
+                    c["code"], c["language"], user_id=user_id
+                )
                 for c in analysis_candidates
             ]
             security_tasks = [
@@ -236,7 +241,10 @@ class AnalysisService:
                     old = analysis_candidates[0]
                     new = analysis_candidates[-1]
                     evo = await self.ai.analyze_evolution(
-                        old["code"], new["code"], context=repo_url
+                        old["code"],
+                        new["code"],
+                        context=repo_url,
+                        user_id=user_id,
                     )
                     evolution.append(evo)
                     logger.info(f"📊 Evolution analysis completed")
@@ -483,6 +491,7 @@ class AnalysisService:
         local_path: str,
         commit_limit: int = 50,
         candidate_limit: Optional[int] = 10,
+        user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Analyze an already-cloned local repository at `local_path`.
@@ -514,11 +523,15 @@ class AnalysisService:
         logger.info(f"🤖 Running AI analysis on {len(analysis_candidates)} patterns...")
 
         pattern_tasks = [
-            self.ai.analyze_code_pattern(c["code"], c["language"])
+            self.ai.analyze_code_pattern(
+                c["code"], c["language"], user_id=user_id
+            )
             for c in analysis_candidates
         ]
         quality_tasks = [
-            self.ai.analyze_code_quality(c["code"], c["language"])
+            self.ai.analyze_code_quality(
+                c["code"], c["language"], user_id=user_id
+            )
             for c in analysis_candidates
         ]
 
@@ -534,7 +547,10 @@ class AnalysisService:
             old = analysis_candidates[0]
             new = analysis_candidates[-1]
             evo = await self.ai.analyze_evolution(
-                old["code"], new["code"], context=local_path
+                old["code"],
+                new["code"],
+                context=local_path,
+                user_id=user_id,
             )
             evolution.append(evo)
         report["evolution_analyses"] = evolution
@@ -572,6 +588,7 @@ class AnalysisService:
         commit_limit: int = 100,
         candidate_limit: Optional[int] = 20,
         force_full: bool = False,
+        user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Perform incremental analysis of repository, only analyzing changed files
@@ -615,7 +632,13 @@ class AnalysisService:
                         f"🚀 Performing incremental analysis of {len(changes)} changes"
                     )
                     return await self._perform_incremental_analysis(
-                        repo, repo_url, branch, changes, current_commit, start_time
+                        repo,
+                        repo_url,
+                        branch,
+                        changes,
+                        current_commit,
+                        start_time,
+                        user_id=user_id,
                     )
                 elif not changes:
                     logger.info("✅ No changes detected since last analysis")
@@ -635,7 +658,11 @@ class AnalysisService:
             # Fall back to full analysis
             logger.info("🔄 Falling back to full analysis")
             full_report = await self.analyze_repository(
-                repo_url, branch, commit_limit, candidate_limit
+                repo_url,
+                branch,
+                commit_limit,
+                candidate_limit,
+                user_id=user_id,
             )
 
             # Create snapshot for future incremental analysis
@@ -665,6 +692,7 @@ class AnalysisService:
         changes: List,
         current_commit: str,
         start_time: float,
+        user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Perform the actual incremental analysis with token logging
@@ -689,7 +717,11 @@ class AnalysisService:
                 logger.warning(
                     "No previous snapshot found, falling back to full analysis"
                 )
-                return await self.analyze_repository(repo_url, branch)
+                return await self.analyze_repository(
+                    repo_url,
+                    branch,
+                    user_id=user_id,
+                )
 
             # Get basic repository info (may have changed)
             report = {}
@@ -720,11 +752,15 @@ class AnalysisService:
 
             # Run AI analyses on changed files only
             pattern_tasks = [
-                self.ai.analyze_code_pattern(c["code"], c["language"])
+                self.ai.analyze_code_pattern(
+                    c["code"], c["language"], user_id=user_id
+                )
                 for c in incremental_candidates
             ]
             quality_tasks = [
-                self.ai.analyze_code_quality(c["code"], c["language"])
+                self.ai.analyze_code_quality(
+                    c["code"], c["language"], user_id=user_id
+                )
                 for c in incremental_candidates
             ]
             security_tasks = [

@@ -37,7 +37,7 @@ from app.core.middleware import (
     ConnectionLoggingMiddleware,
     RequestValidationMiddleware,
 )
-from app.api import auth, repositories, analysis, ollama_tunnel, tunnel
+from app.api import auth, repositories, analysis, tunnel
 from app.core.config import settings
 
 # Configure logging with more detail
@@ -442,7 +442,6 @@ async def ip_check():
 app.include_router(auth.router)
 app.include_router(repositories.router)
 app.include_router(analysis.router)
-app.include_router(ollama_tunnel.router)
 app.include_router(tunnel.router)  # Secure tunnel management
 
 

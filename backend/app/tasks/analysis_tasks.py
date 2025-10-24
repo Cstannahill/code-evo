@@ -38,6 +38,7 @@ async def analyze_repository_background(
     commit_limit: int,
     candidate_limit: int,
     model_id: Optional[str] = None,  # Add model parameter
+    user_id: Optional[str] = None,
 ):
     """Background task with model selection support and MongoDB integration"""
 
@@ -93,7 +94,11 @@ async def analyze_repository_background(
 
             # Run the analysis - this will automatically persist to MongoDB
             result = await analysis_service.analyze_repository(
-                repo_url, branch, commit_limit, candidate_limit
+                repo_url,
+                branch,
+                commit_limit,
+                candidate_limit,
+                user_id=user_id,
             )
 
         except asyncio.CancelledError:
@@ -238,6 +243,7 @@ async def analyze_repository_incremental_background(
     commit_limit: int,
     candidate_limit: int,
     model_id: Optional[str] = None,
+    user_id: Optional[str] = None,
     include_security_scan: bool = True,
     include_performance_scan: bool = True,
     include_architectural_scan: bool = True,
@@ -301,7 +307,11 @@ async def analyze_repository_incremental_background(
 
             # Run the incremental analysis - this will automatically persist to MongoDB
             result = await analysis_service.analyze_repository_incremental(
-                repo_url, branch, commit_limit, candidate_limit
+                repo_url,
+                branch,
+                commit_limit,
+                candidate_limit,
+                user_id=user_id,
             )
 
         except asyncio.CancelledError:
