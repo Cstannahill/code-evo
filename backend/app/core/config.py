@@ -30,10 +30,23 @@ class Settings(BaseSettings):
     # OpenAI (optional)
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_MODEL: str = "gpt-4"
+    OPENAI_API_BASE: Optional[str] = None
     OPENAI_MAX_TOKENS: str = "2000"
-    
+
     # Anthropic (optional)
     ANTHROPIC_API_KEY: Optional[str] = None
+    ANTHROPIC_MODEL: str = "claude-3-sonnet-20240229"
+
+    # Amazon Bedrock (optional)
+    BEDROCK_MODEL_ID: Optional[str] = None
+    BEDROCK_REGION: Optional[str] = None
+
+    # Google Vertex (optional)
+    VERTEX_MODEL: Optional[str] = None
+    VERTEX_SERVICE_ACCOUNT_JSON: Optional[str] = None
+
+    # Provider orchestration
+    AI_PROVIDER_PRIORITY: str = "ollama,openai,anthropic"
     
     # Security
     SECRET_KEY: str = "dev-secret-key-change-in-production"

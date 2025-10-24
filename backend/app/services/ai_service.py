@@ -3,7 +3,7 @@ import logging
 import re
 import asyncio
 import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type
 
 # Optional dependency used for Ollama HTTP checks
 try:
@@ -37,6 +37,7 @@ from app.services.enhanced_pattern_detector import EnhancedPatternDetector
 from app.services.enhanced_insights_generator import EnhancedInsightsGenerator
 from app.services.enhanced_code_quality_analyzer import EnhancedCodeQualityAnalyzer
 from app.services.cache_service import cache_analysis_result
+from app.services.llm_adapters.providers import build_default_manager
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,10 @@ class AIService:
         # Model selection support
         self.preferred_model: Optional[str] = None
         # Multi-model service removed
+
+        # Unified LLM adapter layer
+        self.llm_adapter = build_default_manager()
+        self._schema_instruction_cache: Dict[str, str] = {}
 
         self._initialize_services()
 
@@ -192,6 +197,38 @@ class AIService:
         except Exception as e:
             logger.error(f"Error initializing AI services: {e}")
             self.ollama_available = False
+
+    def _get_schema_instruction(self, model: Type[BaseModel]) -> str:
+        cache_key = model.__name__
+        if cache_key not in self._schema_instruction_cache:
+            schema = json.dumps(model.model_json_schema(), indent=2)
+            self._schema_instruction_cache[cache_key] = (
+                "You are an expert software analysis system. "
+                "Return a single JSON object that conforms to the following schema. "
+                "Do not include markdown or prose.\n"
+                f"Schema:\n{schema}"
+            )
+        return self._schema_instruction_cache[cache_key]
+
+    async def _structured_completion(
+        self,
+        model: Type[BaseModel],
+        prompt: str,
+        *,
+        max_tokens: int = 800,
+        temperature: float = 0.2,
+    ) -> Optional[BaseModel]:
+        if not self.llm_adapter:
+            return None
+
+        instructions = self._get_schema_instruction(model)
+        return await self.llm_adapter.astructured_completion(
+            prompt,
+            model,
+            instructions=instructions,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
 
     def _check_ollama_directly(self) -> None:
         """Check for Ollama availability directly via HTTP API - equivalent to 'ollama list'"""
@@ -306,6 +343,8 @@ class AIService:
             "timestamp": self._get_timestamp(),
             "available_models_count": available_models_count,
             "openai_models_available": openai_models_available,
+            "llm_adapter_available": bool(self.llm_adapter and self.llm_adapter.has_providers),
+            "llm_providers": self.llm_adapter.provider_names if self.llm_adapter else [],
         }
 
         return status
@@ -319,6 +358,51 @@ class AIService:
         detected_patterns = self._detect_patterns_simple(code, language)
 
         # Multi-model service removed - using single model analysis only
+
+        # Prefer unified adapter when available
+        if self.llm_adapter and self.llm_adapter.has_providers:
+            prompt = (
+                f"Analyse the following {language} code snippet and return detected patterns, complexity score "
+                f"(0-10) and actionable suggestions.\n"
+                f"Heuristic detections: {detected_patterns or ['none']}\n"
+                "Respond using the schema provided in the system instructions.\n\n"
+                f"```{language}\n{code[:2000]}\n```"
+            )
+            ai_analysis = await self._structured_completion(
+                PatternAnalysis,
+                prompt,
+                max_tokens=800,
+                temperature=0.15,
+            )
+            if isinstance(ai_analysis, PatternAnalysis):
+                try:
+                    complexity_score = float(ai_analysis.complexity_score)
+                except Exception:
+                    complexity_score = 5.0
+
+                if self.embeddings and self.collection:
+                    await self.store_pattern_embedding(
+                        code,
+                        ai_analysis.patterns,
+                        {
+                            "language": language,
+                            "complexity": complexity_score,
+                            "skill_level": "advanced" if complexity_score >= 8 else "beginner" if complexity_score <= 3 else "intermediate",
+                        },
+                    )
+
+                combined = list(set(detected_patterns + ai_analysis.patterns))
+                return {
+                    "detected_patterns": detected_patterns,
+                    "ai_patterns": ai_analysis.patterns,
+                    "combined_patterns": combined,
+                    "complexity_score": complexity_score,
+                    "skill_level": "advanced"
+                    if complexity_score >= 8
+                    else "beginner" if complexity_score <= 3 else "intermediate",
+                    "suggestions": ai_analysis.suggestions,
+                    "ai_powered": True,
+                }
 
         # Fallback to Ollama if available
         if self.ollama_available and self.llm is not None:
@@ -473,6 +557,27 @@ class AIService:
 
         # Multi-model service removed - using single model analysis only
 
+        if self.llm_adapter and self.llm_adapter.has_providers:
+            prompt = (
+                f"Evaluate the maintainability, readability and testing posture of the following {language} code snippet. "
+                "Provide issues and recommended improvements. Respond using the schema provided in the system instructions.\n\n"
+                f"```{language}\n{code[:2000]}\n```"
+            )
+            quality_analysis = await self._structured_completion(
+                CodeQualityAnalysis,
+                prompt,
+                max_tokens=900,
+                temperature=0.1,
+            )
+            if isinstance(quality_analysis, CodeQualityAnalysis):
+                return {
+                    "quality_score": quality_analysis.quality_score,
+                    "readability": quality_analysis.readability,
+                    "issues": quality_analysis.issues or quality_analysis.issues_found,
+                    "improvements": quality_analysis.improvements or quality_analysis.recommendations,
+                    "ai_powered": True,
+                }
+
         # Fallback to Ollama if available
         if self.ollama_available and self.llm is not None:
             try:
@@ -576,6 +681,33 @@ class AIService:
         """
         Analyze the evolution between two code versions
         """
+        if self.llm_adapter and self.llm_adapter.has_providers:
+            prompt = (
+                "Compare the following code revisions and describe how the implementation evolved. "
+                "Identify complexity changes, new patterns, notable improvements and a short learning insight. "
+                "Respond using the schema from the system instructions.\n\n"
+                "Previous version:\n"
+                f"```\n{old_code[:1500]}\n```\n\n"
+                "Updated version:\n"
+                f"```\n{new_code[:1500]}\n```\n"
+                f"Context: {context or 'N/A'}"
+            )
+            evolution_analysis = await self._structured_completion(
+                EvolutionAnalysis,
+                prompt,
+                max_tokens=900,
+                temperature=0.15,
+            )
+            if isinstance(evolution_analysis, EvolutionAnalysis):
+                return {
+                    "complexity_change": evolution_analysis.complexity_change,
+                    "new_patterns": evolution_analysis.new_patterns,
+                    "improvements": evolution_analysis.improvements,
+                    "learning_insights": evolution_analysis.learning_insights,
+                    "ai_powered": True,
+                    "timestamp": self._get_timestamp(),
+                }
+
         if self.ollama_available and self.llm is not None:
             try:
                 from langchain.output_parsers import (
