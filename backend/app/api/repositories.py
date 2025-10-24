@@ -224,6 +224,7 @@ async def create_repository(
                 100,  # commit_limit
                 20,  # candidate_limit
                 repo_data.model_id,
+                str(current_user.id) if current_user else None,
             )
             return convert_objectids_to_strings(existing)
 
@@ -256,6 +257,7 @@ async def create_repository(
             100,  # commit_limit
             20,  # candidate_limit
             repo_data.model_id,
+            str(current_user.id) if current_user else None,
         )
 
         # Convert ObjectIds to strings before returning
@@ -412,6 +414,7 @@ async def submit_repository_for_analysis(
                 submit_request.commit_limit,
                 submit_request.candidate_limit,
                 submit_request.model_id,
+                str(current_user.id) if current_user else None,
                 submit_request.include_security_scan,
                 submit_request.include_performance_scan,
                 submit_request.include_architectural_scan,
@@ -424,6 +427,7 @@ async def submit_repository_for_analysis(
                 submit_request.commit_limit,
                 submit_request.candidate_limit,
                 submit_request.model_id,
+                str(current_user.id) if current_user else None,
             )
 
         # Convert ObjectIds to strings before returning
@@ -1321,6 +1325,7 @@ async def add_repository_to_user(
                         100,
                         20,
                         repo_data.model_id,
+                        str(current_user.id) if current_user else None,
                     )
             else:
                 # Create user association
@@ -1374,6 +1379,7 @@ async def add_repository_to_user(
                 100,
                 20,
                 repo_data.model_id,
+                str(current_user.id),
             )
 
         # Get user's API keys for analysis
